@@ -38,7 +38,7 @@ const ClientLayout = () => {
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
-            <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-gray-800 text-white shadow-md overflow-y-auto flex flex-col`}>
+            <div className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-gray-800 text-white shadow-md overflow-y-auto flex flex-col`}>
                 <div className="p-6">
                     <h1 className="text-2xl font-bold text-green-400">Farmer Panel</h1>
                 </div>
@@ -85,7 +85,7 @@ const ClientLayout = () => {
                 </nav>
             </div>
 
-            <div className="flex flex-col flex-1 overflow-hidden w-full relative">
+            <div className="flex flex-col flex-1 overflow-hidden relative">
                 <header className="md:hidden bg-gray-800 shadow-sm p-4 flex items-center justify-between z-20">
                     <h1 className="text-xl font-bold text-green-400">Farmer Panel</h1>
                     <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-white focus:outline-none focus:bg-gray-700 rounded-md">

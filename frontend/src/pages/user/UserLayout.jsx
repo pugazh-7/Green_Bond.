@@ -42,7 +42,7 @@ const UserLayout = () => {
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
-            <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-white shadow-md overflow-y-auto flex flex-col`}>
+            <div className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-white shadow-md overflow-y-auto flex flex-col`}>
                 <div className="p-6">
                     <div className="flex items-center gap-3 mb-2">
                         <img src="/green_bond_logo.png" alt="Green Bond" className="w-16 h-16" />
@@ -100,7 +100,7 @@ const UserLayout = () => {
                 </nav>
             </div>
 
-            <div className="flex flex-col flex-1 overflow-hidden w-full relative">
+            <div className="flex flex-col flex-1 overflow-hidden relative">
                 {/* Mobile Header / Toggle */}
                 <header className="md:hidden bg-white shadow-sm p-4 flex items-center justify-between z-20">
                     <div className="flex items-center gap-2">
@@ -143,6 +143,25 @@ const UserLayout = () => {
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
                         </svg>
+                    </button>
+                )}
+
+                {/* Mobile Floating Cart Button */}
+                {cartCount > 0 && (
+                    <button
+                        onClick={() => navigate('/user/cart')}
+                        className={`fixed ${showScrollButton ? 'bottom-24' : 'bottom-8'} right-8 z-50 md:hidden p-4 bg-teal-600 text-white rounded-full shadow-2xl hover:bg-teal-700 transition-all duration-300 animate-bounce cursor-pointer flex items-center justify-center`}
+                        title="View Cart"
+                        aria-label="View Cart"
+                    >
+                        <div className="relative">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                {cartCount}
+                            </span>
+                        </div>
                     </button>
                 )}
                 </div>
