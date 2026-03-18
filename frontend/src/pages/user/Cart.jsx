@@ -54,6 +54,10 @@ const Cart = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('UPI'); // UPI, Card, NetBanking, COD
     const [isProcessing, setIsProcessing] = useState(false);
+    const [upiId, setUpiId] = useState('');
+    const [isUpiVerified, setIsUpiVerified] = useState(false);
+    const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
+    const [showQR, setShowQR] = useState(false);
 
     const handlePlaceOrder = () => {
         if (cartItems.length === 0) return;
@@ -66,6 +70,19 @@ const Cart = () => {
     const checkPaymentStatus = (method) => {
         if (method === 'COD') return 'Pending';
         return 'Paid';
+    };
+
+    const verifyUpi = () => {
+        if (!upiId.includes('@')) {
+            toast.error("Please enter a valid UPI ID (e.g., name@okaxis)");
+            return;
+        }
+        setIsVerifyingUpi(true);
+        setTimeout(() => {
+            setIsVerifyingUpi(false);
+            setIsUpiVerified(true);
+            toast.success("UPI ID Verified!");
+        }, 1500);
     };
 
     const confirmOrder = () => {
@@ -234,14 +251,58 @@ const Cart = () => {
 
                                 <div className="p-6 space-y-3">
                                     {/* UPI Option */}
-                                    <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'UPI' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <input type="radio" name="payment" value="UPI" checked={paymentMethod === 'UPI'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
-                                        <div className="flex-1">
-                                            <span className="font-bold text-gray-900 block">UPI</span>
-                                            <span className="text-xs text-gray-500">Google Pay, PhonePe, Paytm</span>
-                                        </div>
-                                        <span className="text-2xl">📱</span>
-                                    </label>
+                                    <div className={`p-4 rounded-xl border-2 transition-all ${paymentMethod === 'UPI' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
+                                        <label className="flex items-center gap-4 cursor-pointer">
+                                            <input type="radio" name="payment" value="UPI" checked={paymentMethod === 'UPI'} onChange={(e) => { setPaymentMethod(e.target.value); setIsUpiVerified(false); }} className="w-5 h-5 text-green-600 focus:ring-green-500" />
+                                            <div className="flex-1">
+                                                <span className="font-bold text-gray-900 block">UPI</span>
+                                                <span className="text-xs text-gray-500">Google Pay, PhonePe, Paytm</span>
+                                            </div>
+                                            <span className="text-2xl">📱</span>
+                                        </label>
+                                        
+                                        {paymentMethod === 'UPI' && (
+                                            <div className="mt-4 flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Enter UPI ID (e.g. name@okaxis)" 
+                                                    value={upiId}
+                                                    onChange={(e) => { setUpiId(e.target.value); setIsUpiVerified(false); }}
+                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                                                />
+                                                <button 
+                                                    onClick={verifyUpi}
+                                                    disabled={isVerifyingUpi || isUpiVerified}
+                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${isUpiVerified ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50'}`}
+                                                >
+                                                    {isVerifyingUpi ? 'Verifying...' : isUpiVerified ? '✓ Verified' : 'Verify'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* QR Option */}
+                                    <div className={`p-4 rounded-xl border-2 transition-all ${paymentMethod === 'QR' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
+                                        <label className="flex items-center gap-4 cursor-pointer">
+                                            <input type="radio" name="payment" value="QR" checked={paymentMethod === 'QR'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
+                                            <div className="flex-1">
+                                                <span className="font-bold text-gray-900 block">Scan QR Code</span>
+                                                <span className="text-xs text-gray-500">Instant payment via any app</span>
+                                            </div>
+                                            <span className="text-2xl">🔳</span>
+                                        </label>
+                                        
+                                        {paymentMethod === 'QR' && (
+                                            <div className="mt-4 flex flex-col items-center p-4 bg-white rounded-xl border border-dashed border-gray-200">
+                                                <img 
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=greenbond@bank&pn=GreenBond%20Marketplace&am=${calculateTotal()}&cu=INR`} 
+                                                    alt="Payment QR" 
+                                                    className="w-32 h-32 mb-2"
+                                                />
+                                                <p className="text-[10px] text-gray-400 font-medium">Scan with any UPI App to Pay ₹{calculateTotal().toLocaleString()}</p>
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Card Option */}
                                     <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'Card' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
@@ -281,8 +342,8 @@ const Cart = () => {
                                     </div>
                                     <button
                                         onClick={confirmOrder}
-                                        disabled={isProcessing}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-70 flex justify-center items-center gap-2"
+                                        disabled={isProcessing || (paymentMethod === 'UPI' && !isUpiVerified)}
+                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                     >
                                         {isProcessing ? (
                                             <>
@@ -290,10 +351,10 @@ const Cart = () => {
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                 </svg>
-                                                Processing...
+                                                {paymentMethod === 'QR' ? 'Verifying Payment...' : 'Processing...'}
                                             </>
                                         ) : (
-                                            `Pay & Confirm Order`
+                                            (paymentMethod === 'UPI' && !isUpiVerified) ? 'Please Verify UPI ID' : 'Pay & Confirm Order'
                                         )}
                                     </button>
                                 </div>
