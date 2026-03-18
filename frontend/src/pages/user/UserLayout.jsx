@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom';
 
 const UserLayout = () => {
     const navigate = useNavigate();
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const scrollRef = React.useRef(null);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
 
@@ -35,7 +36,13 @@ const UserLayout = () => {
 
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden">
-            <div className="w-64 bg-white shadow-md overflow-y-auto">
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-30 md:hidden" 
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+            <div className={`fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-white shadow-md overflow-y-auto flex flex-col`}>
                 <div className="p-6">
                     <div className="flex items-center gap-3 mb-2">
                         <img src="/green_bond_logo.png" alt="Green Bond" className="w-16 h-16" />
@@ -92,8 +99,23 @@ const UserLayout = () => {
                     </button>
                 </nav>
             </div>
-            <div
-                ref={scrollRef}
+
+            <div className="flex flex-col flex-1 overflow-hidden w-full relative">
+                {/* Mobile Header / Toggle */}
+                <header className="md:hidden bg-white shadow-sm p-4 flex items-center justify-between z-20">
+                    <div className="flex items-center gap-2">
+                        <img src="/green_bond_logo.png" alt="Green Bond" className="w-8 h-8" />
+                        <h1 className="text-xl font-bold text-green-700">Green Bond</h1>
+                    </div>
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-600 focus:outline-none focus:bg-gray-100 rounded-md">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </header>
+
+                <div
+                    ref={scrollRef}
                 onScroll={(e) => {
                     if (e.target.scrollTop > 300) {
                         setShowScrollButton(true);
@@ -101,7 +123,7 @@ const UserLayout = () => {
                         setShowScrollButton(false);
                     }
                 }}
-                className="flex-1 overflow-y-auto p-8 relative scroll-smooth"
+                className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth"
             >
                 <Outlet />
 
@@ -123,6 +145,7 @@ const UserLayout = () => {
                         </svg>
                     </button>
                 )}
+                </div>
             </div>
         </div>
     );
