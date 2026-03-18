@@ -16,21 +16,21 @@ const Layout = () => {
             {/* Navigation */}
             <nav className="bg-white shadow-sm sticky top-0 z-50">
                 <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-16">
-                    <div className="flex justify-between h-16">
+                    <div className="flex justify-between h-14 md:h-16">
                         <div className="flex items-center">
                             <Link
                                 to="/"
                                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                                 className="flex items-center gap-2"
                             >
-                                <img src="/green_bond_logo.png" alt="Green Bond" className="w-14 h-14 md:w-16 md:h-16 2xl:w-20 2xl:h-20" />
-                                <span className="text-2xl 2xl:text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-500 bg-clip-text text-transparent">
+                                <img src="/green_bond_logo.png" alt="Green Bond" className="w-10 h-10 md:w-12 md:h-12 2xl:w-16 2xl:h-16" />
+                                <span className="text-xl 2xl:text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-500 bg-clip-text text-transparent">
                                     GreenBond
                                 </span>
                             </Link>
                         </div>
 
-                        <div className="hidden md:flex items-center space-x-8 2xl:space-x-12 2xl:text-xl">
+                        <div className="hidden md:flex items-center space-x-6 2xl:space-x-10 2xl:text-lg">
                             <Link
                                 to="/"
                                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
