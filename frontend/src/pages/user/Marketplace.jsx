@@ -199,20 +199,20 @@ const Marketplace = () => {
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 2xl:gap-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6 xl:gap-8">
                     {activeTab === 'bonds' ? (
                         // BONDS GRID
                         filteredBonds.map(bond => {
                             const progress = (bond.raisedAmount / bond.targetAmount) * 100;
                             return (
                                 <div key={bond.id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
-                                    <div className="h-48 2xl:h-64 overflow-hidden relative">
+                                    <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
                                         <img src={bond.image} alt={bond.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-green-700 uppercase">{bond.category}</div>
                                     </div>
                                     <div className="p-5 flex-1 flex flex-col">
-                                        <h3 className="text-lg 2xl:text-2xl font-bold text-gray-900 mb-1 2xl:mb-3 leading-tight">{bond.title}</h3>
-                                        <p className="text-sm 2xl:text-lg text-gray-500 mb-4">{bond.farmer}</p>
+                                        <h3 className="text-lg xl:text-xl font-bold text-gray-900 mb-1 leading-tight">{bond.title}</h3>
+                                        <p className="text-sm xl:text-base text-gray-500 mb-4">{bond.farmer}</p>
                                         <div className="grid grid-cols-2 gap-2 mb-4">
                                             <div className="bg-green-50 p-2 rounded text-center"><p className="text-xs text-gray-500 uppercase font-semibold">ROI</p><p className="text-sm font-bold text-green-700">{bond.roi}</p></div>
                                             <div className="bg-blue-50 p-2 rounded text-center"><p className="text-xs text-gray-500 uppercase font-semibold">Term</p><p className="text-sm font-bold text-blue-700">{bond.duration}</p></div>
@@ -234,14 +234,14 @@ const Marketplace = () => {
                         // PRODUCE GRID
                         filteredProducts.map(item => (
                             <div key={item.id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
-                                <div className="h-56 2xl:h-72 overflow-hidden relative">
+                                <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
                                     <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute top-4 left-4 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm">{item.category}</div>
                                 </div>
                                 <div className="p-5 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-2">
-                                        <h3 className="text-lg 2xl:text-2xl font-bold text-gray-900 leading-tight">{item.title}</h3>
-                                        <div className="flex flex-col items-end gap-1">
+                                        <h3 className="text-lg xl:text-xl font-bold text-gray-900 leading-tight pr-2">{item.title}</h3>
+                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                             <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">{item.minOrder} Min</span>
                                             {item.orderType === 'bulk' && (
                                                 <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Bulk Only</span>
@@ -253,12 +253,12 @@ const Marketplace = () => {
                                         {item.location}
                                     </p>
 
-                                    <div className="mt-auto flex items-center justify-between">
+                                    <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-gray-50">
                                         <div>
-                                            <p className="text-xs 2xl:text-base text-gray-400 font-medium">Price per {getUnit(item.price)}</p>
-                                            <p className="text-2xl 2xl:text-4xl font-bold text-gray-900">{item.price}</p>
+                                            <p className="text-xs text-gray-400 font-medium mb-0.5">Price per {getUnit(item.price)}</p>
+                                            <p className="text-2xl font-bold text-gray-900 truncate" title={item.price}>{item.price}</p>
                                         </div>
-                                        <button onClick={() => handleAction(item, 'produce')} className="px-6 py-2 2xl:px-8 2xl:py-4 2xl:text-xl bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors shadow-green-200 shadow-lg">
+                                        <button onClick={() => handleAction(item, 'produce')} className="w-full py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm text-center">
                                             Buy Now
                                         </button>
                                     </div>
