@@ -25,7 +25,7 @@ const ClientLogin = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login-farmer', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-farmer`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

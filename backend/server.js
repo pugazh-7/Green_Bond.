@@ -21,7 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 
 // Database Connection
-mongoose.connect('mongodb://127.0.0.1:27017/green_bond')
+mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond')
     .then(() => console.log('MongoDB connected successfully'))
     .catch(err => console.error('MongoDB connection error:', err));
 

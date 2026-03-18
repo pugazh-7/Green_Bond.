@@ -32,7 +32,7 @@ const UserLogin = () => {
         const cleanEmailInput = email.trim().toLowerCase();
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login-user', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-user`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

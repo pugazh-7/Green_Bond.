@@ -19,7 +19,7 @@ const DeliveryLogin = () => {
         const cleanEmail = email.trim().toLowerCase();
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login-delivery', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-delivery`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
