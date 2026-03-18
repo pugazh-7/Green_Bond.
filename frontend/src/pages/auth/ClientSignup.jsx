@@ -50,7 +50,7 @@ const ClientSignup = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#F4F9F4] py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border-t-4 border-green-600">
+            <div className="max-w-md 2xl:max-w-xl w-full bg-white p-8 2xl:p-12 2xl:space-y-4 rounded-2xl shadow-xl border-t-4 border-green-600">
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold text-gray-900">Farmer Registration</h2>
                     <p className="text-gray-600">Join GreenBond to sell your products.</p>

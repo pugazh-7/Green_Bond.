@@ -92,7 +92,7 @@ const UserSignup = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 bg-white/80 backdrop-blur-lg p-10 rounded-3xl shadow-2xl border border-white/50 relative">
+            <div className="max-w-md 2xl:max-w-xl w-full space-y-8 2xl:space-y-12 bg-white/80 backdrop-blur-lg p-10 2xl:p-14 rounded-3xl shadow-2xl border border-white/50 relative">
                 <Link to="/" className="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors">
                     Back
                 </Link>

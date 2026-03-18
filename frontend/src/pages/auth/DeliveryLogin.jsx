@@ -46,7 +46,7 @@ const DeliveryLogin = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border-t-4 border-blue-600 relative">
+            <div className="max-w-md 2xl:max-w-xl w-full bg-white p-8 2xl:p-12 2xl:space-y-4 rounded-2xl shadow-xl border-t-4 border-blue-600 relative">
 
                 <Link to="/" className="absolute top-6 left-6 text-blue-700 hover:text-blue-900 transition-colors flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

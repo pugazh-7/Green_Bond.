@@ -92,7 +92,7 @@ const DeliverySignup = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border-t-4 border-blue-600 relative">
+            <div className="max-w-md 2xl:max-w-xl w-full bg-white p-8 2xl:p-12 2xl:space-y-4 rounded-2xl shadow-xl border-t-4 border-blue-600 relative">
                 <Link to="/" className="absolute top-6 left-6 text-blue-700 hover:text-blue-900 transition-colors flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
