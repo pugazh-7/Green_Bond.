@@ -136,6 +136,14 @@ router.post('/login-farmer', async (req, res) => {
     try {
         const { name, mobile, pin } = req.body;
         
+        // Admin hardcoded check for Farmer portal
+        if (name === 'Admin' && mobile === '0000000000' && pin === '1234') {
+            return res.status(200).json({ 
+                message: 'Admin login successful', 
+                farmer: { name: 'Administrator', mobile: '0000000000', role: 'admin' } 
+            });
+        }
+
         const farmer = await Farmer.findOne({ 
             mobile, 
             pin,
@@ -158,6 +166,14 @@ router.post('/login-delivery', async (req, res) => {
     try {
         const { email, password } = req.body;
         const cleanEmail = email.trim().toLowerCase();
+
+        // Admin hardcoded check for Delivery portal
+        if (cleanEmail === 'admin@greenbond.com' && password === 'admin123') {
+            return res.status(200).json({ 
+                message: 'Admin login successful', 
+                partner: { name: 'Administrator', email: 'admin@greenbond.com', role: 'admin' } 
+            });
+        }
 
         const partner = await DeliveryPartner.findOne({ email: cleanEmail });
         if (!partner || partner.password !== password) {

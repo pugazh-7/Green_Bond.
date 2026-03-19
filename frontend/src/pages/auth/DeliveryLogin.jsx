@@ -51,9 +51,11 @@ const DeliveryLogin = () => {
             const data = await response.json();
 
             if (response.ok) {
-                const partner = data.partner;
-                localStorage.setItem('userRole', 'delivery');
-                localStorage.setItem('green_bond_current_user', JSON.stringify(partner));
+                const user = data.partner || data.user;
+                const role = user.role || 'delivery';
+                
+                localStorage.setItem('userRole', role);
+                localStorage.setItem('green_bond_current_user', JSON.stringify(user));
                 
                 if (rememberMe) {
                     localStorage.setItem('remembered_delivery_email', cleanEmail);
@@ -61,8 +63,12 @@ const DeliveryLogin = () => {
                     localStorage.removeItem('remembered_delivery_email');
                 }
 
-                navigate('/delivery');
-                toast.success(`Welcome back, ${partner.name}!`);
+                if (role === 'admin') {
+                    navigate('/admin/dashboard');
+                } else {
+                    navigate('/delivery');
+                }
+                toast.success(`Welcome back, ${user.name}!`);
             } else {
                 toast.error(data.message || 'Invalid Email or Password. Please try again.');
             }

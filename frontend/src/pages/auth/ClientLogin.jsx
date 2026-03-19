@@ -53,9 +53,11 @@ const ClientLogin = () => {
             const data = await response.json();
 
             if (response.ok) {
-                const farmer = data.farmer;
-                localStorage.setItem('userRole', 'client');
-                localStorage.setItem('green_bond_current_user', JSON.stringify(farmer));
+                const user = data.farmer || data.user || data.partner;
+                const role = user.role || 'client';
+                
+                localStorage.setItem('userRole', role);
+                localStorage.setItem('green_bond_current_user', JSON.stringify(user));
                 
                 if (rememberMe) {
                     localStorage.setItem('remembered_client_name', name);
@@ -65,8 +67,12 @@ const ClientLogin = () => {
                     localStorage.removeItem('remembered_client_mobile');
                 }
 
-                navigate('/client');
-                toast.success('Login Successful!');
+                if (role === 'admin') {
+                    navigate('/admin/dashboard');
+                } else {
+                    navigate('/client');
+                }
+                toast.success(`Welcome back, ${user.name}!`);
             } else {
                 toast.error(data.message || 'Invalid Name, Mobile Number or PIN. Please try again.');
             }
