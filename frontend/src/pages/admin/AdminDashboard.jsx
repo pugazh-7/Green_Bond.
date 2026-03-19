@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -7,10 +7,50 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    // Dynamic Data States
+    const [users, setUsers] = useState([]);
+    const [farmers, setFarmers] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [stats, setStats] = useState([]);
+
     // Get current user from localStorage
     const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
     const userName = currentUser.name || 'Administrator';
     const userRole = currentUser.role || 'Admin';
+
+    useEffect(() => {
+        const loadRealTimeData = () => {
+            const rawUsers = JSON.parse(localStorage.getItem('green_bond_users') || '[]');
+            const rawFarmers = JSON.parse(localStorage.getItem('green_bond_farmers') || '[]');
+            const rawOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
+            const rawProducts = JSON.parse(localStorage.getItem('green_bond_products') || '[]');
+
+            setUsers(rawUsers);
+            setFarmers(rawFarmers);
+            setOrders(rawOrders);
+            setProducts(rawProducts);
+
+            // Calculate Stats
+            const totalRevenue = rawOrders.reduce((acc, curr) => {
+                const amt = parseFloat(curr.totalAmount?.toString().replace(/[^0-9.]/g, '') || 0);
+                return acc + amt;
+            }, 0);
+
+            const activeOrdersCount = rawOrders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled').length;
+
+            setStats([
+                { label: 'Total Users', value: rawUsers.length.toString(), icon: '👥', change: '+12%', color: 'from-emerald-500 to-teal-600' },
+                { label: 'Total Farmers', value: rawFarmers.length.toString(), icon: '👨‍🌾', change: '+5%', color: 'from-blue-500 to-indigo-600' },
+                { label: 'Active Orders', value: activeOrdersCount.toString(), icon: '📦', change: '+18%', color: 'from-amber-500 to-orange-600' },
+                { label: 'Revenue', value: `₹${(totalRevenue / 1000).toFixed(1)}K`, icon: '💰', change: '+22%', color: 'from-rose-500 to-pink-600' },
+            ]);
+        };
+
+        loadRealTimeData();
+        const interval = setInterval(loadRealTimeData, 5000); // Poll every 5 seconds for "real-time" feel
+        return () => clearInterval(interval);
+    }, []);
 
     const handleLogout = () => {
         localStorage.removeItem('userRole');
@@ -18,20 +58,6 @@ const AdminDashboard = () => {
         toast.success('Logged out successfully');
         navigate('/');
     };
-
-    const stats = [
-        { label: 'Total Users', value: '1,245', icon: '👥', change: '+12%', color: 'from-emerald-500 to-teal-600' },
-        { label: 'Total Farmers', value: '850', icon: '👨‍🌾', change: '+5%', color: 'from-blue-500 to-indigo-600' },
-        { label: 'Active Orders', value: '342', icon: '📦', change: '+18%', color: 'from-amber-500 to-orange-600' },
-        { label: 'Revenue', value: '₹4.2L', icon: '💰', change: '+22%', color: 'from-rose-500 to-pink-600' },
-    ];
-
-    const recentActivity = [
-        { id: 1, user: 'Rahul Sharma', action: 'New Farmer Registration', time: '2 mins ago', status: 'Pending' },
-        { id: 2, user: 'Priya Patel', action: 'Order #8421 placed', time: '15 mins ago', status: 'Completed' },
-        { id: 3, user: 'Amit Singh', action: 'Support Ticket #21', time: '1 hour ago', status: 'In Progress' },
-        { id: 4, user: 'Suresh Kumar', action: 'Product Update: Organic Rice', time: '3 hours ago', status: 'Completed' },
-    ];
 
     const navItems = [
         { id: 'overview', name: 'Overview', icon: '📊' },
@@ -44,29 +70,6 @@ const AdminDashboard = () => {
 
     const getTabTitle = () => {
         return navItems.find(item => item.id === activeTab)?.name || 'Dashboard';
-    };
-
-    const dummyData = {
-        users: [
-            { id: 101, name: 'Arjun Mehta', email: 'arjun@example.com', role: 'Investor', joined: 'Mar 12, 2026', status: 'Active' },
-            { id: 102, name: 'Sneha Rao', email: 'sneha@example.com', role: 'Investor', joined: 'Mar 15, 2026', status: 'Inactive' },
-            { id: 103, name: 'Vikram Sahai', email: 'vikram@example.com', role: 'Investor', joined: 'Mar 18, 2026', status: 'Active' },
-        ],
-        farmers: [
-            { id: 201, name: 'Gopal Dass', location: 'Punjab', mobile: '9876543210', products: 12, status: 'Verified' },
-            { id: 202, name: 'Lakshmi Devi', location: 'Karnataka', mobile: '9123456780', products: 8, status: 'Pending' },
-            { id: 203, name: 'Ramesh Singh', location: 'UP', mobile: '8877665544', products: 24, status: 'Verified' },
-        ],
-        orders: [
-            { id: 'GB-9420', user: 'Arjun Mehta', amount: '₹14,500', payment: 'Success', status: 'Shipped' },
-            { id: 'GB-9421', user: 'Priya Patel', amount: '₹8,200', payment: 'Success', status: 'Processing' },
-            { id: 'GB-9422', user: 'Rahul Jain', amount: '₹22,100', payment: 'Pending', status: 'Pending' },
-        ],
-        products: [
-            { id: 301, name: 'Premium Basmati Rice', farmer: 'Gopal Dass', price: '₹85/kg', stock: '500kg', status: 'Approved' },
-            { id: 302, name: 'Organic Turmeric', farmer: 'Lakshmi Devi', price: '₹120/kg', stock: '100kg', status: 'Pending' },
-            { id: 303, name: 'Cold Pressed Coconut Oil', farmer: 'Ramesh Singh', price: '₹450/L', stock: '200L', status: 'Approved' },
-        ]
     };
 
     const renderContent = () => {
@@ -94,38 +97,41 @@ const AdminDashboard = () => {
                             ))}
                         </div>
 
-                        {/* Recent Activity Table */}
+                        {/* Recent Orders Table */}
                         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
                             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                <h3 className="text-lg font-bold text-slate-900">Recent System Activity</h3>
-                                <button className="text-emerald-600 font-bold text-sm hover:underline">View All →</button>
+                                <h3 className="text-lg font-bold text-slate-900">Live Order Stream</h3>
+                                <button onClick={() => setActiveTab('orders')} className="text-emerald-600 font-bold text-sm hover:underline">Manage All Orders →</button>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 text-left">
-                                            <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">User / Entity</th>
-                                            <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Action</th>
-                                            <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Time</th>
+                                            <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Order ID</th>
+                                            <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Customer</th>
                                             <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {recentActivity.map((item) => (
-                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group text-sm">
-                                                <td className="px-8 py-5 font-bold text-slate-700">{item.user}</td>
-                                                <td className="px-8 py-5 text-slate-600 font-medium">{item.action}</td>
-                                                <td className="px-8 py-5 text-slate-400">{item.time}</td>
+                                        {orders.slice(0, 5).map((order) => (
+                                            <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group text-sm">
+                                                <td className="px-8 py-5 font-bold text-slate-700">{order.id}</td>
+                                                <td className="px-8 py-5 text-slate-600 font-medium">{order.userName || 'Guest User'}</td>
                                                 <td className="px-8 py-5 text-right">
                                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold ${
-                                                        item.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 
-                                                        item.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                                                        order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 
+                                                        'bg-blue-100 text-blue-700'
                                                     }`}>
-                                                        {item.status}
+                                                        {order.status}
                                                     </span>
                                                 </td>
                                             </tr>
                                         ))}
+                                        {orders.length === 0 && (
+                                            <tr>
+                                                <td colSpan="3" className="px-8 py-10 text-center text-slate-400 italic">No live orders found in the system.</td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -135,33 +141,30 @@ const AdminDashboard = () => {
             case 'users':
                 return (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
+                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                             <h3 className="text-lg font-bold text-slate-900">Registered Users</h3>
+                            <span className="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full font-bold">{users.length} Total</span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
                                 <thead className="bg-slate-50 text-left">
                                     <tr>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Name / Email</th>
+                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">User Details</th>
                                         <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Role</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Joined Date</th>
                                         <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {dummyData.users.map((u) => (
-                                        <tr key={u.id} className="hover:bg-slate-50/50 transition-colors text-sm">
-                                            <td className="px-8 py-5">
-                                                <p className="font-bold text-slate-700">{u.name}</p>
-                                                <p className="text-xs text-slate-400">{u.email}</p>
-                                            </td>
-                                            <td className="px-8 py-5 text-slate-600 font-medium">{u.role}</td>
-                                            <td className="px-8 py-5 text-slate-400">{u.joined}</td>
-                                            <td className="px-8 py-5 text-right">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${u.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{u.status}</span>
-                                            </td>
+                                    {users.map((u, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors text-sm">
+                                            <td className="px-8 py-5 text-slate-700 font-bold">{u.name}</td>
+                                            <td className="px-8 py-5 text-slate-600 font-medium">{u.role || 'User'}</td>
+                                            <td className="px-8 py-5 text-right text-emerald-600 font-bold uppercase text-[10px]">Active</td>
                                         </tr>
                                     ))}
+                                    {users.length === 0 && (
+                                        <tr><td colSpan="3" className="p-10 text-center text-slate-400">No users registered.</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -170,33 +173,30 @@ const AdminDashboard = () => {
             case 'farmers':
                 return (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-lg font-bold text-slate-900">Farmer Directory</h3>
+                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-slate-900">Farmer Network</h3>
+                            <span className="bg-emerald-100 text-emerald-700 text-xs px-3 py-1 rounded-full font-bold">{farmers.length} Registered</span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
                                 <thead className="bg-slate-50 text-left">
                                     <tr>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Farmer Name</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Location / Mobile</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Listings</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Verification</th>
+                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Farmer</th>
+                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {dummyData.farmers.map((f) => (
-                                        <tr key={f.id} className="hover:bg-slate-50/50 transition-colors text-sm">
+                                    {farmers.map((f, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors text-sm">
                                             <td className="px-8 py-5 font-bold text-slate-700">{f.name}</td>
-                                            <td className="px-8 py-5">
-                                                <p className="text-slate-600">{f.location}</p>
-                                                <p className="text-xs text-slate-400">{f.mobile}</p>
-                                            </td>
-                                            <td className="px-8 py-5 text-emerald-600 font-bold">{f.products} Products</td>
                                             <td className="px-8 py-5 text-right">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${f.status === 'Verified' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{f.status}</span>
+                                                <button className="text-blue-600 hover:underline">Details</button>
                                             </td>
                                         </tr>
                                     ))}
+                                    {farmers.length === 0 && (
+                                        <tr><td colSpan="2" className="p-10 text-center text-slate-400">No farmers in directory.</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -205,8 +205,8 @@ const AdminDashboard = () => {
             case 'orders':
                 return (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-lg font-bold text-slate-900">Global Orders</h3>
+                        <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-slate-900">Total System Orders</h3>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
@@ -218,17 +218,18 @@ const AdminDashboard = () => {
                                         <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {dummyData.orders.map((o) => (
-                                        <tr key={o.id} className="hover:bg-slate-50/50 transition-colors text-sm">
+                                <tbody className="divide-y divide-slate-50 text-sm">
+                                    {orders.map((o, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-8 py-5 font-bold text-slate-700">{o.id}</td>
-                                            <td className="px-8 py-5 text-slate-600">{o.user}</td>
-                                            <td className="px-8 py-5 text-slate-900 font-bold">{o.amount}</td>
-                                            <td className="px-8 py-5 text-right">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${o.status === 'Shipped' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{o.status}</span>
-                                            </td>
+                                            <td className="px-8 py-5 text-slate-600">{o.userName}</td>
+                                            <td className="px-8 py-5 text-slate-900 font-bold">{o.totalAmount}</td>
+                                            <td className="px-8 py-5 text-right uppercase text-[10px] font-black">{o.status}</td>
                                         </tr>
                                     ))}
+                                    {orders.length === 0 && (
+                                        <tr><td colSpan="4" className="p-10 text-center text-slate-400">No orders placed yet.</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -238,32 +239,30 @@ const AdminDashboard = () => {
                 return (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-lg font-bold text-slate-900">Product Approval Queue</h3>
+                            <h3 className="text-lg font-bold text-slate-900">Global Inventory</h3>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
+                            <table className="w-full border-collapse text-sm">
                                 <thead className="bg-slate-50 text-left">
                                     <tr>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Product Name</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Farmer / Price</th>
-                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Available Stock</th>
+                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Product</th>
+                                        <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Price</th>
                                         <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {dummyData.products.map((p) => (
-                                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors text-sm">
+                                    {products.map((p, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-8 py-5 font-bold text-slate-700">{p.name}</td>
-                                            <td className="px-8 py-5">
-                                                <p className="text-slate-600">{p.farmer}</p>
-                                                <p className="text-xs text-emerald-600 font-bold">{p.price}</p>
-                                            </td>
-                                            <td className="px-8 py-5 text-slate-500 uppercase text-[10px] font-bold tracking-wider">{p.stock}</td>
+                                            <td className="px-8 py-5 text-emerald-600 font-bold">{p.price}</td>
                                             <td className="px-8 py-5 text-right">
-                                                <button className={`px-3 py-1 rounded-full text-[10px] font-bold ${p.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500 hover:bg-emerald-500 hover:text-white transition-all'}`}>{p.status === 'Approved' ? 'Live' : 'Approve'}</button>
+                                                <button className="text-rose-500 hover:scale-110 transition-transform">🗑️</button>
                                             </td>
                                         </tr>
                                     ))}
+                                    {products.length === 0 && (
+                                        <tr><td colSpan="3" className="p-10 text-center text-slate-400">Inventory is empty.</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -275,41 +274,23 @@ const AdminDashboard = () => {
                         <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
                             <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
                                 <span className="p-2 bg-slate-100 rounded-lg">🛡️</span>
-                                Security Settings
+                                Global Controller
                             </h3>
                             <div className="space-y-4">
                                 {[
-                                    { label: 'Two-Factor Authentication', desc: 'Secure your login with a second step', enabled: true },
-                                    { label: 'Admin Activity Logs', desc: 'Track all changes made by administrators', enabled: true },
-                                    { label: 'Maintenance Mode', desc: 'Temporarily disable public access to the portal', enabled: false },
+                                    { label: 'Real-Time Sync', desc: 'Sync data across all portals in milliseconds', enabled: true },
+                                    { label: 'Maintenance Window', desc: 'Auto-publish maintenance schedules', enabled: false },
                                 ].map((s, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
                                         <div>
                                             <p className="font-bold text-slate-700">{s.label}</p>
                                             <p className="text-xs text-slate-400">{s.desc}</p>
                                         </div>
-                                        <div className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer ${s.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${s.enabled ? 'translate-x-6' : ''}`} />
+                                        <div className={`w-12 h-6 rounded-full p-1 transition-colors ${s.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${s.enabled ? 'translate-x-6' : ''}`} />
                                         </div>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-                            <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
-                                <span className="p-2 bg-slate-100 rounded-lg">⚙️</span>
-                                API Configuration
-                            </h3>
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Gateway Endpoint</label>
-                                    <input type="text" readOnly value="https://api.greenbond.com/v1" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-600 font-mono text-sm focus:outline-none" />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Secret Key</label>
-                                    <input type="password" readOnly value="••••••••••••••••••••" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-slate-600 font-mono text-sm focus:outline-none" />
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -320,7 +301,7 @@ const AdminDashboard = () => {
     };
 
     return (
-        <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+        <div className="flex h-screen bg-slate-50 font-sans overflow-hidden transition-all duration-300">
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div 
@@ -384,7 +365,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setIsSidebarOpen(true)}
-                            className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
                         >
                             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -397,9 +378,9 @@ const AdminDashboard = () => {
                     </div>
                     
                     <div className="flex items-center gap-3 lg:gap-6">
-                        <div className="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl">
-                            <span className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">🔔</span>
-                            <span className="text-sm font-bold text-slate-700">3 Notifications</span>
+                        <div className="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Live Metrics</span>
                         </div>
                         <div className="w-10 h-10 lg:w-12 lg:h-12 bg-emerald-100 rounded-xl lg:rounded-2xl flex items-center justify-center border-2 border-emerald-500/20 shadow-inner overflow-hidden ring-4 ring-white">
                             <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`} alt={userName} className="w-full h-full object-cover" />
@@ -415,9 +396,8 @@ const AdminDashboard = () => {
                 <footer className="p-6 lg:p-10 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-400 text-[10px] lg:text-xs gap-4 uppercase tracking-widest font-bold">
                     <p>© 2026 GreenBond Administrative Ecosystem</p>
                     <div className="flex items-center gap-6">
-                        <button className="hover:text-emerald-500 transition-colors">Security Audit</button>
-                        <button className="hover:text-emerald-500 transition-colors">System Logs</button>
-                        <button className="hover:text-emerald-500 transition-colors">Help Desk</button>
+                        <button className="hover:text-emerald-500 transition-colors underline decoration-dotted underline-offset-4">Security Protocol</button>
+                        <button className="hover:text-emerald-500 transition-colors underline decoration-dotted underline-offset-4">Legal Notice</button>
                     </div>
                 </footer>
             </main>
