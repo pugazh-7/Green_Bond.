@@ -78,20 +78,20 @@ const AdminDashboard = () => {
                 return (
                     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {/* Stats Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
                             {stats.map((stat, i) => (
-                                <div key={i} className="group bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-3xl shadow-lg ring-4 ring-white`}>
+                                <div key={i} className="group bg-white p-3 lg:p-6 rounded-2xl lg:rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300">
+                                    <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start mb-2 lg:mb-4 gap-2">
+                                        <div className={`w-10 h-10 lg:w-14 lg:h-14 rounded-xl lg:rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-xl lg:text-3xl shadow-lg ring-2 lg:ring-4 ring-white shrink-0`}>
                                             {stat.icon}
                                         </div>
-                                        <span className="text-emerald-500 text-sm font-bold bg-emerald-50 px-2 py-1 rounded-lg">
+                                        <span className="text-emerald-500 text-[8px] lg:text-sm font-bold bg-emerald-50 px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-md lg:rounded-lg">
                                             {stat.change}
                                         </span>
                                     </div>
-                                    <div>
-                                        <h3 className="text-slate-500 font-medium text-sm uppercase tracking-wider">{stat.label}</h3>
-                                        <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
+                                    <div className="text-center lg:text-left">
+                                        <h3 className="text-slate-500 font-bold text-[8px] lg:text-sm uppercase tracking-tighter lg:tracking-wider truncate">{stat.label}</h3>
+                                        <p className="text-sm lg:text-3xl font-black text-slate-900 mt-0.5">{stat.value}</p>
                                     </div>
                                 </div>
                             ))}
