@@ -88,7 +88,7 @@ const DeliveryLogin = () => {
 
                 <form className="space-y-6" onSubmit={handleLogin}>
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
                         <input
                             type="email"
                             required
@@ -100,7 +100,7 @@ const DeliveryLogin = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">Password</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
                         <div className="relative">
                             <input
                                 type={showPassword ? "text" : "password"}
@@ -137,7 +137,7 @@ const DeliveryLogin = () => {
                                 onChange={(e) => setRememberMe(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer" 
                             />
-                            <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors" required>
+                            <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
                                 Remember me
                             </span>
                         </label>

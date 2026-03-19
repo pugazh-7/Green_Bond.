@@ -108,11 +108,11 @@ const UserLogin = () => {
                     <form className="mt-8 space-y-6" onSubmit={handleForgotPassword}>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 ml-1">Email address</label>
+                                <label className="block text-sm font-medium text-gray-700 ml-1">Email address <span className="text-red-500">*</span></label>
                                 <input type="email" required value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="mt-1 appearance-none block w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Email address" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 ml-1">New Password</label>
+                                <label className="block text-sm font-medium text-gray-700 ml-1">New Password <span className="text-red-500">*</span></label>
                                 <div className="relative">
                                     <input 
                                         type={showNewPassword ? "text" : "password"} 
@@ -176,7 +176,7 @@ const UserLogin = () => {
                 <form className="mt-8 space-y-6" onSubmit={handleLogin}>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 ml-1">Email address</label>
+                            <label className="block text-sm font-medium text-gray-700 ml-1">Email address <span className="text-red-500">*</span></label>
                             <input
                                 type="email"
                                 required
@@ -187,7 +187,7 @@ const UserLogin = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 ml-1">Password</label>
+                            <label className="block text-sm font-medium text-gray-700 ml-1">Password <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <input
                                     type={showPassword ? "text" : "password"}
@@ -226,7 +226,7 @@ const UserLogin = () => {
                                 onChange={(e) => setRememberMe(e.target.checked)}
                                 className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded cursor-pointer"
                             />
-                            <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors" required>
+                            <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors">
                                 Remember me
                             </span>
                         </label>

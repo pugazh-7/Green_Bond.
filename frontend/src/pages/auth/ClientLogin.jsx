@@ -141,7 +141,7 @@ const ClientLogin = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
                             <input
                                 type="tel"
                                 required
@@ -153,7 +153,7 @@ const ClientLogin = () => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">New PIN</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">New PIN <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <input
                                     type={showResetPin ? "text" : "password"}
@@ -201,7 +201,7 @@ const ClientLogin = () => {
                 ) : (
                     <form className="space-y-6" onSubmit={handleLogin}>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                             <input
                                 type="text"
                                 required
@@ -213,7 +213,7 @@ const ClientLogin = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
                             <div className="relative rounded-md shadow-sm">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <span className="text-gray-500 sm:text-sm font-bold">+91</span>
@@ -241,7 +241,7 @@ const ClientLogin = () => {
 
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Pin / Password</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Pin / Password <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <input
                                     type={showPin ? "text" : "password"}
@@ -279,7 +279,7 @@ const ClientLogin = () => {
                                     onChange={(e) => setRememberMe(e.target.checked)}
                                     className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer" 
                                 />
-                                <span className="ml-2 text-sm text-gray-900 group-hover:text-green-600 transition-colors" required>
+                                <span className="ml-2 text-sm text-gray-900 group-hover:text-green-600 transition-colors">
                                     Remember me
                                 </span>
                             </label>
