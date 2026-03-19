@@ -96,7 +96,7 @@ const UserLogin = () => {
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-md 2xl:max-w-xl w-full space-y-8 2xl:space-y-12 bg-white/80 backdrop-blur-lg p-10 2xl:p-14 rounded-3xl shadow-2xl border border-white/50 relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 to-cyan-500"></div>
-                    <button onClick={() => setShowForgotPassword(false)} className="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors">
+                    <button type="button" onClick={() => setShowForgotPassword(false)} className="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
@@ -219,20 +219,17 @@ const UserLogin = () => {
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center">
+                        <label className="flex items-center cursor-pointer group">
                             <input
-                                id="remember-me"
-                                name="remember-me"
                                 type="checkbox"
                                 checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
-                                className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+                                className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded cursor-pointer"
                             />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-
+                            <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors">
                                 Remember me
-                            </label>
-                        </div>
+                            </span>
+                        </label>
                         <div className="text-sm">
                             <button type="button" onClick={() => setShowForgotPassword(true)} className="font-medium text-teal-600 hover:text-teal-500">
                                 Forgot password?
