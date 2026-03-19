@@ -76,24 +76,34 @@ const ClientLogin = () => {
         }
     };
 
-    const handleForgotPin = (e) => {
+    const handleForgotPin = async (e) => {
         e.preventDefault();
-        const farmers = JSON.parse(localStorage.getItem('green_bond_farmers') || '[]');
-        const farmerIndex = farmers.findIndex(f =>
-            f.mobile === resetMobile &&
-            f.name.toLowerCase() === resetName.toLowerCase()
-        );
+        
+        if (!resetMobile || !newPin) {
+            toast.error("Please fill in all fields.");
+            return;
+        }
 
-        if (farmerIndex !== -1) {
-            farmers[farmerIndex].pin = newPin;
-            localStorage.setItem('green_bond_farmers', JSON.stringify(farmers));
-            toast.success('PIN Reset Successful! Please Login.');
-            setShowForgotPin(false);
-            setResetName('');
-            setResetMobile('');
-            setNewPin('');
-        } else {
-            toast.error('Details not found! Please check Name and Mobile Number.');
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/reset-pin-farmer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mobile: resetMobile, newPin })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                toast.success('PIN reset successfully! Please login with your new PIN.');
+                setShowForgotPin(false);
+                setResetMobile('');
+                setNewPin('');
+            } else {
+                toast.error(data.message || 'Error resetting PIN.');
+            }
+        } catch (error) {
+            console.error('Reset error:', error);
+            toast.error('Server error. Please try again later.');
         }
     };
 

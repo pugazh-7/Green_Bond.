@@ -74,20 +74,34 @@ const UserLogin = () => {
         }
     };
 
-    const handleForgotPassword = (e) => {
+    const handleForgotPassword = async (e) => {
         e.preventDefault();
-        const users = JSON.parse(localStorage.getItem('green_bond_users') || '[]');
-        const userIndex = users.findIndex(u => u.email.toLowerCase() === resetEmail.trim().toLowerCase());
+        
+        if (!resetEmail || !newPassword) {
+            toast.error("Please fill in all fields.");
+            return;
+        }
 
-        if (userIndex !== -1) {
-            users[userIndex].password = newPassword;
-            localStorage.setItem('green_bond_users', JSON.stringify(users));
-            toast.success('Password reset successfully! Please login with new password.');
-            setShowForgotPassword(false);
-            setResetEmail('');
-            setNewPassword('');
-        } else {
-            toast.error('Email not found!');
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/reset-password-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: resetEmail, newPassword })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                toast.success('Password reset successfully! Please login with new password.');
+                setShowForgotPassword(false);
+                setResetEmail('');
+                setNewPassword('');
+            } else {
+                toast.error(data.message || 'Error resetting password.');
+            }
+        } catch (error) {
+            console.error('Reset error:', error);
+            toast.error('Server error. Please try again later.');
         }
     };
 

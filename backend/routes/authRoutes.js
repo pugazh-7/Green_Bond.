@@ -171,5 +171,67 @@ router.post('/login-delivery', async (req, res) => {
     }
 });
 
+// Reset Password - User
+router.post('/reset-password-user', async (req, res) => {
+    try {
+        const { email, newPassword } = req.body;
+        const cleanEmail = email.trim().toLowerCase();
+
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) {
+            return res.status(404).json({ message: 'User with this email not found' });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (error) {
+        console.error("User password reset error:", error);
+        res.status(500).json({ message: 'Server error during password reset' });
+    }
+});
+
+// Reset PIN - Farmer
+router.post('/reset-pin-farmer', async (req, res) => {
+    try {
+        const { mobile, newPin } = req.body;
+
+        const farmer = await Farmer.findOne({ mobile });
+        if (!farmer) {
+            return res.status(404).json({ message: 'Farmer with this mobile number not found' });
+        }
+
+        farmer.pin = newPin;
+        await farmer.save();
+
+        res.status(200).json({ message: 'PIN reset successful' });
+    } catch (error) {
+        console.error("Farmer PIN reset error:", error);
+        res.status(500).json({ message: 'Server error during PIN reset' });
+    }
+});
+
+// Reset Password - Delivery Partner
+router.post('/reset-password-delivery', async (req, res) => {
+    try {
+        const { email, newPassword } = req.body;
+        const cleanEmail = email.trim().toLowerCase();
+
+        const partner = await DeliveryPartner.findOne({ email: cleanEmail });
+        if (!partner) {
+            return res.status(404).json({ message: 'Delivery Partner with this email not found' });
+        }
+
+        partner.password = newPassword;
+        await partner.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (error) {
+        console.error("Delivery password reset error:", error);
+        res.status(500).json({ message: 'Server error during password reset' });
+    }
+});
+
 export default router;
 
