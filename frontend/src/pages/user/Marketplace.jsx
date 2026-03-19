@@ -101,9 +101,13 @@ const Marketplace = () => {
 
     const matchesSearch = (item) => {
         const term = search.toLowerCase();
-        return item.title.toLowerCase().includes(term) ||
-            item.farmer.toLowerCase().includes(term) ||
-            item.location.toLowerCase().includes(term);
+        const title = item?.title || '';
+        const farmer = item?.farmer || '';
+        const location = item?.location || '';
+        
+        return title.toLowerCase().includes(term) ||
+            farmer.toLowerCase().includes(term) ||
+            location.toLowerCase().includes(term);
     };
 
     const getUnit = (priceStr) => {

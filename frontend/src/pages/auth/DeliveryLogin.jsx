@@ -7,6 +7,21 @@ const DeliveryLogin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
+
+    React.useEffect(() => {
+        const rememberedEmail = localStorage.getItem('remembered_delivery_email');
+        if (rememberedEmail) {
+            setEmail(rememberedEmail);
+            setRememberMe(true);
+        }
+
+        // Auto-redirect if already logged in
+        const userRole = localStorage.getItem('userRole');
+        if (userRole === 'delivery') {
+            navigate('/delivery');
+        }
+    }, [navigate]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -33,6 +48,13 @@ const DeliveryLogin = () => {
                 const partner = data.partner;
                 localStorage.setItem('userRole', 'delivery');
                 localStorage.setItem('green_bond_current_user', JSON.stringify(partner));
+                
+                if (rememberMe) {
+                    localStorage.setItem('remembered_delivery_email', cleanEmail);
+                } else {
+                    localStorage.removeItem('remembered_delivery_email');
+                }
+
                 navigate('/delivery');
                 toast.success(`Welcome back, ${partner.name}!`);
             } else {
@@ -104,6 +126,21 @@ const DeliveryLogin = () => {
                                     </svg>
                                 )}
                             </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                            <input 
+                                id="remember-me" 
+                                type="checkbox" 
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                            />
+                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                                Remember me
+                            </label>
                         </div>
                     </div>
 

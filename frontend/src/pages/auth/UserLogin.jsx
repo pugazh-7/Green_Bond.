@@ -14,12 +14,18 @@ const UserLogin = () => {
     const [showNewPassword, setShowNewPassword] = useState(false);
 
     useEffect(() => {
-        const savedEmail = localStorage.getItem('remembered_user_email');
-        if (savedEmail) {
-            setEmail(savedEmail);
+        const rememberedEmail = localStorage.getItem('remembered_user_email');
+        if (rememberedEmail) {
+            setEmail(rememberedEmail);
             setRememberMe(true);
         }
-    }, []);
+        
+        // Auto-redirect if already logged in
+        const userRole = localStorage.getItem('userRole');
+        if (userRole === 'user' || userRole === 'admin') {
+            navigate(userRole === 'admin' ? '/admin/dashboard' : '/user/marketplace');
+        }
+    }, [navigate]);
 
     const handleLogin = async (e) => {
         e.preventDefault();

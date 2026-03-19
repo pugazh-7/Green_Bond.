@@ -7,6 +7,23 @@ const ClientLogin = () => {
     const [name, setName] = useState('');
     const [mobile, setMobile] = useState('');
     const [pin, setPin] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+
+    React.useEffect(() => {
+        const rememberedName = localStorage.getItem('remembered_client_name');
+        const rememberedMobile = localStorage.getItem('remembered_client_mobile');
+        if (rememberedMobile) {
+            setName(rememberedName || '');
+            setMobile(rememberedMobile);
+            setRememberMe(true);
+        }
+
+        // Auto-redirect if already logged in
+        const userRole = localStorage.getItem('userRole');
+        if (userRole === 'client') {
+            navigate('/client');
+        }
+    }, [navigate]);
 
 
     const [showForgotPin, setShowForgotPin] = useState(false);
@@ -39,6 +56,15 @@ const ClientLogin = () => {
                 const farmer = data.farmer;
                 localStorage.setItem('userRole', 'client');
                 localStorage.setItem('green_bond_current_user', JSON.stringify(farmer));
+                
+                if (rememberMe) {
+                    localStorage.setItem('remembered_client_name', name);
+                    localStorage.setItem('remembered_client_mobile', mobile);
+                } else {
+                    localStorage.removeItem('remembered_client_name');
+                    localStorage.removeItem('remembered_client_mobile');
+                }
+
                 navigate('/client');
                 toast.success('Login Successful!');
             } else {
@@ -247,9 +273,15 @@ const ClientLogin = () => {
 
                         <div className="flex items-center justify-between">
                             <div className="flex items-center">
-                                <input id="remember_me" type="checkbox" className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" />
+                                <input 
+                                    id="remember_me" 
+                                    type="checkbox" 
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" 
+                                />
                                 <label htmlFor="remember_me" className="ml-2 block text-sm text-gray-900">
-                                    Keep me logged in
+                                    Remember me
                                 </label>
                             </div>
                             <div className="text-sm">
