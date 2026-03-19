@@ -137,7 +137,7 @@ const DeliveryLogin = () => {
                                 onChange={(e) => setRememberMe(e.target.checked)}
                                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer" 
                             />
-                            <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors" required>
                                 Remember me
                             </span>
                         </label>

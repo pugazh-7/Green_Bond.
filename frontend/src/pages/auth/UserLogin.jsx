@@ -226,7 +226,7 @@ const UserLogin = () => {
                                 onChange={(e) => setRememberMe(e.target.checked)}
                                 className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded cursor-pointer"
                             />
-                            <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors">
+                            <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors" required>
                                 Remember me
                             </span>
                         </label>
