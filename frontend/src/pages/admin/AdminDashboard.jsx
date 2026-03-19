@@ -7,6 +7,11 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    // Get current user from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+    const userName = currentUser.name || 'Administrator';
+    const userRole = currentUser.role || 'Admin';
+
     const handleLogout = () => {
         localStorage.removeItem('userRole');
         localStorage.removeItem('green_bond_current_user');
@@ -387,7 +392,7 @@ const AdminDashboard = () => {
                         </button>
                         <div>
                             <h2 className="text-xl lg:text-2xl font-bold text-slate-900 tracking-tight">{getTabTitle()}</h2>
-                            <p className="text-slate-500 text-xs lg:text-sm hidden sm:block font-medium">Administrative Management Control Center</p>
+                            <p className="text-slate-500 text-xs lg:text-sm hidden sm:block font-medium">Signed in as <span className="text-emerald-600 font-bold">{userName}</span> ({userRole})</p>
                         </div>
                     </div>
                     
@@ -397,7 +402,7 @@ const AdminDashboard = () => {
                             <span className="text-sm font-bold text-slate-700">3 Notifications</span>
                         </div>
                         <div className="w-10 h-10 lg:w-12 lg:h-12 bg-emerald-100 rounded-xl lg:rounded-2xl flex items-center justify-center border-2 border-emerald-500/20 shadow-inner overflow-hidden ring-4 ring-white">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Admin" className="w-full h-full object-cover" />
+                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`} alt={userName} className="w-full h-full object-cover" />
                         </div>
                     </div>
                 </header>
