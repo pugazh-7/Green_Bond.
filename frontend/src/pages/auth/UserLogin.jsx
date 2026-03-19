@@ -219,17 +219,22 @@ const UserLogin = () => {
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <label className="flex items-center cursor-pointer group">
+                        <div 
+                            className="flex items-center cursor-pointer group"
+                            onClick={() => setRememberMe(!rememberMe)}
+                        >
                             <input
                                 type="checkbox"
+                                required
                                 checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
+                                onClick={(e) => e.stopPropagation()}
                                 className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded cursor-pointer"
                             />
                             <span className="ml-2 text-sm text-gray-900 group-hover:text-teal-600 transition-colors">
-                                Remember me
+                                Remember me <span className="text-red-500">*</span>
                             </span>
-                        </label>
+                        </div>
                         <div className="text-sm">
                             <button type="button" onClick={() => setShowForgotPassword(true)} className="font-medium text-teal-600 hover:text-teal-500">
                                 Forgot password?

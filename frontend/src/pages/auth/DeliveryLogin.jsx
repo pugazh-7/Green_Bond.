@@ -130,17 +130,22 @@ const DeliveryLogin = () => {
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <label className="flex items-center cursor-pointer group">
+                        <div 
+                            className="flex items-center cursor-pointer group"
+                            onClick={() => setRememberMe(!rememberMe)}
+                        >
                             <input 
                                 type="checkbox" 
+                                required
                                 checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
+                                onClick={(e) => e.stopPropagation()}
                                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer" 
                             />
                             <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
-                                Remember me
+                                Remember me <span className="text-red-500">*</span>
                             </span>
-                        </label>
+                        </div>
                     </div>
 
                     <button
