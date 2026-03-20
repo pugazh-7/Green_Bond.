@@ -13,39 +13,39 @@ const Marketplace = () => {
     const [search, setSearch] = useState('');
 
     const [products, setProducts] = useState(DEFAULT_PRODUCTS);
-    const [bonds, setBonds] = useState(DEFAULT_BONDS);
-    const [isLoading, setIsLoading] = useState(true);
+    // const [bonds, setBonds] = useState(DEFAULT_BONDS);
+    // const [isLoading, setIsLoading] = useState(true);
 
-    React.useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
-                if (response.ok) {
-                    const backendProducts = await response.json();
+    // React.useEffect(() => {
+    //     const fetchData = async () => {
+    //         setIsLoading(true);
+    //         try {
+    //             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
+    //             if (response.ok) {
+    //                 const backendProducts = await response.json();
                     
-                    // Add unique backend products (mapped to include an id for React keys)
-                    const normalizedBackend = backendProducts.map(p => ({
-                        ...p,
-                        id: p._id || p.id // Mongodb uses _id
-                    }));
+    //                 // Add unique backend products (mapped to include an id for React keys)
+    //                 const normalizedBackend = backendProducts.map(p => ({
+    //                     ...p,
+    //                     id: p._id || p.id // Mongodb uses _id
+    //                 }));
                     
-                    // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
-                    const uniqueBackend = normalizedBackend.filter(bp => 
-                        !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
-                    );
+    //                 // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
+    //                 const uniqueBackend = normalizedBackend.filter(bp => 
+    //                     !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
+    //                 );
 
-                    setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
-                }
-            } catch (error) {
-                console.error('Error fetching marketplace data:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    //                 setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
+    //             }
+    //         } catch (error) {
+    //             console.error('Error fetching marketplace data:', error);
+    //         } finally {
+    //             setIsLoading(false);
+    //         }
+    //     };
 
-        fetchData();
-    }, []);
+    //     fetchData();
+    // }, []);
 
 
 

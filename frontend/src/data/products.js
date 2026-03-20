@@ -1,4 +1,4 @@
-// Helper to generate semantic images
+// Helper to generate semantic images (fallback)
 const getDynamicImage = (id, title, category) => {
     // Enhance keywords for better matches
     let keywords = `${category}`;
@@ -21,6 +21,37 @@ const getDynamicImage = (id, title, category) => {
     else keywords += `,${title.split(' ')[0]}`;
 
     return `https://loremflickr.com/500/500/${keywords}?lock=${id}`;
+};
+
+// --- LOCAL ASSETS MAPPING ---
+// Dynamically import all images from the assets folder
+const ASSET_IMAGES = import.meta.glob('../assets/*.{png,jpg,jpeg,webp,avif,jfif,gif}', { eager: true, import: 'default' });
+
+const getLocalImage = (title) => {
+    const cleanTitle = title.toLowerCase().trim();
+    
+    // Try to find a match in the keys
+    const match = Object.keys(ASSET_IMAGES).find(key => {
+        const filename = key.split('/').pop().toLowerCase();
+        
+        // Exact match (without extension)
+        const nameWithoutExt = filename.split('.').slice(0, -1).join('.');
+        if (nameWithoutExt === cleanTitle) return true;
+        
+        // Substring match
+        if (cleanTitle.includes(nameWithoutExt) || nameWithoutExt.includes(cleanTitle)) return true;
+        
+        // Special mapping for common variations
+        if (cleanTitle.includes('tomato') && nameWithoutExt.includes('tomat')) return true;
+        if (cleanTitle.includes('brinjal') && nameWithoutExt.includes('brin')) return true;
+        if (cleanTitle.includes('banana leaf') && nameWithoutExt === 'banana leaf ') return true;
+        if (cleanTitle.includes('snake gourd') && (nameWithoutExt === 'snake_gourd' || nameWithoutExt === 'snake gourd ')) return true;
+        if (nameWithoutExt === 'drumstick' && cleanTitle.includes('drumstick')) return true;
+
+        return false;
+    });
+
+    return match ? ASSET_IMAGES[match] : null;
 };
 
 const RAW_PRODUCTS = [
@@ -142,7 +173,7 @@ const RAW_PRODUCTS = [
 
 export const PRODUCTS_DATA = RAW_PRODUCTS.map(item => ({
     ...item,
-    image: getDynamicImage(item.id, item.title, item.category)
+    image: getLocalImage(item.title) || getDynamicImage(item.id, item.title, item.category)
 }));
 
 export const PROJECTS_DATA = [

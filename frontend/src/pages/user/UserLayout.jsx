@@ -1,5 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
+import logo from '../../assets/logo.jpeg';
 
 const UserLayout = () => {
     const navigate = useNavigate();
@@ -45,7 +46,7 @@ const UserLayout = () => {
             <div className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-white shadow-md overflow-y-auto flex flex-col`}>
                 <div className="p-6">
                     <div className="flex items-center gap-3 mb-2">
-                        <img src="/green_bond_logo.png" alt="Green Bond" className="w-16 h-16" />
+                        <img src={logo} alt="Green Bond" className="w-16 h-16 object-contain" />
                         <h1 className="text-2xl font-bold text-green-700">Green Bond</h1>
                     </div>
                     <p className="text-xs text-gray-500 font-medium ml-1">User Panel</p>
@@ -104,7 +105,7 @@ const UserLayout = () => {
                 {/* Mobile Header / Toggle */}
                 <header className="md:hidden bg-white shadow-sm p-4 flex items-center justify-between z-20">
                     <div className="flex items-center gap-2">
-                        <img src="/green_bond_logo.png" alt="Green Bond" className="w-8 h-8" />
+                        <img src={logo} alt="Green Bond" className="w-8 h-8 object-contain" />
                         <h1 className="text-xl font-bold text-green-700">Green Bond</h1>
                     </div>
                     <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-600 focus:outline-none focus:bg-gray-100 rounded-md">

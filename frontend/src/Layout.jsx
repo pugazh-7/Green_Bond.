@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-//import Logo from "../public/Logo.png"
+import logo from './assets/logo.jpeg';
 
 
 const Layout = () => {
@@ -23,7 +23,7 @@ const Layout = () => {
                                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                                 className="flex items-center gap-2"
                             >
-                                <img src="/green_bond_logo.png" alt="Green Bond" className="w-10 h-10 md:w-12 md:h-12 2xl:w-16 2xl:h-16" />
+                                <img src={logo} alt="Green Bond" className="w-10 h-10 md:w-12 md:h-12 2xl:w-16 2xl:h-16 object-contain" />
                                 <span className="text-xl 2xl:text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-500 bg-clip-text text-transparent">
                                     GreenBond
                                 </span>
