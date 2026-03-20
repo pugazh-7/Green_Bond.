@@ -28,25 +28,27 @@ const getDynamicImage = (id, title, category) => {
 const ASSET_IMAGES = import.meta.glob('../assets/*.{png,jpg,jpeg,webp,avif,jfif,gif}', { eager: true, import: 'default' });
 
 const getLocalImage = (title) => {
-    const cleanTitle = title.toLowerCase().trim();
+    // Normalize title: lowercase, remove everything in parentheses, trim
+    const cleanTitle = title.toLowerCase().replace(/\(.*\)/, '').trim();
     
     // Try to find a match in the keys
     const match = Object.keys(ASSET_IMAGES).find(key => {
         const filename = key.split('/').pop().toLowerCase();
         
         // Exact match (without extension)
-        const nameWithoutExt = filename.split('.').slice(0, -1).join('.');
+        const nameWithoutExt = filename.split('.').slice(0, -1).join('.').trim();
         if (nameWithoutExt === cleanTitle) return true;
         
         // Substring match
-        if (cleanTitle.includes(nameWithoutExt) || nameWithoutExt.includes(cleanTitle)) return true;
+        if (cleanTitle.includes(nameWithoutExt) || (nameWithoutExt.length > 3 && cleanTitle.startsWith(nameWithoutExt))) return true;
         
         // Special mapping for common variations
         if (cleanTitle.includes('tomato') && nameWithoutExt.includes('tomat')) return true;
         if (cleanTitle.includes('brinjal') && nameWithoutExt.includes('brin')) return true;
-        if (cleanTitle.includes('banana leaf') && nameWithoutExt === 'banana leaf ') return true;
-        if (cleanTitle.includes('snake gourd') && (nameWithoutExt === 'snake_gourd' || nameWithoutExt === 'snake gourd ')) return true;
+        if (cleanTitle.includes('banana leaf') && nameWithoutExt.includes('banana leaf')) return true;
+        if (cleanTitle.includes('snake gourd') && (nameWithoutExt.includes('snake_gourd') || nameWithoutExt.includes('snake gourd'))) return true;
         if (nameWithoutExt === 'drumstick' && cleanTitle.includes('drumstick')) return true;
+        if (cleanTitle.includes('amla') && nameWithoutExt.includes('amla')) return true;
 
         return false;
     });
