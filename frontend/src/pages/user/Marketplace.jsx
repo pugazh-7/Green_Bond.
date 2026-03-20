@@ -13,7 +13,7 @@ const Marketplace = () => {
     const [search, setSearch] = useState('');
 
     const [products, setProducts] = useState(DEFAULT_PRODUCTS);
-    // const [bonds, setBonds] = useState(DEFAULT_BONDS);
+    const [bonds, setBonds] = useState(DEFAULT_BONDS);
     // const [isLoading, setIsLoading] = useState(true);
 
     // React.useEffect(() => {
