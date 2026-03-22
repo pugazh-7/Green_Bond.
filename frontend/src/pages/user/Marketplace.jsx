@@ -54,6 +54,19 @@ const Marketplace = () => {
     const [orderStep, setOrderStep] = useState('selection'); // 'selection' | 'quantity'
     const [quantity, setQuantity] = useState(1);
     const [bulkQuantity, setBulkQuantity] = useState(10);
+    const [userLocation, setUserLocation] = useState('');
+    const [assignedPartner, setAssignedPartner] = useState(null);
+
+    const deliveryPartners = [
+        { name: "Rajesh Kumar", mobile: "+91 98765 43210" },
+        { name: "Suresh Raina", mobile: "+91 87654 32109" },
+        { name: "Mahesh Babu", mobile: "+91 76543 21098" }
+    ];
+
+    const assignRandomPartner = () => {
+        const partner = deliveryPartners[Math.floor(Math.random() * deliveryPartners.length)];
+        setAssignedPartner(partner);
+    };
 
     const handleAction = (item, type) => {
         if (type === 'produce') {
@@ -363,12 +376,113 @@ const Marketplace = () => {
                                                 toast.error(`Minimum bulk order for this item is ${minQ}${getUnit(selectionProduct.price)}`);
                                                 return;
                                             }
-                                            saveBulkInquiry(selectionProduct, bulkQuantity);
-                                            setSelectionProduct(null);
+                                            // Instead of closing, go to location step
+                                            setOrderStep('location');
                                         }}
                                         className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
                                     >
-                                        Confirm Bulk Inquiry
+                                        Proceed to Delivery
+                                    </button>
+                                </div>
+                            </>
+                        ) : orderStep === 'location' ? (
+                            <>
+                                <button onClick={() => setOrderStep(selectionProduct.orderType === 'bulk' ? 'bulk-quantity' : 'quantity')} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center gap-1">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                                    Back
+                                </button>
+                                <div className="mt-8">
+                                    <h3 className="text-xl font-bold text-gray-900 mb-1 text-center">Delivery Location</h3>
+                                    <p className="text-sm text-gray-500 mb-6 text-center">Where should we deliver <b>{selectionProduct.title}</b>?</p>
+
+                                    <div className="space-y-4 mb-6">
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                </svg>
+                                            </div>
+                                            <textarea
+                                                placeholder="Enter your full delivery address..."
+                                                value={userLocation}
+                                                onChange={(e) => setUserLocation(e.target.value)}
+                                                rows="3"
+                                                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                                            ></textarea>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            if (!userLocation.trim()) {
+                                                toast.error("Please enter a delivery location");
+                                                return;
+                                            }
+                                            assignRandomPartner();
+                                            setOrderStep('delivery-info');
+                                        }}
+                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
+                                    >
+                                        Confirm Location
+                                    </button>
+                                </div>
+                            </>
+                        ) : orderStep === 'delivery-info' ? (
+                            <>
+                                <div className="mt-8 text-center">
+                                    <div className="w-20 h-20 bg-green-100 rounded-full mx-auto flex items-center justify-center mb-4">
+                                        <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 mb-1">Order Assigned!</h3>
+                                    <p className="text-sm text-gray-500 mb-6">A delivery partner has been assigned to your order.</p>
+
+                                    <div className="bg-gray-50 p-4 rounded-2xl mb-6 text-left space-y-3 border border-gray-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                                                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Delivery Boy</p>
+                                                <p className="font-bold text-gray-900">{assignedPartner?.name}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
+                                                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Mobile Number</p>
+                                                <p className="font-bold text-gray-900">{assignedPartner?.mobile}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            if (selectionProduct.orderType === 'bulk') {
+                                                saveBulkInquiry(selectionProduct, bulkQuantity);
+                                            } else {
+                                                const cartItem = {
+                                                    ...selectionProduct,
+                                                    quantity,
+                                                    deliveryLocation: userLocation,
+                                                    deliveryPartner: assignedPartner,
+                                                    cartId: Date.now()
+                                                };
+                                                const currentCart = JSON.parse(localStorage.getItem('user_cart') || '[]');
+                                                localStorage.setItem('user_cart', JSON.stringify([...currentCart, cartItem]));
+                                                toast.success(`Order placed successfully! Delivery partner: ${assignedPartner.name}`);
+                                            }
+                                            setSelectionProduct(null);
+                                            setUserLocation('');
+                                            setAssignedPartner(null);
+                                        }}
+                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
+                                    >
+                                        Finish
                                     </button>
                                 </div>
                             </>
@@ -417,19 +531,12 @@ const Marketplace = () => {
 
                                     <button
                                         onClick={() => {
-                                            const cartItem = {
-                                                ...selectionProduct,
-                                                quantity,
-                                                cartId: Date.now()
-                                            };
-                                            const currentCart = JSON.parse(localStorage.getItem('user_cart') || '[]');
-                                            localStorage.setItem('user_cart', JSON.stringify([...currentCart, cartItem]));
-                                            toast.success(`Successfully added ${quantity} x ${selectionProduct.title} to your cart!`);
-                                            setSelectionProduct(null);
+                                            // Instead of closing, go to location step
+                                            setOrderStep('location');
                                         }}
                                         className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
                                     >
-                                        Add to Cart
+                                        Proceed to Delivery
                                     </button>
                                 </div>
                             </>
