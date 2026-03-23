@@ -1,18 +1,35 @@
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 let DefaultIcon = L.icon({
-    iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
     iconSize: [25, 41],
-    iconAnchor: [12, 41]
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// Custom hook to handle map recentering
+const MapController = ({ position }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (position) {
+            map.flyTo(position, 15, { animate: true });
+        }
+    }, [position, map]);
+    return null;
+};
+
 const LocationTracking = () => {
+    const [position, setPosition] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     // Mock data for farmer view
     const activeDelivery = {
         id: "ORD-9876",
@@ -23,6 +40,41 @@ const LocationTracking = () => {
         eta: "Today, 5:30 PM"
     };
 
+    useEffect(() => {
+        if (!navigator.geolocation) {
+            setError("Geolocation is not supported by your browser");
+            setLoading(false);
+            return;
+        }
+
+        const handleSuccess = (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setPosition([latitude, longitude]);
+            setLoading(false);
+        };
+
+        const handleError = (err) => {
+            setError("Unable to retrieve your location. Showing default location.");
+            // Fallback to Chennai coordinates
+            setPosition([13.0827, 80.2707]);
+            setLoading(false);
+            console.error("Geolocation Error:", err);
+        };
+
+        navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        });
+
+        // Also track live position
+        const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+            enableHighAccuracy: true
+        });
+
+        return () => navigator.geolocation.clearWatch(watchId);
+    }, []);
+
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             <header>
@@ -32,25 +84,61 @@ const LocationTracking = () => {
 
             {/* Main Tracking Card */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                {/* Google Maps Live View */}
-<div className="h-80 w-full relative overflow-hidden rounded-t-3xl">
-  <iframe
-    title="Delivery Location"
-    width="100%"
-    height="100%"
-    style={{ border: 0 }}
-    loading="lazy"
-    allowFullScreen
-    referrerPolicy="no-referrer-when-downgrade"
-    src={`https://www.google.com/maps?q=13.0827,80.2707&z=15&output=embed`}
-  ></iframe>
+{/* Live Map View */}
+<div className="h-80 w-full relative overflow-hidden rounded-t-3xl bg-gray-100">
+    {loading ? (
+        <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            <span className="ml-3 text-gray-500 font-medium">Detecting your location...</span>
+        </div>
+    ) : position && (
+            <MapContainer 
+                center={position} 
+                zoom={15} 
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapController position={position} />
+                <Marker position={position}>
+                    <Popup className="custom-popup">
+                        <div className="font-bold text-green-700">You are here</div>
+                        <div className="text-xs text-gray-500">Live tracking active</div>
+                    </Popup>
+                </Marker>
+                
+                {/* Control Buttons Overlay */}
+                <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+                    <button 
+                        onClick={() => setPosition([...position])} // Trigger recenter
+                        className="bg-white p-3 rounded-full shadow-2xl hover:bg-gray-50 transition-all border border-gray-100 flex items-center justify-center group"
+                        title="Recenter Map"
+                    >
+                        <svg className="w-5 h-5 text-green-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
 
-  <div className="absolute top-4 right-4 z-10 bg-white/90 px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
-    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-    <span className="text-xs font-bold text-green-800">
-      Delivery Partner Live
-    </span>
-  </div>
+                {/* Real-time sync indicator */}
+                <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg flex items-center gap-2 border border-blue-50">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-gray-700">
+                        Live GPS Active
+                    </span>
+                </div>
+            </MapContainer>
+    )}
+
+    {error && !loading && (
+        <div className="absolute bottom-4 left-4 z-[1000] bg-red-50 text-red-700 px-4 py-2 rounded-lg text-xs font-medium border border-red-100 shadow-sm">
+            {error}
+        </div>
+    )}
 </div>
 
 

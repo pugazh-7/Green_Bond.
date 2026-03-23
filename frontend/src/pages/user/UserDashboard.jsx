@@ -1,17 +1,29 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
 
 let DefaultIcon = L.icon({
-    iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
     iconSize: [25, 41],
-    iconAnchor: [12, 41]
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
+
+const MapController = ({ position }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (position) {
+            map.flyTo([position.lat, position.lng], 14);
+        }
+    }, [position, map]);
+    return null;
+};
 
 const UserDashboard = () => {
     const [latestOrder, setLatestOrder] = React.useState(null);
@@ -120,18 +132,19 @@ const UserDashboard = () => {
                     <MapContainer
                         center={[13.0827, 80.2707]}
                         zoom={13}
-                        scrollWheelZoom={false}
+                        scrollWheelZoom={true}
                         style={{ height: "100%", width: "100%" }}
                         className="z-0"
                     >
                         <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
+                        {trackingLoc && <MapController position={trackingLoc} />}
                         <Marker position={[trackingLoc?.lat || 13.0827, trackingLoc?.lng || 80.2707]}>
-                            <Popup>
-                                <div className="font-bold text-green-700">Vehicle Location</div>
-                                Near Anna Nagar, Chennai
+                            <Popup className="custom-popup">
+                                <div className="font-bold text-blue-700 underline mb-1">Live Delivery Partner</div>
+                                <div className="text-xs text-gray-600">Arriving at your location soon.</div>
                             </Popup>
                         </Marker>
                     </MapContainer>

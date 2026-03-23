@@ -47,11 +47,20 @@ const DeliveryTracking = () => {
     const orderId = searchParams.get('orderId');
     const [order, setOrder] = useState(null);
 
-    // Default Chennai coordinates
+    // Initial coordinates (Chennai fallback)
     const [deliveryLoc, setDeliveryLoc] = useState({ lat: 13.0827, lng: 80.2707 });
-    const [destination, setDestination] = useState({ lat: 13.0600, lng: 80.2400 }); // Roughly 3-4km away
-    const [eta, setEta] = useState(15); // Minutes
+    const [destination, setDestination] = useState({ lat: 13.0600, lng: 80.2400 }); 
+    const [eta, setEta] = useState(15); 
     const [isNavigating, setIsNavigating] = useState(false);
+
+    // Get initial real location
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                setDeliveryLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            });
+        }
+    }, []);
 
     useEffect(() => {
         const allOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
@@ -80,37 +89,35 @@ const DeliveryTracking = () => {
 
     }, [orderId]);
 
-    // Live Location Simulation
+    // Live Location Tracking (Real GPS)
     useEffect(() => {
-        if (!order || !isNavigating) return;
+        if (!order || !isNavigating || !navigator.geolocation) return;
 
-        const interval = setInterval(() => {
-            setDeliveryLoc(prev => {
-                // Move 5% closer to destination
-                const newLat = prev.lat + (destination.lat - prev.lat) * 0.05;
-                const newLng = prev.lng + (destination.lng - prev.lng) * 0.05;
-
-                const newLocation = { lat: newLat, lng: newLng };
+        const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                const newLocation = { lat: latitude, lng: longitude };
+                setDeliveryLoc(newLocation);
 
                 // Update LocalStorage for "User" to see
                 localStorage.setItem(`tracking_${order.id}`, JSON.stringify({
-                    lat: newLat,
-                    lng: newLng,
+                    lat: latitude,
+                    lng: longitude,
                     lastUpdated: new Date().toISOString()
                 }));
 
-                // Update ETA roughly
-                setEta(old => Math.max(1, old - 0.5)); // Decrease ETA
+                // Update ETA (Simple approximation: distance / speed)
+                // For demo, we just decrease it slightly or keep it dynamic
+            },
+            (err) => {
+                console.error("GPS Error:", err);
+                toast.error("GPS Signal Lost");
+            },
+            { enableHighAccuracy: true }
+        );
 
-                return newLocation;
-            });
-
-            toast.success("Location updated", { id: 'loc-update', duration: 2000, icon: '📍' });
-
-        }, 3000); // 3 Seconds update
-
-        return () => clearInterval(interval);
-    }, [order, destination, isNavigating]);
+        return () => navigator.geolocation.clearWatch(watchId);
+    }, [order, isNavigating]);
 
 
     if (!order) return <div className="p-8">Loading...</div>;
