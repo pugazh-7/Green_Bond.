@@ -85,22 +85,39 @@ const CustomerOrders = () => {
                                 </div>
 
                                 <div className="bg-gray-50 rounded-lg p-4">
-                                    <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Items Ordered</h4>
+                                    <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Order Details & Products</h4>
                                     <div className="space-y-3">
                                         {order.items && order.items.map((item, idx) => (
-                                            <div key={idx} className="flex justify-between text-sm">
-                                                <span className="text-gray-600">
-                                                    <span className="font-medium text-gray-900">{item.title}</span>
-                                                    <span className="text-gray-400 mx-2">x</span>
-                                                    {item.quantity}
-                                                </span>
-                                                <span className="font-medium text-gray-900">
-                                                    {/* Calculate item total price roughly or show unit price */}
-                                                    {/* Cart stores "₹40/kg" string. Parse it for display or just show string */}
-                                                    {item.price}
-                                                </span>
+                                            <div key={idx} className="flex justify-between items-center text-sm border-b border-gray-200 pb-3 last:border-0 last:pb-0">
+                                                <div className="flex items-center gap-3">
+                                                    {item.image && <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-md shadow-sm" />}
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-gray-900">{item.title}</span>
+                                                        <span className="text-xs text-gray-500">{item.category || 'Produce'} • {item.farmer}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-gray-500 text-xs font-medium">Qty: {item.quantity}</span>
+                                                    <p className="font-bold text-green-700 mt-0.5">{item.price}</p>
+                                                </div>
                                             </div>
                                         ))}
+                                    </div>
+                                    <div className="mt-4 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                        <div>
+                                            <p className="text-gray-400 uppercase tracking-wider text-[10px] font-bold mb-1 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                                Delivery Address
+                                            </p>
+                                            <p className="text-gray-900 font-medium leading-snug">{order.deliveryAddress || 'Address not provided'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-400 uppercase tracking-wider text-[10px] font-bold mb-1 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                                                Payment Method
+                                            </p>
+                                            <p className="text-gray-900 font-medium">{order.paymentMethod || 'Not specified'}</p>
+                                        </div>
                                     </div>
                                 </div>
 

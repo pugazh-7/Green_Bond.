@@ -25,17 +25,17 @@ const Cart = () => {
                 // Determine unit
                 const priceParts = item.price.split('/');
                 const unit = priceParts.length > 1 ? priceParts[1].trim().toLowerCase() : '';
-                
+
                 let newQty = item.quantity + delta;
-                
+
                 if (delta > 0 && unit === 'kg' && item.quantity >= 5) {
                     toast.error("For orders over 5kg, please use the Bulk Order option");
                     return item;
                 }
-                
+
                 newQty = Math.max(1, newQty);
                 if (unit === 'kg') newQty = Math.min(5, newQty);
-                
+
                 return { ...item, quantity: newQty };
             }
             return item;
@@ -85,49 +85,80 @@ const Cart = () => {
         }, 1500);
     };
 
-    const confirmOrder = () => {
+    const confirmOrder = async () => {
         setIsProcessing(true);
-
-        // Simulate Payment Processing
-        setTimeout(() => {
-            const orderId = `#ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-            const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
-            const status = paymentMethod === 'COD' ? 'Pending' : 'Paid';
-
-            const newOrder = {
-                id: orderId,
-                customer: currentUser.name || "Guest User",
-                item: cartItems[0].title + (cartItems.length > 1 ? ` +${cartItems.length - 1} more` : ""),
-                items: cartItems,
-                qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-                total: `₹${calculateTotal().toLocaleString()}`,
-                totalAmount: calculateTotal(),
-                date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                status: 'Placed',
-                paymentMethod: paymentMethod,
-                paymentStatus: status,
-                deliveryAddress: "123, Green Street, Chennai",
-                pickupAddress: cartItems[0].location || "Multiple Locations"
-            };
-
-            const savedOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-            localStorage.setItem('green_bond_orders', JSON.stringify([newOrder, ...savedOrders]));
-            localStorage.setItem('user_cart', JSON.stringify([]));
-
-            setPlacedOrderId(orderId);
+        const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+        
+        if (!currentUser.email) {
+            toast.error("Please log in to place an order");
             setIsProcessing(false);
-            setOrderSuccess(true);
+            return;
+        }
 
-            // Auto redirect after showing success
-            setTimeout(() => {
+        const status = paymentMethod === 'COD' ? 'Pending' : 'Paid';
+
+        const orderData = {
+            customerEmail: currentUser.email,
+            customerName: currentUser.name || "Guest User",
+            items: cartItems.map(i => ({
+                cartId: i.cartId,
+                title: i.title,
+                price: i.price,
+                farmer: i.farmer,
+                location: i.location,
+                image: i.image,
+                quantity: i.quantity
+            })),
+            qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+            total: `₹${calculateTotal().toLocaleString()}`,
+            totalAmount: calculateTotal(),
+            paymentMethod: paymentMethod,
+            paymentStatus: status,
+            deliveryAddress: "123, Green Street, Chennai", // In a real app this would come from a form
+            pickupAddress: cartItems[0].location || "Multiple Locations"
+        };
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+            
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+                const data = await response.json();
+                setPlacedOrderId(data.order.id);
+                localStorage.removeItem('user_cart');
                 setCartItems([]);
-                setOrderSuccess(false);
-                setShowPaymentModal(false);
-                navigate('/user');
-            }, 3000);
-
-        }, 2000);
+                
+                setIsProcessing(false);
+                setOrderSuccess(true);
+                
+                setTimeout(() => {
+                    setOrderSuccess(false);
+                    setShowPaymentModal(false);
+                    navigate('/user');
+                }, 3000);
+            } else {
+                const err = await response.json();
+                toast.error(err.message || 'Error placing order');
+                setIsProcessing(false);
+            }
+        } catch (error) {
+            console.error('Order creation error:', error);
+            if (error.name === 'AbortError') {
+                toast.error('Network timeout. Please check your connection.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+            setIsProcessing(false);
+        }
     };
 
     return (
@@ -260,17 +291,17 @@ const Cart = () => {
                                             </div>
                                             <span className="text-2xl">📱</span>
                                         </label>
-                                        
+
                                         {paymentMethod === 'UPI' && (
                                             <div className="mt-4 flex gap-2">
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Enter UPI ID (e.g. name@okaxis)" 
+                                                <input
+                                                    type="text"
+                                                    placeholder="Enter UPI ID (e.g. name@okaxis)"
                                                     value={upiId}
                                                     onChange={(e) => { setUpiId(e.target.value); setIsUpiVerified(false); }}
                                                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
                                                 />
-                                                <button 
+                                                <button
                                                     onClick={verifyUpi}
                                                     disabled={isVerifyingUpi || isUpiVerified}
                                                     className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${isUpiVerified ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50'}`}
@@ -291,12 +322,12 @@ const Cart = () => {
                                             </div>
                                             <span className="text-2xl">🔳</span>
                                         </label>
-                                        
+
                                         {paymentMethod === 'QR' && (
                                             <div className="mt-4 flex flex-col items-center p-4 bg-white rounded-xl border border-dashed border-gray-200">
-                                                <img 
-                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=greenbond@bank&pn=GreenBond%20Marketplace&am=${calculateTotal()}&cu=INR`} 
-                                                    alt="Payment QR" 
+                                                <img
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=greenbond@bank&pn=GreenBond%20Marketplace&am=${calculateTotal()}&cu=INR`}
+                                                    alt="Payment QR"
                                                     className="w-32 h-32 mb-2"
                                                 />
                                                 <p className="text-[10px] text-gray-400 font-medium">Scan with any UPI App to Pay ₹{calculateTotal().toLocaleString()}</p>

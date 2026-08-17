@@ -30,6 +30,12 @@ const LocationTracking = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const calculateMockETA = () => {
+        const d = new Date();
+        d.setHours(d.getHours() + 2);
+        return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
     // Mock data for farmer view
     const activeDelivery = {
         id: "ORD-9876",
@@ -37,7 +43,7 @@ const LocationTracking = () => {
         vehicle: "Tata Ace (TN-59-AB-1234)",
         driver: "Muthu Kumar",
         status: "Out for Delivery",
-        eta: "Today, 5:30 PM"
+        eta: `Today, ${calculateMockETA()}`
     };
 
     useEffect(() => {
@@ -197,7 +203,7 @@ const LocationTracking = () => {
                                 </div>
                                 <div>
                                     <h4 className="font-medium text-gray-400">Delivered</h4>
-                                    <p className="text-sm text-gray-300">Expected by 5:30 PM</p>
+                                    <p className="text-sm text-gray-300">Expected by {calculateMockETA()}</p>
                                 </div>
                             </div>
                         </div>

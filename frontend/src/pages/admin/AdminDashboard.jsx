@@ -17,9 +17,16 @@ const AdminDashboard = () => {
     // Get current user from localStorage
     const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
     const userName = currentUser.name || 'Administrator';
-    const userRole = currentUser.role || 'Admin';
+    const userRole = currentUser.role || 'user';
 
     useEffect(() => {
+        // Redirect if not admin
+        if (userRole !== 'admin') {
+            toast.error('Access denied. Administrator privileges required.');
+            navigate('/user/marketplace');
+            return;
+        }
+
         const loadRealTimeData = () => {
             const rawUsers = JSON.parse(localStorage.getItem('green_bond_users') || '[]');
             const rawFarmers = JSON.parse(localStorage.getItem('green_bond_farmers') || '[]');

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -26,30 +26,72 @@ const MapController = ({ position }) => {
 };
 
 const UserDashboard = () => {
-    const [latestOrder, setLatestOrder] = React.useState(null);
+    const [latestOrder, setLatestOrder] = useState(null);
+    const [previousOrders, setPreviousOrders] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const pollTimerRef = useRef(null);
+
+    const fetchOrders = async (isPolling = false) => {
+        try {
+            const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+            if (!currentUser.email) {
+                setIsLoading(false);
+                return;
+            }
+
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/user/${encodeURIComponent(currentUser.email)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.length > 0) {
+                    setLatestOrder(data[0]);
+                    setPreviousOrders(data.slice(1));
+                } else {
+                    setLatestOrder(null);
+                    setPreviousOrders([]);
+                }
+            }
+        } catch (error) {
+            if (!isPolling) console.error('Failed to fetch orders:', error);
+        } finally {
+            if (!isPolling) setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const savedOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-        if (savedOrders.length > 0) {
-            setLatestOrder(savedOrders[0]);
-        }
+        fetchOrders();
+        
+        pollTimerRef.current = setInterval(() => {
+            fetchOrders(true);
+        }, 15000);
+
+        return () => {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        };
     }, []);
 
-    const [trackingLoc, setTrackingLoc] = React.useState(null);
-
-    React.useEffect(() => {
-        if (!latestOrder) return;
-
-        const updateLocation = () => {
-            const trackingData = JSON.parse(localStorage.getItem(`tracking_${latestOrder.id}`) || 'null');
-            if (trackingData) {
-                setTrackingLoc({ lat: trackingData.lat, lng: trackingData.lng });
+    // Stop polling if delivered or cancelled
+    useEffect(() => {
+        if (latestOrder && ['Delivered', 'Cancelled'].includes(latestOrder.status)) {
+            if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
             }
-        };
+        }
+    }, [latestOrder]);
 
-        updateLocation();
-        const interval = setInterval(updateLocation, 3000);
-        return () => clearInterval(interval);
+    const [trackingLoc, setTrackingLoc] = useState(null);
+
+    useEffect(() => {
+        if (!latestOrder) return;
+        
+        // Dynamic map location based on order status for simulation since we don't have real live driver GPS
+        let lat = 13.0827, lng = 80.2707; 
+        if (['Placed', 'Pending'].includes(latestOrder.status)) { lat = 13.1000; lng = 80.3000; } // Farm Location
+        else if (latestOrder.status === 'Accepted') { lat = 13.0900; lng = 80.2800; } // Packing
+        else if (latestOrder.status === 'Shipped') { lat = 13.0850; lng = 80.2750; } // En route
+        else if (latestOrder.status === 'Delivered') { lat = 13.0827; lng = 80.2707; } // Destination
+        
+        setTrackingLoc({ lat, lng });
     }, [latestOrder]);
 
     const handleCancelOrder = () => {
@@ -76,30 +118,68 @@ const UserDashboard = () => {
             </div>
         ), {
             duration: 5000,
-            style: {
-                borderRadius: '16px',
-                padding: '16px',
-                background: '#fff',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                border: '1px solid #f3f4f6'
-            },
+            style: { borderRadius: '16px', padding: '16px', background: '#fff', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', border: '1px solid #f3f4f6' }
         });
     };
 
-    const confirmCancelOrder = () => {
-        const savedOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-        const updatedOrders = savedOrders.map(order =>
-            order.id === latestOrder.id ? { ...order, status: 'Cancelled' } : order
-        );
-
-        localStorage.setItem('green_bond_orders', JSON.stringify(updatedOrders));
-        setLatestOrder({ ...latestOrder, status: 'Cancelled' });
-        toast.success("Order cancelled successfully.");
+    const confirmCancelOrder = async () => {
+        if (!latestOrder) return;
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${latestOrder.id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Cancelled' })
+            });
+            if (res.ok) {
+                setLatestOrder({ ...latestOrder, status: 'Cancelled' });
+                toast.success("Order cancelled successfully.");
+            } else {
+                toast.error("Failed to cancel order.");
+            }
+        } catch (err) {
+            toast.error("Network error.");
+        }
     };
 
-    const orderId = latestOrder ? latestOrder.id : null;
-    const orderDate = latestOrder ? `${latestOrder.date} ${latestOrder.time}` : null;
-    const items = latestOrder?.items || [];
+    const formatDate = (dateString) => {
+        if (!dateString) return null;
+        return new Date(dateString).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
+    const formatShortTime = (dateString) => {
+        if (!dateString) return null;
+        return new Date(dateString).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
+    const calculateETA = (createdAt) => {
+        if (!createdAt) return "TBD";
+        const createdTime = new Date(createdAt);
+        createdTime.setHours(createdTime.getHours() + 4); // 4 hour delivery window
+        
+        const now = new Date();
+        const isToday = createdTime.getDate() === now.getDate() && createdTime.getMonth() === now.getMonth() && createdTime.getFullYear() === now.getFullYear();
+        const timeString = createdTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        if (isToday) return `Today, ${timeString}`;
+        
+        now.setDate(now.getDate() + 1);
+        const isTomorrow = createdTime.getDate() === now.getDate() && createdTime.getMonth() === now.getMonth() && createdTime.getFullYear() === now.getFullYear();
+        
+        if (isTomorrow) return `Tomorrow, ${timeString}`;
+        
+        return `${createdTime.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}, ${timeString}`;
+    };
+
+    if (isLoading) {
+        return (
+            <div className="space-y-6 max-w-4xl mx-auto text-center py-20 flex justify-center">
+                <svg className="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        );
+    }
 
     if (!latestOrder) {
         return (
@@ -110,13 +190,19 @@ const UserDashboard = () => {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Orders</h2>
                     <p className="text-gray-500 mb-8">You haven't placed any orders yet. Visit the marketplace to get fresh produce.</p>
-                    <a href="/user/marketplace" className="inline-block px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg">
+                    <a href="#/user/marketplace" className="inline-block px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg">
                         Go to Marketplace
                     </a>
                 </div>
             </div>
         );
     }
+
+    const orderId = latestOrder.id;
+    const orderDate = formatDate(latestOrder.createdAt);
+    const eta = calculateETA(latestOrder.createdAt);
+    const etaShortTime = calculateETA(latestOrder.createdAt).split(', ').pop();
+    const items = latestOrder.items || [];
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -161,8 +247,10 @@ const UserDashboard = () => {
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                         <div>
                             <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Estimated Delivery</p>
-                            <h2 className="text-4xl font-extrabold text-gray-900 mt-1">Today, 5:30 PM</h2>
-                            <p className="text-green-600 font-medium mt-1">On Time</p>
+                            <h2 className="text-4xl font-extrabold text-gray-900 mt-1">{eta}</h2>
+                            <p className="text-green-600 font-medium mt-1">
+                                {latestOrder.status === 'Delivered' ? 'Delivered successfully' : 'On Time'}
+                            </p>
                         </div>
                         <div className="flex -space-x-4">
                             {items.map((item, i) => (
@@ -177,10 +265,8 @@ const UserDashboard = () => {
                         <div className="space-y-8 relative">
                             {/* Step 1: Order Placed */}
                             <div className="flex gap-6 relative">
-                                <div className={`z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white shadow-sm ${['Placed', 'Pending', 'Accepted', 'Shipped', 'Delivered'].includes(latestOrder?.status)
-                                    ? 'bg-green-100' : 'bg-gray-100'
-                                    }`}>
-                                    <svg className={`w-4 h-4 ${['Placed', 'Pending', 'Accepted', 'Shipped', 'Delivered'].includes(latestOrder?.status) ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                <div className={`z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white shadow-sm bg-green-100`}>
+                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-gray-900">Order Placed</h4>
@@ -190,11 +276,11 @@ const UserDashboard = () => {
 
                             {/* Step 2: Packed by Farmer (Accepted) */}
                             <div className="flex gap-6 relative">
-                                {['Accepted'].includes(latestOrder?.status) ? (
+                                {['Accepted'].includes(latestOrder.status) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
-                                ) : ['Shipped', 'Delivered'].includes(latestOrder?.status) ? (
+                                ) : ['Shipped', 'Delivered'].includes(latestOrder.status) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
                                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -204,22 +290,27 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Accepted'].includes(latestOrder?.status) ? 'text-blue-600' : ['Shipped', 'Delivered'].includes(latestOrder?.status) ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    <h4 className={`font-bold ${['Accepted'].includes(latestOrder.status) ? 'text-blue-600' : ['Shipped', 'Delivered'].includes(latestOrder.status) ? 'text-gray-900' : 'text-gray-400'}`}>
                                         Packed by Farmer
                                     </h4>
-                                    <p className={`text-sm ${['Accepted'].includes(latestOrder?.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {latestOrder?.status === 'Accepted' ? 'Order is being packed' : ['Shipped', 'Delivered'].includes(latestOrder?.status) ? 'Completed' : 'Pending'}
+                                    <p className={`text-sm ${['Accepted'].includes(latestOrder.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
+                                        {latestOrder.status === 'Accepted' && latestOrder.acceptedAt 
+                                            ? `Packed at ${formatShortTime(latestOrder.acceptedAt)}` 
+                                            : ['Shipped', 'Delivered'].includes(latestOrder.status) && latestOrder.acceptedAt
+                                            ? `Packed at ${formatShortTime(latestOrder.acceptedAt)}`
+                                            : 'Pending'
+                                        }
                                     </p>
                                 </div>
                             </div>
 
                             {/* Step 3: Out for Delivery */}
                             <div className="flex gap-6 relative">
-                                {['Shipped'].includes(latestOrder?.status) ? (
+                                {['Shipped'].includes(latestOrder.status) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                     </div>
-                                ) : ['Delivered'].includes(latestOrder?.status) ? (
+                                ) : ['Delivered'].includes(latestOrder.status) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
                                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -229,18 +320,23 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Shipped'].includes(latestOrder?.status) ? 'text-blue-600' : ['Delivered'].includes(latestOrder?.status) ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    <h4 className={`font-bold ${['Shipped'].includes(latestOrder.status) ? 'text-blue-600' : ['Delivered'].includes(latestOrder.status) ? 'text-gray-900' : 'text-gray-400'}`}>
                                         Out for Delivery
                                     </h4>
-                                    <p className={`text-sm ${['Shipped'].includes(latestOrder?.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {latestOrder?.status === 'Shipped' ? 'Arriving Soon' : ['Delivered'].includes(latestOrder?.status) ? 'Completed' : 'Estimated'}
+                                    <p className={`text-sm ${['Shipped'].includes(latestOrder.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
+                                        {latestOrder.status === 'Shipped' && latestOrder.shippedAt 
+                                            ? `Left at ${formatShortTime(latestOrder.shippedAt)}` 
+                                            : ['Delivered'].includes(latestOrder.status) && latestOrder.shippedAt
+                                            ? `Left at ${formatShortTime(latestOrder.shippedAt)}`
+                                            : 'Estimated'
+                                        }
                                     </p>
                                 </div>
                             </div>
 
                             {/* Step 4: Delivered */}
                             <div className="flex gap-6 relative">
-                                {['Delivered'].includes(latestOrder?.status) ? (
+                                {['Delivered'].includes(latestOrder.status) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border-4 border-green-100 shadow-xl ring-4 ring-green-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -250,8 +346,13 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Delivered'].includes(latestOrder?.status) ? 'text-green-600' : 'text-gray-400'}`}>Delivered</h4>
-                                    <p className="text-sm text-gray-500">Expected by 5:30 PM</p>
+                                    <h4 className={`font-bold ${['Delivered'].includes(latestOrder.status) ? 'text-green-600' : 'text-gray-400'}`}>Delivered</h4>
+                                    <p className="text-sm text-gray-500">
+                                        {latestOrder.status === 'Delivered' && latestOrder.deliveredAt 
+                                            ? formatDate(latestOrder.deliveredAt)
+                                            : `Expected by ${etaShortTime}`
+                                        }
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -261,7 +362,7 @@ const UserDashboard = () => {
                 <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 flex justify-between items-center">
                     <button className="text-gray-600 font-semibold hover:text-gray-900 text-sm">Need Help?</button>
                     <div className="flex gap-4">
-                        {['Placed', 'Pending'].includes(latestOrder?.status) && (
+                        {['Placed', 'Pending'].includes(latestOrder.status) && (
                             <button
                                 onClick={handleCancelOrder}
                                 className="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors shadow-sm"
@@ -277,21 +378,22 @@ const UserDashboard = () => {
             </div>
 
             {/* Previous Orders History */}
-            {JSON.parse(localStorage.getItem('green_bond_orders') || '[]').length > 1 && (
+            {previousOrders.length > 0 && (
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden p-6">
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Previous Orders</h2>
                     <div className="space-y-4">
-                        {JSON.parse(localStorage.getItem('green_bond_orders') || '[]').slice(1).map((order) => (
+                        {previousOrders.map((order) => (
                             <div key={order.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <div>
-                                    <p className="font-bold text-gray-900">Order #{order.id}</p>
-                                    <p className="text-sm text-gray-500">{order.date} • {order.items.length} Items</p>
+                                    <p className="font-bold text-gray-900">Order {order.id}</p>
+                                    <p className="text-sm text-gray-500">{formatDate(order.createdAt)} • {order.items.length} Items</p>
                                 </div>
-                                <div className="text-right">
-                                    <span className={`inline-block px-3 py-1 text-xs font-bold uppercase rounded-full mb-1 ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                                        order.status === 'Cancelled' ? 'bg-gray-200 text-gray-500' :
-                                            'bg-blue-50 text-blue-700'
-                                        }`}>
+                                <div className="text-right flex flex-col items-end">
+                                    <span className={`inline-block px-3 py-1 text-xs font-bold uppercase rounded-full mb-1 ${
+                                        order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                        order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                        'bg-blue-50 text-blue-700'
+                                    }`}>
                                         {order.status}
                                     </span>
                                     <p className="text-sm font-semibold text-gray-900">{order.total}</p>

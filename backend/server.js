@@ -9,6 +9,7 @@ dotenv.config();
 
 import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +34,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Static Files
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
@@ -43,9 +45,24 @@ app.use((req, res) => {
 });
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond')
-    .then(() => console.log('MongoDB connected successfully'))
-    .catch(err => console.error('MongoDB connection error:', err));
+const connectDB = async () => {
+    if (mongoose.connection.readyState >= 1) {
+        return;
+    }
+    
+    try {
+        await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond', {
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            maxPoolSize: 10
+        });
+        console.log('MongoDB connected successfully');
+    } catch (err) {
+        console.error('MongoDB connection error:', err);
+    }
+};
+
+connectDB();
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

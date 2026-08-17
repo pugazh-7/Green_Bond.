@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 const router = express.Router();
 import User from '../models/User.js';
 import Farmer from '../models/Farmer.js';
@@ -14,20 +15,13 @@ router.post('/register-user', async (req, res) => {
             return res.status(400).json({ message: 'Passwords do not match' });
         }
 
-        const existingUser = await User.findOne({ 
-            $or: [{ email }, { mobile }] 
-        });
-        if (existingUser) {
-            if (existingUser.email === email) {
-                return res.status(400).json({ message: 'User with this email already exists' });
-            }
-            return res.status(400).json({ message: 'User with this mobile number already exists' });
-        }
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = new User({ name, email, mobile, password });
+        const newUser = new User({ name, email, mobile, password: hashedPassword }); // role automatically defaults to 'customer'
         await newUser.save();
 
-        res.status(201).json({ message: 'User registered successfully', user: newUser });
+        res.status(201).json({ message: 'User registered successfully', user: { name: newUser.name, email: newUser.email, role: newUser.role } });
     } catch (error) {
         console.error("User registration error:", error);
         if (error.code === 11000) {
@@ -46,15 +40,13 @@ router.post('/register-farmer', async (req, res) => {
     try {
         const { name, mobile, location, pin } = req.body;
 
-        const existingFarmer = await Farmer.findOne({ mobile });
-        if (existingFarmer) {
-            return res.status(400).json({ message: 'Farmer with this mobile number already exists' });
-        }
+        const salt = await bcrypt.genSalt(10);
+        const hashedPin = await bcrypt.hash(pin, salt);
 
-        const newFarmer = new Farmer({ name, mobile, location, pin });
+        const newFarmer = new Farmer({ name, mobile, location, pin: hashedPin });
         await newFarmer.save();
 
-        res.status(201).json({ message: 'Farmer registered successfully', farmer: newFarmer });
+        res.status(201).json({ message: 'Farmer registered successfully', farmer: { name: newFarmer.name, mobile: newFarmer.mobile, role: 'farmer' } });
     } catch (error) {
         console.error("Farmer registration error:", error);
         if (error.code === 11000) {
@@ -78,20 +70,13 @@ router.post('/register-delivery', async (req, res) => {
             return res.status(400).json({ message: 'Passwords do not match' });
         }
 
-        const existingPartner = await DeliveryPartner.findOne({ 
-            $or: [{ email }, { mobile }] 
-        });
-        if (existingPartner) {
-            if (existingPartner.email === email) {
-                return res.status(400).json({ message: 'Partner with this email already exists' });
-            }
-            return res.status(400).json({ message: 'Partner with this mobile number already exists' });
-        }
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newPartner = new DeliveryPartner({ name, email, mobile, password, role: 'delivery' });
+        const newPartner = new DeliveryPartner({ name, email, mobile, password: hashedPassword, role: 'delivery' });
         await newPartner.save();
 
-        res.status(201).json({ message: 'Delivery Partner registered successfully', partner: newPartner });
+        res.status(201).json({ message: 'Delivery Partner registered successfully', partner: { name: newPartner.name, email: newPartner.email, role: 'delivery' } });
     } catch (error) {
         console.error("Delivery Partner registration error:", error);
         if (error.code === 11000) {
@@ -111,20 +96,34 @@ router.post('/login-user', async (req, res) => {
         const { email, password } = req.body;
         const cleanEmail = email.trim().toLowerCase();
 
-        // Admin hardcoded check
-        if (cleanEmail === 'admin@greenbond.com' && password === 'admin123') {
-            return res.status(200).json({ 
-                message: 'Admin login successful', 
-                user: { name: 'Administrator', email: 'admin@greenbond.com', role: 'admin' } 
-            });
-        }
-
         const user = await User.findOne({ email: cleanEmail });
-        if (!user || user.password !== password) {
+        if (!user) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
 
-        res.status(200).json({ message: 'Login successful', user });
+        // Check password (with fallback for legacy plaintext)
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch && user.password !== password) {
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+        
+        // Auto-upgrade legacy password
+        if (user.password === password) {
+             const salt = await bcrypt.genSalt(10);
+             user.password = await bcrypt.hash(password, salt);
+             await user.save();
+        }
+
+        // Return the actual user data, omitting the password
+        const userData = {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            mobile: user.mobile,
+            role: user.role
+        };
+
+        res.status(200).json({ message: 'Login successful', user: userData });
     } catch (error) {
         console.error("User login error:", error);
         res.status(500).json({ message: 'Server error during login', error: error.message });
@@ -146,12 +145,23 @@ router.post('/login-farmer', async (req, res) => {
 
         const farmer = await Farmer.findOne({ 
             mobile, 
-            pin,
             name: { $regex: new RegExp(`^${name}$`, 'i') }
         });
 
         if (!farmer) {
             return res.status(401).json({ message: 'Invalid Name, Mobile Number or PIN' });
+        }
+        
+        const isMatch = await bcrypt.compare(pin, farmer.pin);
+        if (!isMatch && farmer.pin !== pin) {
+             return res.status(401).json({ message: 'Invalid Name, Mobile Number or PIN' });
+        }
+        
+        // Auto-upgrade legacy pin
+        if (farmer.pin === pin) {
+             const salt = await bcrypt.genSalt(10);
+             farmer.pin = await bcrypt.hash(pin, salt);
+             await farmer.save();
         }
 
         res.status(200).json({ message: 'Login successful', farmer });
@@ -176,8 +186,20 @@ router.post('/login-delivery', async (req, res) => {
         }
 
         const partner = await DeliveryPartner.findOne({ email: cleanEmail });
-        if (!partner || partner.password !== password) {
+        if (!partner) {
             return res.status(401).json({ message: 'Invalid email or password' });
+        }
+        
+        const isMatch = await bcrypt.compare(password, partner.password);
+        if (!isMatch && partner.password !== password) {
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        // Auto-upgrade legacy password
+        if (partner.password === password) {
+             const salt = await bcrypt.genSalt(10);
+             partner.password = await bcrypt.hash(password, salt);
+             await partner.save();
         }
 
         res.status(200).json({ message: 'Login successful', partner });
@@ -198,7 +220,8 @@ router.post('/reset-password-user', async (req, res) => {
             return res.status(404).json({ message: 'User with this email not found' });
         }
 
-        user.password = newPassword;
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
         await user.save();
 
         res.status(200).json({ message: 'Password reset successful' });
@@ -218,7 +241,8 @@ router.post('/reset-pin-farmer', async (req, res) => {
             return res.status(404).json({ message: 'Farmer with this mobile number not found' });
         }
 
-        farmer.pin = newPin;
+        const salt = await bcrypt.genSalt(10);
+        farmer.pin = await bcrypt.hash(newPin, salt);
         await farmer.save();
 
         res.status(200).json({ message: 'PIN reset successful' });
@@ -239,7 +263,8 @@ router.post('/reset-password-delivery', async (req, res) => {
             return res.status(404).json({ message: 'Delivery Partner with this email not found' });
         }
 
-        partner.password = newPassword;
+        const salt = await bcrypt.genSalt(10);
+        partner.password = await bcrypt.hash(newPassword, salt);
         await partner.save();
 
         res.status(200).json({ message: 'Password reset successful' });
@@ -250,4 +275,3 @@ router.post('/reset-password-delivery', async (req, res) => {
 });
 
 export default router;
-

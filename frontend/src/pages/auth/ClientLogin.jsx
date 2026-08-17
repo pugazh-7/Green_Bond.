@@ -32,14 +32,26 @@ const ClientLogin = () => {
     const [newPin, setNewPin] = useState('');
     const [showPin, setShowPin] = useState(false);
     const [showResetPin, setShowResetPin] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
+
+        if (isLoading) return;
 
         if (mobile.length !== 10) {
             toast.error('Mobile Number must be exactly 10 digits.');
             return;
         }
+
+        if (!rememberMe) {
+            toast.error("Please select the 'Remember me' checkbox to proceed.");
+            return;
+        }
+
+        setIsLoading(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-farmer`, {
@@ -48,8 +60,10 @@ const ClientLogin = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ name, mobile, pin }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -77,8 +91,15 @@ const ClientLogin = () => {
                 toast.error(data.message || 'Invalid Name, Mobile Number or PIN. Please try again.');
             }
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error('Login error:', error);
-            toast.error('Server error. Please try again later.');
+            if (error.name === 'AbortError') {
+                toast.error('Request timed out. Please try again.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -294,7 +315,6 @@ const ClientLogin = () => {
                             >
                                 <input 
                                     type="checkbox" 
-                                    required
                                     checked={rememberMe}
                                     onChange={(e) => setRememberMe(e.target.checked)}
                                     onClick={(e) => e.stopPropagation()}
@@ -313,9 +333,22 @@ const ClientLogin = () => {
 
                         <button
                             type="submit"
-                            className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                            disabled={isLoading}
+                            className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white transition-colors ${
+                                isLoading 
+                                ? 'bg-green-400 cursor-not-allowed' 
+                                : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                            }`}
                         >
-                            Secure Login
+                            {isLoading ? (
+                                <span className="flex items-center">
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Signing in...
+                                </span>
+                            ) : 'Secure Login'}
                         </button>
 
                         <div className="text-center mt-4 pt-4 border-t border-gray-100">
