@@ -6,16 +6,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const location = useLocation();
     // Default to 'guest' if no userRole is found, or handle it as null
     const userRole = localStorage.getItem('userRole');
+    const token = localStorage.getItem('token');
 
     useEffect(() => {
-        if (!userRole) {
+        if (!userRole || !token) {
             toast.error('Please login to access this page.');
         } else if (allowedRoles && !allowedRoles.includes(userRole)) {
             toast.error('You are not authorized to access this page.');
         }
-    }, [userRole, allowedRoles]);
+    }, [userRole, token, allowedRoles]);
 
-    if (!userRole) {
+    if (!userRole || !token) {
         // Redirect to landing page or specific login based on tried path could be better, 
         // but for now redirecting to landing page is safe.
         // You might want to redirect to a generic login selection or specific login if known.

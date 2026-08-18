@@ -1,68 +1,126 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LocationPicker from '../../components/LocationPicker';
+import { io } from 'socket.io-client';
 
 const DeliveryDashboard = () => {
     const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [activeOrder, setActiveOrder] = useState(null);
+    const [status, setStatus] = useState('Available');
+    const [location, setLocation] = useState(null);
+
+    const fetchOrders = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/delivery-orders`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setOrders(data);
+                
+                // Active order: Assigned to me, and not yet delivered
+                // Actually, backend returns orders assigned to me or READY_FOR_PICKUP
+                const active = data.find(o => 
+                    ['DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'].includes(o.status)
+                );
+                setActiveOrder(active);
+            }
+        } catch (error) {
+            console.error('Error fetching delivery orders:', error);
+        }
+    };
 
     useEffect(() => {
-        const fetchOrders = () => {
-            const savedOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-            setOrders(savedOrders);
-
-            // Find an active order (Shipped or Accepted, but not Delivered)
-            // Prioritize 'Shipped' (Out for Delivery)
-            const active = savedOrders.find(o => o.status === 'Shipped') ||
-                savedOrders.find(o => o.status === 'Accepted');
-            setActiveOrder(active);
-        };
-
         fetchOrders();
-        // Poll for updates every 5 seconds to simulate real-time sync
-        const interval = setInterval(fetchOrders, 5000);
-        return () => clearInterval(interval);
+        
+        const token = localStorage.getItem('token');
+        let deliveryId = null;
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                deliveryId = payload.id;
+            } catch (e) {}
+        }
+
+        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        if (deliveryId) {
+            socket.emit('join', deliveryId);
+            socket.on('order_update', () => {
+                fetchOrders();
+            });
+        }
+        
+        const interval = setInterval(fetchOrders, 60000); // 60s fallback sync
+        return () => {
+            clearInterval(interval);
+            socket.disconnect();
+        };
     }, []);
 
     // Derived Stats
-    const assignedOrdersCount = orders.filter(o => ['Accepted', 'Shipped'].includes(o.status)).length;
+    const assignedOrdersCount = orders.filter(o => ['DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'].includes(o.status)).length;
     const deliveredTodayCount = orders.filter(o => {
-        const isToday = new Date(o.date).toDateString() === new Date().toDateString();
-        return o.status === 'Delivered' && isToday;
+        const isToday = new Date(o.createdAt).toDateString() === new Date().toDateString(); // Simplified
+        return o.status === 'DELIVERED' && isToday;
     }).length;
-    const pendingDeliveryCount = orders.filter(o => ['Accepted', 'Shipped'].includes(o.status)).length;
+    const pendingDeliveryCount = assignedOrdersCount;
 
     // Calculate Earnings (Mock logic: 10% of order value)
     const earnings = orders
-        .filter(o => o.status === 'Delivered')
-        .reduce((sum, o) => sum + (o.totalAmount * 0.1), 0);
+        .filter(o => o.status === 'DELIVERED')
+        .reduce((sum, o) => sum + ((parseFloat((o.total||"0").replace(/[^0-9.]/g, '')) || 0) * 0.1), 0);
 
     const stats = [
-        { label: 'Assigned Orders', value: assignedOrdersCount, color: 'text-blue-600', bg: 'bg-blue-100' },
+        { label: 'Active Delivery', value: assignedOrdersCount, color: 'text-blue-600', bg: 'bg-blue-100' },
         { label: 'Delivered Today', value: deliveredTodayCount, color: 'text-green-600', bg: 'bg-green-100' },
-        { label: 'Pending Delivery', value: pendingDeliveryCount, color: 'text-yellow-600', bg: 'bg-yellow-100' },
+        { label: 'Pending Pickups', value: pendingDeliveryCount, color: 'text-yellow-600', bg: 'bg-yellow-100' },
         { label: 'Earnings', value: `₹${Math.round(earnings)}`, color: 'text-purple-600', bg: 'bg-purple-100' },
     ];
 
     const handleNavigate = (order) => {
-        navigate('/delivery/tracking', { state: { orderId: order.id } });
+        navigate(`/delivery/tracking?orderId=${order.id}`);
     };
 
-    const handleAcceptOrder = (orderId) => {
-        const updatedOrders = orders.map(o => {
-            if (o.id === orderId) return { ...o, status: 'Accepted' };
-            return o;
-        });
-        localStorage.setItem('green_bond_orders', JSON.stringify(updatedOrders));
-        setOrders(updatedOrders);
-        toast.success("Order Accepted! Proceed to Pickup.");
+    const toggleStatus = () => {
+        const newStatus = status === 'Offline' ? 'Available' : 'Offline';
+        setStatus(newStatus);
+        toast.success(`You are now ${newStatus}`);
+    };
+
+    const handleLocationChange = (loc) => {
+        setLocation(loc);
     };
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-900">Delivery Dashboard</h1>
-            <p className="text-gray-500">Welcome back, Partner! Here is your live summary.</p>
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Delivery Dashboard</h1>
+                    <p className="text-gray-500">Welcome back, Partner! Here is your live summary.</p>
+                </div>
+                <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    <span className={`font-bold ${status === 'Available' ? 'text-green-600' : 'text-gray-400'}`}>
+                        {status}
+                    </span>
+                    <button 
+                        onClick={toggleStatus}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${status === 'Available' ? 'bg-green-600' : 'bg-gray-300'}`}
+                    >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${status === 'Available' ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Your Location</h2>
+                <LocationPicker onLocationChange={handleLocationChange} defaultLocation={location} />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {stats.map((stat, index) => (
@@ -85,9 +143,9 @@ const DeliveryDashboard = () => {
                             <div>
                                 <div className="flex items-center gap-2 mb-2">
                                     <h3 className="font-bold text-blue-900 text-lg">{activeOrder.id}</h3>
-                                    <span className={`px-2 py-1 text-xs font-bold rounded ${activeOrder.status === 'Shipped' ? 'bg-orange-200 text-orange-800' : 'bg-blue-200 text-blue-800'
+                                    <span className={`px-2 py-1 text-xs font-bold rounded ${activeOrder.status === 'OUT_FOR_DELIVERY' ? 'bg-orange-200 text-orange-800' : 'bg-blue-200 text-blue-800'
                                         }`}>
-                                        {activeOrder.status === 'Shipped' ? 'Out for Delivery' : 'Ready for Pickup'}
+                                        {activeOrder.status.replace(/_/g, ' ')}
                                     </span>
                                 </div>
                                 <div className="space-y-1">

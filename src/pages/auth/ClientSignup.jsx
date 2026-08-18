@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LocationPicker from '../../components/LocationPicker';
 
 const ClientSignup = () => {
     const navigate = useNavigate();
@@ -8,10 +9,29 @@ const ClientSignup = () => {
         name: '',
         mobile: '',
         location: '',
-        pin: ''
+        address: '',
+        lat: null,
+        lng: null,
+        farmLocation: null,
+        pin: '',
+        idProofDoc: '',
+        landProofDoc: ''
     });
 
+    const handleLocationChange = (loc) => {
+        setFormData({
+            ...formData,
+            location: loc.address, // legacy field
+            address: loc.address,
+            lat: loc.lat,
+            lng: loc.lng,
+            farmLocation: { lat: loc.lat, lng: loc.lng, address: loc.address }
+        });
+    };
+
     const [showPin, setShowPin] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDelayed, setIsDelayed] = useState(false);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -20,10 +40,18 @@ const ClientSignup = () => {
     const handleSignup = async (e) => {
         e.preventDefault();
 
+        if (isSubmitting) return;
+
         if (formData.mobile.length !== 10) {
             toast.error('Mobile Number must be exactly 10 digits.');
             return;
         }
+
+        setIsSubmitting(true);
+        setIsDelayed(false);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
 
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register-farmer`, {
@@ -32,8 +60,11 @@ const ClientSignup = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(formData),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -43,8 +74,17 @@ const ClientSignup = () => {
                 toast.error(data.message || 'Registration failed.');
             }
         } catch (error) {
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             console.error('Registration error:', error);
-            toast.error('Server error. Please try again later.');
+            if (error.name === 'AbortError') {
+                toast.error('Request timed out. Please try again.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+        } finally {
+            setIsSubmitting(false);
+            setIsDelayed(false);
         }
     };
 
@@ -90,16 +130,35 @@ const ClientSignup = () => {
                             />
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">District / Location</label>
-                        <input
-                            name="location"
-                            type="text"
-                            required
-                            className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
-                            placeholder="e.g. Madurai"
-                            onChange={handleChange}
-                        />
+                    <LocationPicker onLocationChange={handleLocationChange} />
+                    <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                        <h3 className="font-bold text-green-800 mb-3">Verification Documents</h3>
+                        <p className="text-xs text-green-700 mb-4">Provide official documents to get verified and start selling.</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Identity Proof (Aadhaar/PAN URL or ID)</label>
+                                <input
+                                    name="idProofDoc"
+                                    type="text"
+                                    required
+                                    className="appearance-none block w-full px-4 py-2 border border-gray-300 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
+                                    placeholder="Enter Document ID or Link"
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Land Ownership Proof (Patta/Chitta URL)</label>
+                                <input
+                                    name="landProofDoc"
+                                    type="text"
+                                    required
+                                    className="appearance-none block w-full px-4 py-2 border border-gray-300 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
+                                    placeholder="Enter Document ID or Link"
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">Create PIN</label>
@@ -132,9 +191,22 @@ const ClientSignup = () => {
                         </div>
                     </div>                    <button
                         type="submit"
-                        className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors mt-6"
+                        disabled={isSubmitting}
+                        className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white transition-colors mt-6 ${
+                            isSubmitting 
+                            ? 'bg-green-400 cursor-not-allowed' 
+                            : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                        }`}
                     >
-                        Register Securely
+                        {isSubmitting ? (
+                            <span className="flex items-center">
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                {isDelayed ? "Taking a little longer than usual. Please wait..." : "Creating account..."}
+                            </span>
+                        ) : 'Register Securely'}
                     </button>
 
                     <div className="text-center mt-4">

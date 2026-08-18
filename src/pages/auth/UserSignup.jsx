@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LocationPicker from '../../components/LocationPicker';
 
 const UserSignup = () => {
     const navigate = useNavigate();
@@ -9,11 +10,18 @@ const UserSignup = () => {
         email: '',
         mobile: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        location: null
     });
+
+    const handleLocationChange = (loc) => {
+        setFormData({ ...formData, location: loc });
+    };
 
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDelayed, setIsDelayed] = useState(false);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -55,16 +63,25 @@ const UserSignup = () => {
     const handleSignup = async (e) => {
         e.preventDefault();
 
+        if (isSubmitting) return;
+
         if (!validateForm()) {
             return;
         }
+
+        setIsSubmitting(true);
+        setIsDelayed(false);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
 
         const newUser = {
             name: formData.name.trim(),
             email: formData.email.trim(),
             mobile: formData.mobile.trim(),
             password: formData.password,
-            confirmPassword: formData.confirmPassword
+            confirmPassword: formData.confirmPassword,
+            location: formData.location
         };
 
         try {
@@ -74,8 +91,11 @@ const UserSignup = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(newUser),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -85,8 +105,17 @@ const UserSignup = () => {
                 toast.error(data.message || 'Registration failed.');
             }
         } catch (error) {
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             console.error('Registration error:', error);
-            toast.error('Server error. Please try again later.');
+            if (error.name === 'AbortError') {
+                toast.error('Request timed out. Please try again.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+        } finally {
+            setIsSubmitting(false);
+            setIsDelayed(false);
         }
     };
 
@@ -202,10 +231,30 @@ const UserSignup = () => {
                             </div>
                         </div>
                     </div>
+                    
+                    <div className="mb-4">
+                        <LocationPicker onLocationChange={handleLocationChange} />
+                    </div>
 
                     <div>
-                        <button type="submit" className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-lg">
-                            Create Account
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting}
+                            className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white ${
+                                isSubmitting 
+                                ? 'bg-teal-400 cursor-not-allowed' 
+                                : 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700'
+                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-lg`}
+                        >
+                            {isSubmitting ? (
+                                <span className="flex items-center">
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Creating account..."}
+                                </span>
+                            ) : 'Create Account'}
                         </button>
                     </div>
                     <div className="text-center">

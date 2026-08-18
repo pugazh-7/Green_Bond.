@@ -14,38 +14,38 @@ const Marketplace = () => {
 
     const [products, setProducts] = useState(DEFAULT_PRODUCTS);
     const [bonds, setBonds] = useState(DEFAULT_BONDS);
-    // const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // React.useEffect(() => {
-    //     const fetchData = async () => {
-    //         setIsLoading(true);
-    //         try {
-    //             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
-    //             if (response.ok) {
-    //                 const backendProducts = await response.json();
+    React.useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
+                if (response.ok) {
+                    const backendProducts = await response.json();
                     
-    //                 // Add unique backend products (mapped to include an id for React keys)
-    //                 const normalizedBackend = backendProducts.map(p => ({
-    //                     ...p,
-    //                     id: p._id || p.id // Mongodb uses _id
-    //                 }));
+                    // Add unique backend products (mapped to include an id for React keys)
+                    const normalizedBackend = backendProducts.map(p => ({
+                        ...p,
+                        id: p._id || p.id // Mongodb uses _id
+                    }));
                     
-    //                 // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
-    //                 const uniqueBackend = normalizedBackend.filter(bp => 
-    //                     !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
-    //                 );
+                    // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
+                    const uniqueBackend = normalizedBackend.filter(bp => 
+                        !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
+                    );
 
-    //                 setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
-    //             }
-    //         } catch (error) {
-    //             console.error('Error fetching marketplace data:', error);
-    //         } finally {
-    //             setIsLoading(false);
-    //         }
-    //     };
+                    setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
+                }
+            } catch (error) {
+                console.error('Error fetching marketplace data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-    //     fetchData();
-    // }, []);
+        fetchData();
+    }, []);
 
 
 
@@ -276,7 +276,7 @@ const Marketplace = () => {
                             return (
                                 <div key={bond.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
                                     <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                        <img src={bond.image} alt={bond.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                                        <img src={bond.image} alt={bond.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                         <div className="absolute top-1 lg:top-4 right-1 lg:right-4 bg-white/90 backdrop-blur-sm px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold text-green-700 uppercase">{bond.category}</div>
                                     </div>
                                     <div className="p-2 lg:p-5 flex-1 flex flex-col">
@@ -304,7 +304,7 @@ const Marketplace = () => {
                         filteredProducts.map(item => (
                             <div key={item.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
                                 <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                                    <img src={item.image} alt={item.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute top-1 lg:top-4 left-1 lg:left-4 bg-green-600 text-white px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold uppercase shadow-sm">{item.category}</div>
                                 </div>
                                 <div className="p-2 lg:p-5 flex-1 flex flex-col">

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LocationPicker from '../../components/LocationPicker';
 
 const Cart = () => {
     const [cartItems, setCartItems] = useState([]);
     const navigate = useNavigate();
+    const [deliveryLocation, setDeliveryLocation] = useState(null);
 
     useEffect(() => {
         const savedCart = localStorage.getItem('user_cart');
@@ -61,6 +63,10 @@ const Cart = () => {
 
     const handlePlaceOrder = () => {
         if (cartItems.length === 0) return;
+        if (!deliveryLocation || !deliveryLocation.lat || !deliveryLocation.lng) {
+            toast.error("Please provide your delivery location first.");
+            return;
+        }
         setShowPaymentModal(true);
     };
 
@@ -85,49 +91,81 @@ const Cart = () => {
         }, 1500);
     };
 
-    const confirmOrder = () => {
+    const confirmOrder = async () => {
         setIsProcessing(true);
-
-        // Simulate Payment Processing
-        setTimeout(() => {
-            const orderId = `#ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-            const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
-            const status = paymentMethod === 'COD' ? 'Pending' : 'Paid';
-
-            const newOrder = {
-                id: orderId,
-                customer: currentUser.name || "Guest User",
-                item: cartItems[0].title + (cartItems.length > 1 ? ` +${cartItems.length - 1} more` : ""),
-                items: cartItems,
-                qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-                total: `₹${calculateTotal().toLocaleString()}`,
-                totalAmount: calculateTotal(),
-                date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                status: 'Placed',
-                paymentMethod: paymentMethod,
-                paymentStatus: status,
-                deliveryAddress: "123, Green Street, Chennai",
-                pickupAddress: cartItems[0].location || "Multiple Locations"
-            };
-
-            const savedOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-            localStorage.setItem('green_bond_orders', JSON.stringify([newOrder, ...savedOrders]));
-            localStorage.setItem('user_cart', JSON.stringify([]));
-
-            setPlacedOrderId(orderId);
+        const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+        
+        if (!currentUser.email) {
+            toast.error("Please log in to place an order");
             setIsProcessing(false);
-            setOrderSuccess(true);
+            return;
+        }
 
-            // Auto redirect after showing success
-            setTimeout(() => {
+        const status = paymentMethod === 'COD' ? 'Pending' : 'Paid';
+
+        const orderData = {
+            customerEmail: currentUser.email,
+            customerName: currentUser.name || "Guest User",
+            items: cartItems.map(i => ({
+                cartId: i.cartId,
+                title: i.title,
+                price: i.price,
+                farmer: i.farmer,
+                location: i.location,
+                image: i.image,
+                quantity: i.quantity
+            })),
+            qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+            total: `₹${calculateTotal().toLocaleString()}`,
+            totalAmount: calculateTotal(),
+            paymentMethod: paymentMethod,
+            paymentStatus: status,
+            deliveryAddress: deliveryLocation.address || "Location Provided",
+            deliveryLocation: deliveryLocation, // passing the object with lat, lng
+            pickupAddress: cartItems[0].location || "Multiple Locations"
+        };
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+            
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+                const data = await response.json();
+                setPlacedOrderId(data.order.id);
+                localStorage.removeItem('user_cart');
                 setCartItems([]);
-                setOrderSuccess(false);
-                setShowPaymentModal(false);
-                navigate('/user');
-            }, 3000);
-
-        }, 2000);
+                
+                setIsProcessing(false);
+                setOrderSuccess(true);
+                
+                setTimeout(() => {
+                    setOrderSuccess(false);
+                    setShowPaymentModal(false);
+                    navigate('/user');
+                }, 3000);
+            } else {
+                const err = await response.json();
+                toast.error(err.message || 'Error placing order');
+                setIsProcessing(false);
+            }
+        } catch (error) {
+            console.error('Order creation error:', error);
+            if (error.name === 'AbortError') {
+                toast.error('Network timeout. Please check your connection.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+            setIsProcessing(false);
+        }
     };
 
     return (
@@ -211,6 +249,11 @@ const Cart = () => {
                                     <span>₹{calculateTotal().toLocaleString()}</span>
                                 </div>
                             </div>
+                            
+                            <div className="mb-6">
+                                <LocationPicker onLocationChange={(loc) => setDeliveryLocation(loc)} />
+                            </div>
+
                             <button
                                 onClick={handlePlaceOrder}
                                 className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-100 active:scale-95"

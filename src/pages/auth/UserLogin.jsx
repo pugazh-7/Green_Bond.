@@ -12,6 +12,8 @@ const UserLogin = () => {
     const [newPassword, setNewPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showNewPassword, setShowNewPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDelayed, setIsDelayed] = useState(false);
 
     useEffect(() => {
         const rememberedEmail = localStorage.getItem('remembered_user_email');
@@ -30,6 +32,8 @@ const UserLogin = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
 
+        if (isLoading) return;
+
         if (!email || !password) {
             toast.error("Please fill in all fields.");
             return;
@@ -40,6 +44,11 @@ const UserLogin = () => {
             return;
         }
 
+        setIsLoading(true);
+        setIsDelayed(false);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
         const cleanEmailInput = email.trim().toLowerCase();
 
         try {
@@ -49,14 +58,18 @@ const UserLogin = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ email: cleanEmailInput, password }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
                 const user = data.user;
                 localStorage.setItem('userRole', user.role || 'user');
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
+                if (data.token) localStorage.setItem('token', data.token);
 
                 if (rememberMe) {
                     localStorage.setItem('remembered_user_email', cleanEmailInput);
@@ -74,8 +87,17 @@ const UserLogin = () => {
                 toast.error(data.message || 'Invalid Email or Password. Please try again.');
             }
         } catch (error) {
+            clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             console.error('Login error:', error);
-            toast.error('Server error. Please try again later.');
+            if (error.name === 'AbortError') {
+                toast.error('Request timed out. Please try again.');
+            } else {
+                toast.error('Server error. Please try again later.');
+            }
+        } finally {
+            setIsLoading(false);
+            setIsDelayed(false);
         }
     };
 
@@ -261,8 +283,24 @@ const UserLogin = () => {
                     </div>
 
                     <div>
-                        <button type="submit" className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-lg transform transition-all hover:-translate-y-0.5">
-                            Sign in
+                        <button 
+                            type="submit" 
+                            disabled={isLoading}
+                            className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white ${
+                                isLoading 
+                                ? 'bg-teal-400 cursor-not-allowed' 
+                                : 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 shadow-lg transform transition-all hover:-translate-y-0.5'
+                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500`}
+                        >
+                            {isLoading ? (
+                                <span className="flex items-center">
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Signing in..."}
+                                </span>
+                            ) : 'Sign in'}
                         </button>
                     </div>
 

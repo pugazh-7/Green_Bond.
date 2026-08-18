@@ -30,15 +30,49 @@ const LocationTracking = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Mock data for farmer view
-    const activeDelivery = {
-        id: "ORD-9876",
-        customer: "Ramesh Hotel",
-        vehicle: "Tata Ace (TN-59-AB-1234)",
-        driver: "Muthu Kumar",
-        status: "Out for Delivery",
-        eta: "Today, 5:30 PM"
+    const calculateMockETA = () => {
+        const d = new Date();
+        d.setHours(d.getHours() + 2);
+        return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
     };
+
+    const [activeDelivery, setActiveDelivery] = useState(null);
+
+    const fetchActiveDelivery = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/farmer-orders`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const active = data.find(o => ['DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'].includes(o.status));
+                if (active) {
+                    setActiveDelivery({
+                        id: active.id,
+                        customer: active.customerName,
+                        vehicle: "Green Bond Delivery",
+                        driver: "Delivery Partner",
+                        status: active.status.replace(/_/g, ' '),
+                        eta: active.estimatedDeliveryTime ? new Date(active.estimatedDeliveryTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : calculateMockETA(),
+                        rawStatus: active.status
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching active delivery:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchActiveDelivery();
+        // Optional polling every 10s if sockets aren't active for this view
+        const interval = setInterval(fetchActiveDelivery, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (!navigator.geolocation) {
@@ -79,10 +113,15 @@ const LocationTracking = () => {
         <div className="space-y-6 max-w-4xl mx-auto">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900">Live Delivery Tracking</h1>
-                <p className="text-gray-500 mt-1">Vehicle {activeDelivery.vehicle} • Driver {activeDelivery.driver}</p>
+                {activeDelivery ? (
+                    <p className="text-gray-500 mt-1">Order {activeDelivery.id} • {activeDelivery.customer} • {activeDelivery.driver}</p>
+                ) : (
+                    <p className="text-gray-500 mt-1">No active deliveries at the moment.</p>
+                )}
             </header>
 
             {/* Main Tracking Card */}
+            {activeDelivery ? (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
 {/* Live Map View */}
 <div className="h-80 w-full relative overflow-hidden rounded-t-3xl bg-gray-100">
@@ -197,7 +236,7 @@ const LocationTracking = () => {
                                 </div>
                                 <div>
                                     <h4 className="font-medium text-gray-400">Delivered</h4>
-                                    <p className="text-sm text-gray-300">Expected by 5:30 PM</p>
+                                    <p className="text-sm text-gray-300">Expected by {calculateMockETA()}</p>
                                 </div>
                             </div>
                         </div>
@@ -212,6 +251,11 @@ const LocationTracking = () => {
                     </button>
                 </div>
             </div>
+            ) : (
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-12 text-center">
+                    <p className="text-gray-500">Assign an order to delivery to start tracking.</p>
+                </div>
+            )}
         </div>
     );
 };

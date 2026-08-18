@@ -1,7 +1,21 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const LandingPage = () => {
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.state && location.state.scrollTo) {
+            const el = document.getElementById(location.state.scrollTo);
+            if (el) {
+                setTimeout(() => {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            }
+            // Clear the state so it doesn't run again on refresh
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
     return (
         <div className="flex flex-col">
             {/* Hero Section */}
@@ -89,6 +103,7 @@ const LandingPage = () => {
                             <img
                                 src="/new_solution.png"
                                 alt="Farming Solution"
+                                loading="lazy"
                                 className="relative rounded-3xl shadow-xl transform -rotate-3 transition-transform hover:rotate-0 duration-500"
                             />
                         </div>
