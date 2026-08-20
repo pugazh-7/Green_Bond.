@@ -72,68 +72,81 @@ const LandingPage = () => {
 
             {/* Main Hero Section */}
             <main className="flex-grow flex flex-col">
-                <section className="relative w-full overflow-hidden bg-gradient-to-r from-green-800 to-green-600 py-20 px-4">
-                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
-                    <div className="max-w-7xl mx-auto relative z-10 flex flex-col items-center text-center">
-                        <span className="px-3 py-1 bg-green-500/30 border border-green-400/30 text-green-100 text-sm font-semibold rounded-full mb-6 backdrop-blur-sm">
-                            {location ? `Delivering to: ${displayAddress}` : 'Set your location to see availability'}
+                <section className="relative w-full overflow-hidden min-h-[600px] flex items-center justify-center py-20 px-4">
+                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent"></div>
+                    
+                    <div className="max-w-7xl mx-auto relative z-10 flex flex-col items-center text-center mt-10">
+                        <span className="px-4 py-1.5 glass-panel text-white text-sm font-semibold rounded-full mb-8 flex items-center gap-2 shadow-lg">
+                            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                            {location ? `Delivering to: ${displayAddress}` : 'Set your location for accurate delivery times'}
                         </span>
-                        <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold text-white mb-6 tracking-tight drop-shadow-md">
-                            Fresh & Local.<br />Delivered to You.
+                        
+                        <h1 className="text-5xl md:text-6xl lg:text-8xl font-black text-white mb-6 tracking-tight drop-shadow-2xl font-heading leading-tight">
+                            Fresh & Local.<br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-green-200">Delivered to You.</span>
                         </h1>
-                        <p className="text-lg md:text-xl text-green-50 max-w-2xl mb-10 font-medium drop-shadow-sm">
-                            Shop nearby stores for instant delivery or buy fresh directly from verified local farmers.
+                        
+                        <p className="text-lg md:text-2xl text-gray-200 max-w-3xl mb-12 font-medium drop-shadow-md leading-relaxed">
+                            Shop nearby stores for instant essentials or buy fresh produce directly from verified local farmers.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto px-4">
+                        
+                        <div className="flex flex-col sm:flex-row gap-6 w-full sm:w-auto px-4">
                             <button 
                                 onClick={() => navigate(user ? '/user/marketplace?mode=shop' : '/login/user')}
-                                className="w-full sm:w-auto px-8 py-4 bg-white text-green-700 font-bold rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all text-lg"
+                                className="w-full sm:w-auto px-10 py-5 bg-white text-green-800 font-bold rounded-2xl shadow-[0_0_40px_rgba(34,197,94,0.3)] hover:shadow-[0_0_60px_rgba(34,197,94,0.5)] hover:-translate-y-1 transform transition-all duration-300 text-xl font-heading"
                             >
-                                Shop Now
+                                Shop Quick Essentials
                             </button>
                             <button 
                                 onClick={() => navigate(user ? '/user/marketplace?mode=fresh' : '/login/user')}
-                                className="w-full sm:w-auto px-8 py-4 bg-green-700/50 border-2 border-green-400 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
+                                className="w-full sm:w-auto px-10 py-5 glass-panel text-white font-bold rounded-2xl hover:bg-white/20 hover:-translate-y-1 transform transition-all duration-300 text-xl font-heading"
                             >
-                                Explore Fresh
+                                Explore Farmer Market
                             </button>
                         </div>
                     </div>
                 </section>
 
                 {/* Modes Section */}
-                <section className="py-16 px-4 max-w-7xl mx-auto w-full">
+                <section className="py-24 px-4 max-w-7xl mx-auto w-full -mt-16 relative z-20">
                     <div className="grid md:grid-cols-2 gap-8">
                         {/* Quick Shop Card */}
-                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:shadow-xl transition-shadow relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400 rounded-bl-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
-                            <div className="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-2xl flex items-center justify-center mb-6">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <div className="premium-card p-10 relative overflow-hidden group cursor-pointer" onClick={() => navigate(user ? '/user/marketplace?mode=shop' : '/login/user')}>
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-green-400/20 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
+                            
+                            <div className="flex items-center justify-between mb-8 relative">
+                                <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-50 text-green-700 rounded-2xl flex items-center justify-center shadow-sm border border-green-100">
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">10-15 Min</span>
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-3">Quick Shop</h2>
-                            <p className="text-gray-600 mb-6 line-clamp-2">Get everyday essentials, snacks, and groceries from your neighborhood shops delivered in minutes.</p>
-                            <button 
-                                onClick={() => navigate(user ? '/user/marketplace?mode=shop' : '/login/user')}
-                                className="text-yellow-600 font-bold inline-flex items-center hover:text-yellow-700"
-                            >
-                                Shop Nearby <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                            </button>
+                            
+                            <h2 className="text-3xl font-bold text-gray-900 mb-4 font-heading group-hover:text-green-700 transition-colors">Quick Shop</h2>
+                            <p className="text-gray-600 mb-8 text-lg leading-relaxed">Get milk, snacks, drinks, and household essentials from your neighborhood stores delivered in minutes.</p>
+                            
+                            <div className="flex items-center text-green-700 font-bold group-hover:translate-x-2 transition-transform">
+                                Shop Nearby <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                            </div>
                         </div>
 
                         {/* Fresh Card */}
-                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:shadow-xl transition-shadow relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500 rounded-bl-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
-                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mb-6">
-                                <span className="text-2xl">🌱</span>
+                        <div className="premium-card p-10 relative overflow-hidden group cursor-pointer" onClick={() => navigate(user ? '/user/marketplace?mode=fresh' : '/login/user')}>
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-green-600/20 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
+                            
+                            <div className="flex items-center justify-between mb-8 relative">
+                                <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-50 text-green-700 rounded-2xl flex items-center justify-center shadow-sm border border-green-100">
+                                    <span className="text-3xl">🌱</span>
+                                </div>
+                                <span className="bg-gray-100 text-gray-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Direct Source</span>
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-3">Fresh from Farm</h2>
-                            <p className="text-gray-600 mb-6 line-clamp-2">Buy seasonal produce and farm-fresh items directly from verified farmers in your region.</p>
-                            <button 
-                                onClick={() => navigate(user ? '/user/marketplace?mode=fresh' : '/login/user')}
-                                className="text-green-600 font-bold inline-flex items-center hover:text-green-700"
-                            >
-                                Explore Farmers <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                            </button>
+                            
+                            <h2 className="text-3xl font-bold text-gray-900 mb-4 font-heading group-hover:text-green-700 transition-colors">Fresh from Farmers</h2>
+                            <p className="text-gray-600 mb-8 text-lg leading-relaxed">Buy seasonal vegetables, fruits, and greens directly from verified local farmers for maximum freshness.</p>
+                            
+                            <div className="flex items-center text-green-700 font-bold group-hover:translate-x-2 transition-transform">
+                                Explore Farmers <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                            </div>
                         </div>
                     </div>
                 </section>

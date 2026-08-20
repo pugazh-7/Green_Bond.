@@ -4,13 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 
 const ShopDashboard = () => {
-    const { user } = useAuth();
+    const { user, accessToken } = useAuth();
     const [metrics, setMetrics] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchMetrics = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const response = await fetch('/api/shop/metrics', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -31,7 +31,7 @@ const ShopDashboard = () => {
 
     const handleToggleStatus = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const newStatus = !metrics.profile.isActive;
             const res = await fetch('/api/shop/profile', {
                 method: 'PUT',

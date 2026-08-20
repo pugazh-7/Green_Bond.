@@ -1,3 +1,4 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -16,6 +17,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 // Custom hook to handle map recentering
 const MapController = ({ position }) => {
+    const { accessToken } = useAuth();
     const map = useMap();
     useEffect(() => {
         if (position) {
@@ -40,7 +42,7 @@ const LocationTracking = () => {
 
     const fetchActiveDelivery = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             if (!token) return;
 
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/farmer-orders`, {

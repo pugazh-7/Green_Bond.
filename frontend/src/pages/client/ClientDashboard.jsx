@@ -34,17 +34,17 @@ const ClientDashboard = () => {
         <div className="space-y-8">
             <header className="flex justify-between items-center flex-wrap gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                    <h2 className="text-4xl font-black text-gray-900 flex items-center gap-4 font-heading tracking-tight">
                         Farmer Dashboard
                         {isVerified && (
-                            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full font-bold border border-green-200 shadow-sm flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                VERIFIED FARMER
+                            <span className="text-xs px-3 py-1.5 bg-green-100 text-green-800 rounded-full font-bold border border-green-200 shadow-sm flex items-center gap-1.5 uppercase tracking-wider">
+                                <span className="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span>
+                                Verified Farmer
                             </span>
                         )}
                         {!isVerified && (
-                            <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-bold border border-yellow-200 shadow-sm flex items-center gap-1">
-                                PENDING VERIFICATION
+                            <span className="text-xs px-3 py-1.5 bg-yellow-100 text-yellow-800 rounded-full font-bold border border-yellow-200 shadow-sm flex items-center gap-1.5 uppercase tracking-wider">
+                                Pending Verification
                             </span>
                         )}
                     </h2>
@@ -69,46 +69,46 @@ const ClientDashboard = () => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
+                        <div className="p-3 bg-green-50 rounded-2xl text-green-700">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
-                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded">Live</span>
+                        <span className="text-xs font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full uppercase tracking-wider">Live</span>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Total Sales</h3>
-                    <p className="text-2xl font-bold text-gray-900">₹{totalSales.toLocaleString()}</p>
+                    <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">Total Sales</h3>
+                    <p className="text-3xl font-black text-gray-900 font-heading">₹{totalSales.toLocaleString()}</p>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-orange-50 rounded-lg text-orange-600">
+                        <div className="p-3 bg-green-50 rounded-2xl text-green-700">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                         </div>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Produce Sold</h3>
-                    <p className="text-2xl font-bold text-gray-900">{produceSold} units</p>
+                    <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">Produce Sold</h3>
+                    <p className="text-3xl font-black text-gray-900 font-heading">{produceSold} <span className="text-xl text-gray-500 font-medium">units</span></p>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-green-50 rounded-lg text-green-600">
+                        <div className="p-3 bg-green-50 rounded-2xl text-green-700">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         </div>
-                        <span className="text-xs font-bold text-gray-500">Active</span>
+                        <span className="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1 rounded-full uppercase tracking-wider">Active</span>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Active Listings</h3>
-                    <p className="text-2xl font-bold text-gray-900">{products.length} Items</p>
+                    <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">Active Listings</h3>
+                    <p className="text-3xl font-black text-gray-900 font-heading">{products.length} <span className="text-xl text-gray-500 font-medium">items</span></p>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-teal-50 rounded-lg text-teal-600">
+                        <div className="p-3 bg-green-50 rounded-2xl text-green-700">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">New Orders</h3>
-                    <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
+                    <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">New Orders</h3>
+                    <p className="text-3xl font-black text-gray-900 font-heading">{orders.length}</p>
                 </div>
             </div>
 
@@ -116,9 +116,9 @@ const ClientDashboard = () => {
                 {/* Recent Orders Table */}
                 <div className="lg:col-span-2 space-y-8">
                     {/* MY LISTINGS SECTION */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-900">My Active Listings</h3>
+                    <div className="premium-card overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h3 className="font-bold text-gray-900 font-heading text-lg">My Active Listings</h3>
                         </div>
                         <div className="p-6">
                             <div className="overflow-x-auto">
@@ -166,10 +166,10 @@ const ClientDashboard = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-900">Recent Sales</h3>
-                            <button onClick={() => navigate('/client/orders')} className="text-sm text-green-600 font-medium hover:text-green-700">Manage Orders</button>
+                    <div className="premium-card overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <h3 className="font-bold text-gray-900 font-heading text-lg">Recent Sales</h3>
+                            <button onClick={() => navigate('/client/orders')} className="text-sm text-green-700 font-bold hover:text-green-800 bg-green-50 px-3 py-1.5 rounded-lg transition-colors">Manage Orders</button>
                         </div>
                         <div className="p-6">
                             <div className="overflow-x-auto">
@@ -209,8 +209,8 @@ const ClientDashboard = () => {
                 </div>
 
                 {/* Bond Performance */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
-                    <h3 className="font-bold text-gray-900 mb-6">Bond Funding Status</h3>
+                <div className="premium-card p-6 h-fit bg-gradient-to-b from-white to-green-50/30">
+                    <h3 className="font-bold text-gray-900 mb-6 font-heading text-lg">Bond Funding Status</h3>
                     <div className="space-y-6">
                         <div className="text-center">
                             <div className="relative w-32 h-32 mx-auto mb-4">

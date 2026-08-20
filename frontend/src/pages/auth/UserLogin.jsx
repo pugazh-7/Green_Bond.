@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const UserLogin = () => {
+    const { login } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -70,6 +72,8 @@ const UserLogin = () => {
                 localStorage.setItem('userRole', user.role || 'user');
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
                 if (data.token) localStorage.setItem('token', data.token);
+                
+                login(user, data.token);
 
                 if (rememberMe) {
                     localStorage.setItem('remembered_user_email', cleanEmailInput);
@@ -78,11 +82,6 @@ const UserLogin = () => {
                 }
 
                 toast.success(`Welcome back, ${user.name}!`);
-                if (user.role === 'admin') {
-                    navigate('/admin/dashboard');
-                } else {
-                    navigate('/user/marketplace');
-                }
             } else {
                 toast.error(data.message || 'Invalid Email or Password. Please try again.');
             }

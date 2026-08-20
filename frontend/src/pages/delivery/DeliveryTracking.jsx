@@ -1,3 +1,4 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
@@ -32,6 +33,7 @@ const homeIcon = L.icon({
 });
 
 const RecenterAutomatically = ({ lat, lng }) => {
+    const { accessToken } = useAuth();
     const map = useMap();
     useEffect(() => {
         map.flyTo([lat, lng], 15);
@@ -64,7 +66,7 @@ const DeliveryTracking = () => {
     const fetchOrder = async () => {
         if (!orderId) return;
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/delivery-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -115,7 +117,7 @@ const DeliveryTracking = () => {
         const endpoint = type === 'pickup' ? 'verify-pickup-otp' : 'verify-delivery-otp';
         
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${order.id}/${endpoint}`, {
                 method: 'POST',
                 headers: {

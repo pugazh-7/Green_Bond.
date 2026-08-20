@@ -47,8 +47,11 @@ router.post('/add', verifyToken, async (req, res) => {
                 productId: product._id,
                 title: product.title,
                 price: parseFloat(product.price),
-                farmer: product.farmer,
-                farmerId: product.farmerId || product.farmer, // Fallback if schema not updated fully yet
+                farmer: product.farmer || 'GreenBond Hub',
+                farmerId: product.farmerId,
+                sellerId: product.sellerId,
+                sellerType: product.sellerType,
+                marketplaceType: product.marketplaceType,
                 image: product.image,
                 quantity: quantity,
                 unit: product.unit

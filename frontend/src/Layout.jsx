@@ -30,37 +30,36 @@ const Layout = () => {
             {/* Navigation */}
             <nav className="bg-white shadow-sm sticky top-0 z-50">
                 <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-16">
-                    <div className="flex justify-between h-14 md:h-16">
+                    <div className="flex justify-between h-16 md:h-20">
                         <div className="flex items-center">
                             <Link
                                 to="/"
                                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-3 group"
                             >
-                                <img src={logo} alt="Green Bond" className="w-10 h-10 md:w-12 md:h-12 2xl:w-16 2xl:h-16 object-contain" />
-                                <span className="text-xl 2xl:text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-500 bg-clip-text text-transparent">
+                                <div className="w-10 h-10 md:w-12 md:h-12 bg-green-700 rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                                    <span className="text-white font-bold text-2xl font-heading">G</span>
+                                </div>
+                                <span className="text-2xl 2xl:text-3xl font-bold text-gray-900 tracking-tight font-heading">
                                     GreenBond
                                 </span>
                             </Link>
                         </div>
 
-                        <div className="hidden md:flex items-center space-x-6 2xl:space-x-10 2xl:text-lg">
+                        <div className="hidden md:flex items-center space-x-8 2xl:space-x-12 2xl:text-lg">
                             <Link
                                 to="/"
                                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                                className="text-gray-600 hover:text-green-600 transition-colors font-medium"
+                                className="text-gray-600 hover:text-green-700 transition-colors font-semibold"
                             >
-                                🏚️Home
+                                Home
                             </Link>
-                            <a href="#" onClick={(e) => handleAnchorClick(e, 'objectives')} className="text-gray-600 hover:text-green-600 transition-colors font-medium">
-                                🌱Objectives
+                            <a href="#" onClick={(e) => handleAnchorClick(e, 'objectives')} className="text-gray-600 hover:text-green-700 transition-colors font-semibold">
+                                About Us
                             </a>
-                            <a href="#" onClick={(e) => handleAnchorClick(e, 'solution')} className="text-gray-600 hover:text-green-600 transition-colors font-medium">
-                                🕵️Solution
-                            </a>
-                            <a href="#" onClick={(e) => handleAnchorClick(e, 'contact')} className="text-gray-600 hover:text-green-600 transition-colors font-medium">
-                                ☎️Contact
-                            </a>
+                            <Link to="/login/user" className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm">
+                                Sign In
+                            </Link>
                         </div>
 
                         {/* Mobile Menu Button */}

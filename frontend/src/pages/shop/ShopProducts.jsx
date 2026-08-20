@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLocationContext } from '../../context/LocationContext';
 
 const ShopProducts = () => {
-    const { user } = useAuth();
+    const { user, accessToken } = useAuth();
     const { location } = useLocationContext();
     const [products, setProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +24,7 @@ const ShopProducts = () => {
 
     const fetchProducts = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch('/api/products/my-products', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -46,7 +46,7 @@ const ShopProducts = () => {
     const handleAddProduct = async (e) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             
             const payload = {
                 ...formData,
@@ -81,7 +81,7 @@ const ShopProducts = () => {
 
     const handleUpdateStock = async (id, newQty) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`/api/products/${id}/stock`, {
                 method: 'PUT',
                 headers: { 

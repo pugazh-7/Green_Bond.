@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const ClientLogin = () => {
+    const { login } = useAuth();
     const navigate = useNavigate();
     const [name, setName] = useState('');
     const [mobile, setMobile] = useState('');
@@ -78,6 +80,8 @@ const ClientLogin = () => {
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
                 if (data.token) localStorage.setItem('token', data.token);
                 
+                login(user, data.token);
+                
                 if (rememberMe) {
                     localStorage.setItem('remembered_client_name', name);
                     localStorage.setItem('remembered_client_mobile', mobile);
@@ -86,11 +90,6 @@ const ClientLogin = () => {
                     localStorage.removeItem('remembered_client_mobile');
                 }
 
-                if (role === 'admin') {
-                    navigate('/admin/dashboard');
-                } else {
-                    navigate('/client');
-                }
                 toast.success(`Welcome back, ${user.name}!`);
             } else {
                 toast.error(data.message || 'Invalid Name, Mobile Number or PIN. Please try again.');

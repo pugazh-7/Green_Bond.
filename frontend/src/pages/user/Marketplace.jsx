@@ -1,687 +1,514 @@
-import React, { useState } from 'react';
-
-
-
-
-import { PRODUCTS_DATA as DEFAULT_PRODUCTS, PROJECTS_DATA as DEFAULT_BONDS } from '../../data/products';
+﻿import React, { useState, useEffect } from 'react';
+import { useLocationContext } from '../../context/LocationContext';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const CATEGORIES = [
+    'All', 'Grocery', 'Fruits & Vegetables', 'Milk & Dairy', 'Snacks', 
+    'Drinks', 'Electronics', 'Fashion', 'Beauty & Personal Care', 'Household', 
+    'Home & Kitchen', 'Baby Care', 'Books & Stationery', 'Sports & Fitness', 
+    'Travel', 'Pet Care'
+];
+
+const TRENDING_SEARCHES = ['Milk', 'Rice', 'Chips', 'Biscuits', 'Phone', 'Shampoo', 'Shirt', 'Headphones'];
 
 const Marketplace = () => {
-    // ... same component logic ...
-    const [activeTab, setActiveTab] = useState('produce');
-    const [filter, setFilter] = useState('All');
-    const [search, setSearch] = useState('');
+    const { location, requestLocation, isFetching } = useLocationContext();
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const urlLocation = useLocation();
+    const searchParams = new URLSearchParams(urlLocation.search);
+    const initialPhase = searchParams.get('phase') || 'SHOPPING';
 
-    const [products, setProducts] = useState(DEFAULT_PRODUCTS);
-    const [bonds, setBonds] = useState(DEFAULT_BONDS);
-    const [isLoading, setIsLoading] = useState(true);
+    const [activePhase, setActivePhase] = useState(initialPhase);
+    const [products, setProducts] = useState([]);
     
-    const location = useLocation();
-    const searchParams = new URLSearchParams(location.search);
-    const mode = searchParams.get('mode') || 'fresh'; // 'shop' or 'fresh'
+    // Core Unified Catalogue State
+    const [activeCategory, setActiveCategory] = useState('All');
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [metaData, setMetaData] = useState({ categoryCounts: {}, bestDeals: [], newArrivals: [] });
+    
+    // Suggestions state
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [queryCompleted, setQueryCompleted] = useState(false);
 
-    React.useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
+    useEffect(() => {
+        const phase = searchParams.get('phase') || 'SHOPPING';
+        setActivePhase(phase);
+        setPage(1); 
+        setProducts([]); 
+        if (phase !== 'SHOPPING') {
+            setActiveCategory('All');
+        }
+    }, [urlLocation.search]);
+
+    // Fetch Meta Data (Only once or on mount)
+    useEffect(() => {
+        const fetchMeta = async () => {
             try {
-                const sourceType = mode === 'shop' ? 'SHOP' : 'FARMER';
-                // Add lat/lng from LocationContext later if we want geolocation filters
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products?sourceType=${sourceType}`);
-                if (response.ok) {
-                    const backendProducts = await response.json();
-                    
-                    // Add unique backend products (mapped to include an id for React keys)
-                    const normalizedBackend = backendProducts.map(p => ({
-                        ...p,
-                        id: p._id || p.id // Mongodb uses _id
-                    }));
-                    
-                    // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
-                    const uniqueBackend = normalizedBackend.filter(bp => 
-                        !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
-                    );
-
-                    // If shop mode, we only want SHOP products (backend already filtered it, but we also ignore DEFAULT_PRODUCTS which are mock FARMER data)
-                    if (mode === 'shop') {
-                        setProducts(uniqueBackend);
-                    } else {
-                        setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
-                    }
+                const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/shopping-meta`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMetaData(data);
                 }
-            } catch (error) {
-                console.error('Error fetching marketplace data:', error);
-            } finally {
-                setIsLoading(false);
+            } catch (err) {
+                console.error("Meta fetch failed", err);
             }
         };
+        fetchMeta();
+    }, []);
 
-        fetchData();
-    }, [mode]);
+    // Debounce search query
+    useEffect(() => {
+        setIsSearching(true);
+        setQueryCompleted(false);
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setPage(1);
+            setProducts([]);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery, activeCategory]); // Trigger fetch on category change too
 
+    // Fetch Suggestions while typing
+    useEffect(() => {
+        if (searchQuery.length >= 2) {
+            const fetchSuggestions = async () => {
+                try {
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/suggestions?q=${encodeURIComponent(searchQuery)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setSuggestions(data);
+                        setShowSuggestions(true);
+                    }
+                } catch (err) {
+                    console.error("Suggestion fetch failed", err);
+                }
+            };
+            fetchSuggestions();
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+    }, [searchQuery]);
 
+    useEffect(() => {
+        if (location?.lat && location?.lng) {
+            fetchProducts();
+        } else {
+            setIsLoading(false);
+        }
+    }, [location, activePhase, debouncedSearch, activeCategory, page]);
 
-    const [selectionProduct, setSelectionProduct] = useState(null);
-    const [detailsProduct, setDetailsProduct] = useState(null);
-    const [orderStep, setOrderStep] = useState('selection'); // 'selection' | 'quantity'
-    const [quantity, setQuantity] = useState(1);
-    const [bulkQuantity, setBulkQuantity] = useState(10);
-    const [userLocation, setUserLocation] = useState('');
-    const [isLocating, setIsLocating] = useState(false);
-    const [assignedPartner, setAssignedPartner] = useState(null);
+    const fetchProducts = async () => {
+        if (page === 1) setIsLoading(true);
+        setIsSearching(true);
+        try {
+            let endpoint = '/api/marketplace/products';
+            if (activePhase === 'QUICK') endpoint = '/api/marketplace/quick';
+            if (activePhase === 'FRESH') endpoint = '/api/marketplace/fresh';
 
-    const deliveryPartners = [
-        { name: "Rajesh Kumar", mobile: "+91 98765 43210" },
-        { name: "Suresh Raina", mobile: "+91 87654 32109" },
-        { name: "Mahesh Babu", mobile: "+91 76543 21098" }
-    ];
+            let url = `${import.meta.env.VITE_API_URL || ''}${endpoint}?lat=${location.lat}&lng=${location.lng}&page=${page}&limit=20`;
+            
+            if (debouncedSearch) {
+                url += `&q=${encodeURIComponent(debouncedSearch)}`;
+            }
+            
+            // Apply category filter if it's SHOPPING phase
+            if (activePhase === 'SHOPPING' && activeCategory !== 'All') {
+                url += `&category=${encodeURIComponent(activeCategory)}`;
+            }
 
-    const assignRandomPartner = () => {
-        const partner = deliveryPartners[Math.floor(Math.random() * deliveryPartners.length)];
-        setAssignedPartner(partner);
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                const newProducts = Array.isArray(data) ? data : (data.products || []);
+                const isLastPage = Array.isArray(data) ? true : (data.currentPage >= data.totalPages);
+                
+                if (page === 1) {
+                    setProducts(newProducts);
+                } else {
+                    setProducts(prev => [...prev, ...newProducts]);
+                }
+                setHasMore(!isLastPage);
+            } else {
+                toast.error("Failed to fetch products");
+            }
+        } catch (err) {
+            console.error("Fetch error:", err);
+            toast.error("Network error");
+        } finally {
+            setIsLoading(false);
+            setIsSearching(false);
+            setQueryCompleted(true);
+        }
     };
 
-    const handleGetLiveLocation = () => {
-        if (!navigator.geolocation) {
-            toast.error("Geolocation is not supported by your browser");
+    const handleLoadMore = () => {
+        if (!isLoading && hasMore) {
+            setPage(prev => prev + 1);
+        }
+    };
+
+    const handleCategoryClick = (cat) => {
+        setActiveCategory(cat);
+    };
+
+    const handleSearchClick = (term) => {
+        setSearchQuery(term);
+    };
+
+    const addToCart = (e, product) => {
+        e.stopPropagation();
+        const currentCart = JSON.parse(localStorage.getItem('user_cart') || '[]');
+        const hasShopItems = currentCart.some(item => item.sourceType === 'SHOP');
+        const hasFreshItems = currentCart.some(item => item.sourceType === 'FARMER');
+        
+        if ((product.sourceType === 'SHOP' && hasFreshItems) || (product.sourceType === 'FARMER' && hasShopItems)) {
+            toast.error("Cannot mix Fresh Farmer items with Local Shop items. Please checkout separately.");
             return;
         }
 
-        setIsLocating(true);
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                try {
-                    // Using OpenStreetMap's Nominatim for free reverse geocoding
-                    const response = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
-                    );
-                    const data = await response.json();
-                    if (data && data.display_name) {
-                        setUserLocation(data.display_name);
-                        toast.success("Location detected!");
-                    } else {
-                        setUserLocation(`Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`);
-                    }
-                } catch (error) {
-                    console.error("Error reverse geocoding:", error);
-                    setUserLocation(`Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`);
-                    toast.success("Coordinates captured (Address resolution failed)");
-                } finally {
-                    setIsLocating(false);
-                }
-            },
-            (error) => {
-                setIsLocating(false);
-                console.error("Geolocation error:", error);
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        toast.error("Please allow location access in your browser");
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        toast.error("Location information is unavailable");
-                        break;
-                    case error.TIMEOUT:
-                        toast.error("Location request timed out");
-                        break;
-                    default:
-                        toast.error("An unknown error occurred while getting location");
-                }
-            },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-    };
-
-    const handleAction = (item, type) => {
-        if (type === 'produce') {
-            setSelectionProduct(item);
-            setOrderStep('selection');
-            setQuantity(1);
-            // Default bulk quantity to 50 as per user example, or minOrder if higher
-            const minQ = parseInt(item.minOrder?.replace(/[^\d]/g, '') || '10');
-            setBulkQuantity(Math.max(50, minQ));
+        const existingItem = currentCart.find(item => item._id === product._id);
+        if (existingItem) {
+            existingItem.quantity += 1;
+            localStorage.setItem('user_cart', JSON.stringify(currentCart));
         } else {
-            toast.success(`Thank you for Investing in "${item.title}". \n\nRedirecting to Payment Gateway... (Simulation)`);
+            localStorage.setItem('user_cart', JSON.stringify([...currentCart, { ...product, quantity: 1 }]));
         }
+        toast.success(`Added ${product.title} to cart`);
+        window.dispatchEvent(new Event('cart_updated'));
     };
 
-    const saveBulkInquiry = (product, customQuantity) => {
-        const inquiries = JSON.parse(localStorage.getItem('green_bond_bulk_orders') || '[]');
-        // Check if already inquired today
-        const today = new Date().toDateString();
-        const existing = inquiries.find(i => i.id === product.id && new Date(i.date).toDateString() === today);
-
-        if (!existing) {
-            const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || 'null');
-
-            const newInquiry = {
-                ...product,
-                requestedQuantity: customQuantity || bulkQuantity,
-                // Ensure unique ID for the order itself, distinct from product ID
-                orderId: Date.now(),
-                date: new Date().toISOString(),
-                status: 'Inquiry Sent',
-                customer: currentUser ? {
-                    name: currentUser.name,
-                    email: currentUser.email,
-                    // If phone is added to signup later, we can use it here. For now using email as contact text.
-                    contact: currentUser.email
-                } : {
-                    name: 'Guest User',
-                    contact: 'No contact info'
-                }
-            };
-            localStorage.setItem('green_bond_bulk_orders', JSON.stringify([newInquiry, ...inquiries]));
-            toast.success("Added to your Bulk Orders list!");
-        }
+    const goToProductDetails = (productId) => {
+        navigate(`/user/product/${productId}`);
     };
 
-    const matchesSearch = (item) => {
-        const term = search.toLowerCase();
-        const title = item?.title || '';
-        const farmer = item?.farmer || '';
-        const location = item?.location || '';
-        
-        return title.toLowerCase().includes(term) ||
-            farmer.toLowerCase().includes(term) ||
-            location.toLowerCase().includes(term);
-    };
-
-    const getUnit = (priceStr) => {
-        if (!priceStr) return 'unit';
-        const parts = priceStr.split('/');
-        if (parts.length > 1) {
-            const unit = parts[1].trim();
-            return unit.charAt(0).toUpperCase() + unit.slice(1);
-        }
-        return 'unit';
-    };
-
-    const filteredProducts = products.filter(p => (filter === 'All' || p.category === filter) && matchesSearch(p));
-    const filteredBonds = bonds.filter(b => (filter === 'All' || b.category === filter) && matchesSearch(b));
-
-    return (
-        <div className="space-y-8 relative">
-            {/* Header */}
-            <div className="flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">
-                            {mode === 'shop' ? 'Local Shops' : 'Farmer Marketplace'}
-                        </h1>
-                        <p className="text-gray-600 mt-1">
-                            {activeTab === 'bonds' ? 'Invest in sustainable projects.' : 
-                             mode === 'shop' ? 'Quick delivery from nearby stores.' : 'Buy fresh produce directly from farmers.'}
-                        </p>
-                    </div>
-
-                    {/* Toggle / Tabs */}
-                    <div className="bg-gray-100 p-1 rounded-lg flex">
-                        <button
-                            onClick={() => { setActiveTab('produce'); setFilter('All'); }}
-                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'produce' ? (mode === 'shop' ? 'bg-white text-yellow-700 shadow-sm' : 'bg-white text-green-700 shadow-sm') : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            {mode === 'shop' ? 'Shop Items' : 'Farm Produce'}
-                        </button>
-                        <button
-                            onClick={() => { setActiveTab('bonds'); setFilter('All'); }}
-                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'bonds' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            {/* Project Bonds */}
-                        </button>
-                    </div>
+    if (!location) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                    <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 </div>
-
-                {/* Search and Filters Bar */}
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    {/* Search Input */}
-                    <div className="relative w-full md:w-96">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search farms, produce, or location..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        />
-                    </div>
-
-                    {/* Sub-Filters */}
-                    <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-                        {['All', ...(activeTab === 'bonds' ? ['Agriculture', 'Technology'] : ['Vegetables', 'Fruits'])].map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setFilter(cat)}
-                                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border whitespace-nowrap ${filter === cat ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-green-50'}`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-4">Set Your Delivery Location</h1>
+                <p className="text-gray-500 max-w-md mb-8">We need your location to show available products and accurate delivery times.</p>
+                <button 
+                    onClick={requestLocation}
+                    disabled={isFetching}
+                    className="bg-green-600 text-white font-bold py-4 px-8 rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                    {isFetching ? 'Detecting...' : 'Use Current Location'}
+                </button>
             </div>
+        );
+    }
 
-            {/* Grid */}
-            {(activeTab === 'produce' ? filteredProducts : filteredBonds).length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
-                    <div className="bg-gray-50 p-6 rounded-full mb-4">
-                        <svg className="w-12 h-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">No matches found</h3>
-                    <p className="text-gray-500 max-w-xs mx-auto">We couldn't find any {activeTab === 'produce' ? 'produce' : 'projects'} matching your search filters.</p>
-                    <button
-                        onClick={() => { setFilter('All'); setSearch(''); }}
-                        className="mt-6 px-6 py-2 bg-green-50 text-green-700 font-bold rounded-lg hover:bg-green-100 transition-colors"
-                    >
-                        Clear Filters
-                    </button>
-                </div>
-            ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-2 md:gap-6 xl:gap-8">
-                    {activeTab === 'bonds' ? (
-                        // BONDS GRID
-                        filteredBonds.map(bond => {
-                            const progress = (bond.raisedAmount / bond.targetAmount) * 100;
-                            return (
-                                <div key={bond.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
-                                    <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                        <img src={bond.image} alt={bond.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                                        <div className="absolute top-1 lg:top-4 right-1 lg:right-4 bg-white/90 backdrop-blur-sm px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold text-green-700 uppercase">{bond.category}</div>
-                                    </div>
-                                    <div className="p-2 lg:p-5 flex-1 flex flex-col">
-                                        <h3 className="text-[10px] lg:text-xl font-bold text-gray-900 mb-0.5 lg:mb-1 leading-tight line-clamp-1">{bond.title}</h3>
-                                        <p className="text-[8px] lg:text-base text-gray-500 mb-1 lg:mb-4 truncate">{bond.farmer}</p>
-                                        <div className="grid grid-cols-2 gap-1 lg:gap-2 mb-2 lg:mb-4">
-                                            <div className="bg-green-50 p-1 lg:p-2 rounded text-center"><p className="text-[6px] lg:text-xs text-gray-500 uppercase font-semibold">ROI</p><p className="text-[8px] lg:text-sm font-bold text-green-700">{bond.roi}</p></div>
-                                            <div className="bg-blue-50 p-1 lg:p-2 rounded text-center"><p className="text-[6px] lg:text-xs text-gray-500 uppercase font-semibold">Term</p><p className="text-[8px] lg:text-sm font-bold text-blue-700">{bond.duration}</p></div>
-                                        </div>
-                                        <div className="mb-2 lg:mb-4 hidden lg:block">
-                                            <div className="w-full bg-gray-200 rounded-full h-1 lg:h-2">
-                                                <div className="bg-green-600 h-1 lg:h-2 rounded-full" style={{ width: `${progress}%` }}></div>
-                                            </div>
-                                            <p className="text-[8px] lg:text-xs text-right text-gray-500 mt-1">{Math.round(progress)}% Funded</p>
-                                        </div>
-                                        <div className="mt-auto">
-                                            <button onClick={() => handleAction(bond, 'bond')} className="w-full py-1 lg:py-2 bg-gray-900 text-white text-[8px] lg:text-base font-bold rounded-md lg:rounded-lg hover:bg-gray-800 transition-colors">Invest Now</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    ) : (
-                        // PRODUCE GRID
-                        filteredProducts.map(item => (
-                            <div key={item.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
-                                <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                    <img src={item.image} alt={item.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                                    <div className="absolute top-1 lg:top-4 left-1 lg:left-4 bg-green-600 text-white px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold uppercase shadow-sm">{item.category}</div>
-                                </div>
-                                <div className="p-2 lg:p-5 flex-1 flex flex-col">
-                                    <div className="flex justify-between items-start mb-1 lg:mb-2">
-                                        <h3 className="text-[10px] lg:text-xl font-bold text-gray-900 leading-tight pr-1 lg:pr-2 line-clamp-1 truncate" title={item.title}>{item.title}</h3>
-                                        <div className="hidden lg:flex flex-col items-end gap-1 flex-shrink-0">
-                                            <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">{item.minOrder} Min</span>
-                                            {item.orderType === 'bulk' && (
-                                                <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Bulk Only</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p className="text-[8px] lg:text-sm text-gray-500 mb-2 lg:mb-4 flex items-center gap-0.5 lg:gap-1">
-                                        <svg className="w-2 h-2 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                        <span className="truncate">{item.location}</span>
-                                    </p>
-
-                                    <div className="mt-auto flex flex-col gap-1 lg:gap-3 pt-2 lg:pt-4 border-t border-gray-50">
-                                        <div>
-                                            <p className="text-[6px] lg:text-xs text-gray-400 font-medium mb-0">Price / {getUnit(item.price)}</p>
-                                            <p className="text-[10px] lg:text-2xl font-bold text-gray-900 truncate" title={item.price}>{item.price}</p>
-                                        </div>
-                                        <button onClick={() => handleAction(item, 'produce')} className="w-full py-1.5 lg:py-2.5 bg-green-600 text-white text-[8px] lg:text-base font-bold rounded-md lg:rounded-lg hover:bg-green-700 transition-colors shadow-sm text-center">
-                                            Buy Now
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
+    const renderProductCards = (items) => (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+            {items.map(product => (
+                <div 
+                    key={`${product._id}-${Math.random()}`}
+                    onClick={() => goToProductDetails(product.id || product._id)}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group relative cursor-pointer"
+                >
+                    {product.discountPercentage > 0 && (
+                        <div className="absolute top-3 left-3 z-10 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm">
+                            {product.discountPercentage}% OFF
+                        </div>
                     )}
-                </div>
-            )}
-
-
-            {/* SELECTION MODAL */}
-            {selectionProduct && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectionProduct(null)}></div>
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm relative z-10 p-6 animate-in fade-in zoom-in-95 duration-200">
-                        <button onClick={() => setSelectionProduct(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-
-                        {orderStep === 'selection' ? (
-                            <>
-                                <h3 className="text-xl font-bold text-gray-900 mb-2">How would you like to buy?</h3>
-                                <p className="text-gray-500 text-sm mb-6">Select your preferred order type for <b>{selectionProduct.title}</b>.</p>
-
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => setOrderStep('quantity')}
-                                        disabled={selectionProduct.orderType === 'bulk'}
-                                        className={`w-full py-3 font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${selectionProduct.orderType === 'bulk' ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-60' : 'bg-green-600 text-white hover:bg-green-700'}`}
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                                        Buy Per {getUnit(selectionProduct.price)} (Retail)
-                                    </button>
-                                    
-                                    {selectionProduct.orderType === 'bulk' && (
-                                        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-tighter text-center -mt-1">
-                                            This item is for Bulk Orders only ({selectionProduct.minOrder} min)
-                                        </p>
-                                    )}
-
-                                    <button
-                                        onClick={() => setOrderStep('bulk-quantity')}
-                                        className="w-full py-3 bg-white border-2 border-green-600 text-green-700 font-bold rounded-xl hover:bg-green-50 transition-colors shadow-sm flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                                        Place Bulk Inquiry
-                                    </button>
-                                </div>
-                            </>
-                        ) : orderStep === 'bulk-quantity' ? (
-                            <>
-                                <button onClick={() => setOrderStep('selection')} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                                    Back
-                                </button>
-                                <div className="mt-8 text-center text-sm">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1">Bulk Quantity</h3>
-                                    <p className="text-sm text-gray-500 mb-6">Enter weight in {getUnit(selectionProduct.price)}</p>
-
-                                    <div className="flex items-center justify-center gap-4 mb-8">
-                                        <button
-                                            onClick={() => setBulkQuantity(q => Math.max(parseInt(selectionProduct.minOrder?.replace(/[^\d]/g, '') || '10'), q - 10))}
-                                            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        >
-                                            -10
-                                        </button>
-                                        <input
-                                            type="number"
-                                            value={bulkQuantity}
-                                            onChange={(e) => setBulkQuantity(Math.max(1, parseInt(e.target.value) || 0))}
-                                            className="w-24 text-center text-2xl font-bold text-gray-900 border-b-2 border-green-600 focus:outline-none bg-transparent"
-                                        />
-                                        <button
-                                            onClick={() => setBulkQuantity(q => q + 10)}
-                                            className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 hover:bg-green-200 transition-colors"
-                                        >
-                                            +10
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-2 mb-6">
-                                        {[50, 100, 250, 500].map(val => (
-                                            <button
-                                                key={val}
-                                                onClick={() => setBulkQuantity(val)}
-                                                className={`py-2 rounded-lg border text-xs font-bold transition-all ${bulkQuantity === val ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-green-50'}`}
-                                            >
-                                                {val} {getUnit(selectionProduct.price)}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            const minQ = parseInt(selectionProduct.minOrder?.replace(/[^\d]/g, '') || '10');
-                                            if (bulkQuantity < minQ) {
-                                                toast.error(`Minimum bulk order for this item is ${minQ}${getUnit(selectionProduct.price)}`);
-                                                return;
-                                            }
-                                            // Instead of closing, go to location step
-                                            setOrderStep('location');
-                                        }}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
-                                    >
-                                        Proceed to Delivery
-                                    </button>
-                                </div>
-                            </>
-                        ) : orderStep === 'location' ? (
-                            <>
-                                <button onClick={() => setOrderStep(selectionProduct.orderType === 'bulk' ? 'bulk-quantity' : 'quantity')} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                                    Back
-                                </button>
-                                <div className="mt-8">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1 text-center">Delivery Location</h3>
-                                    <p className="text-sm text-gray-500 mb-6 text-center">Where should we deliver <b>{selectionProduct.title}</b>?</p>
-
-                                    <div className="space-y-4 mb-6">
-                                        <button
-                                            onClick={handleGetLiveLocation}
-                                            disabled={isLocating}
-                                            className="w-full py-3 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-all flex items-center justify-center gap-2 border border-blue-100 group shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {isLocating ? (
-                                                <>
-                                                    <svg className="animate-spin h-5 w-5 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                    </svg>
-                                                    Detecting Location...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    </svg>
-                                                    Use My Live Location
-                                                </>
-                                            )}
-                                        </button>
-
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 pt-3 flex items-start pointer-events-none">
-                                                <svg className="h-5 w-5 text-gray-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                </svg>
-                                            </div>
-                                            <textarea
-                                                placeholder="Or enter your full delivery address manually..."
-                                                value={userLocation}
-                                                onChange={(e) => setUserLocation(e.target.value)}
-                                                rows="3"
-                                                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm shadow-inner"
-                                            ></textarea>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            if (!userLocation.trim()) {
-                                                toast.error("Please enter a delivery location");
-                                                return;
-                                            }
-                                            assignRandomPartner();
-                                            setOrderStep('delivery-info');
-                                        }}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
-                                    >
-                                        Confirm Location
-                                    </button>
-                                </div>
-                            </>
-                        ) : orderStep === 'delivery-info' ? (
-                            <>
-                                <div className="mt-8 text-center">
-                                    <div className="w-20 h-20 bg-green-100 rounded-full mx-auto flex items-center justify-center mb-4">
-                                        <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                        </svg>
-                                    </div>
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1">Order Assigned!</h3>
-                                    <p className="text-sm text-gray-500 mb-6">A delivery partner has been assigned to your order.</p>
-
-                                    <div className="bg-gray-50 p-4 rounded-2xl mb-6 text-left space-y-3 border border-gray-100">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
-                                                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Delivery Boy</p>
-                                                <p className="font-bold text-gray-900">{assignedPartner?.name}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
-                                                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Mobile Number</p>
-                                                <p className="font-bold text-gray-900">{assignedPartner?.mobile}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            if (selectionProduct.orderType === 'bulk') {
-                                                saveBulkInquiry(selectionProduct, bulkQuantity);
-                                            } else {
-                                                const cartItem = {
-                                                    ...selectionProduct,
-                                                    quantity,
-                                                    deliveryLocation: userLocation,
-                                                    deliveryPartner: assignedPartner,
-                                                    cartId: Date.now()
-                                                };
-                                                const currentCart = JSON.parse(localStorage.getItem('user_cart') || '[]');
-                                                localStorage.setItem('user_cart', JSON.stringify([...currentCart, cartItem]));
-                                                toast.success(`Order placed successfully! Delivery partner: ${assignedPartner.name}`);
-                                            }
-                                            setSelectionProduct(null);
-                                            setUserLocation('');
-                                            setAssignedPartner(null);
-                                        }}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
-                                    >
-                                        Finish
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <button onClick={() => setOrderStep('selection')} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                                    Back
-                                </button>
-                                <div className="mt-8 text-center">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1">Select Quantity</h3>
-                                    <p className="text-sm text-gray-500 mb-6">{selectionProduct.title}</p>
-
-                                    <div className="flex items-center justify-center gap-6 mb-8">
-                                        <button
-                                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                                            className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        >
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4"></path></svg>
-                                        </button>
-                                        <div className="text-center w-20">
-                                            <span className="text-3xl font-bold text-gray-900">{quantity}</span>
-                                            <span className="text-sm text-gray-500 block">{getUnit(selectionProduct.price)}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                const unit = getUnit(selectionProduct.price).toLowerCase();
-                                                if (unit === 'kg' && quantity >= 5) {
-                                                    toast.error("For orders over 5kg, please use the Bulk Order option");
-                                                    return;
-                                                }
-                                                setQuantity(q => q + 1);
-                                            }}
-                                            className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-700 hover:bg-green-200 transition-colors"
-                                        >
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                                        </button>
-                                    </div>
-
-                                    <div className="bg-gray-50 p-4 rounded-xl mb-6 flex justify-between items-center">
-                                        <span className="text-gray-500 font-medium">Total Price</span>
-                                        <span className="text-2xl font-bold text-green-700">
-                                            ₹{(parseInt(selectionProduct.price.replace(/[^\d]/g, '')) * quantity).toLocaleString()}
-                                        </span>
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            // Instead of closing, go to location step
-                                            setOrderStep('location');
-                                        }}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200"
-                                    >
-                                        Proceed to Delivery
-                                    </button>
-                                </div>
-                            </>
+                    
+                    <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 items-end">
+                        {activePhase === 'QUICK' && (
+                            <div className="bg-purple-100 text-purple-700 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-purple-200">
+                                ⚡ 10-15 min
+                            </div>
+                        )}
+                        {activePhase === 'FRESH' && (
+                            <div className="bg-green-100 text-green-700 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-green-200">
+                                🥬 Fresh from Farmer
+                            </div>
                         )}
                     </div>
-                </div>
-            )}
-
-            {/* SELLER DETAILS MODAL (Restored for Bulk Order) */}
-            {detailsProduct && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDetailsProduct(null)}></div>
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-200">
-                        <div className="bg-green-600 p-6 text-center relative">
-                            <button onClick={() => setDetailsProduct(null)} className="absolute top-4 right-4 text-white/80 hover:text-white">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                            </button>
-                            <div className="w-20 h-20 bg-white rounded-full mx-auto flex items-center justify-center shadow-lg border-4 border-green-400 overflow-hidden">
-                                <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
+                    
+                    <div className="h-40 md:h-48 w-full bg-gray-50 relative p-4 flex items-center justify-center overflow-hidden">
+                        <img 
+                            src={product.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=60'} 
+                            alt={product.title} 
+                            className="max-h-full max-w-full object-contain group-hover:scale-110 transition-transform duration-500 drop-shadow-md"
+                            loading="lazy"
+                            onError={(e) => {
+                                e.target.onerror = null; 
+                                e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=60';
+                            }}
+                        />
+                    </div>
+                    
+                    <div className="p-4 flex-1 flex flex-col">
+                        {activePhase !== 'FRESH' && product.brand && (
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{product.brand}</span>
+                        )}
+                        <h3 className="font-bold text-gray-900 text-sm md:text-base leading-tight mb-1 line-clamp-2">{product.title}</h3>
+                        
+                        {activePhase !== 'FRESH' && (
+                            <div className="flex items-center gap-1 mb-2">
+                                <svg className="w-3.5 h-3.5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                <span className="text-xs font-bold text-gray-700">{product.rating || 4.5}</span>
+                                <span className="text-xs text-gray-400">({product.reviewCount || 10})</span>
                             </div>
-                            <h3 className="text-xl font-bold text-white mt-3">{detailsProduct.farmer}</h3>
-                            <p className="text-green-100 text-sm flex items-center justify-center gap-1">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                {detailsProduct.location}
-                            </p>
+                        )}
+
+                        <div className="text-xs font-medium text-gray-500 mb-2 truncate mt-auto flex flex-col gap-0.5">
+                            {activePhase === 'FRESH' ? (
+                                <>
+                                    <span className="text-green-700 font-bold">{product.sourceName || 'Farmer'}</span>
+                                    <span>{product.distanceKm}km away</span>
+                                    <span className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">🌱 Freshly Harvested</span>
+                                </>
+                            ) : activePhase === 'QUICK' ? (
+                                <>
+                                    <span className="text-purple-700 font-bold">🏪 {product.sourceName}</span>
+                                    <span>{product.distanceKm}km away</span>
+                                </>
+                            ) : (
+                                <span className="text-gray-400 text-[10px]">Sold by {product.sourceName || 'GreenBond Hub'}</span>
+                            )}
+                            <span className="text-[10px] text-green-600 font-semibold mt-1">In Stock: {product.availableQuantity} {product.unit}</span>
                         </div>
-                        <div className="p-6">
-                            <div className="text-center mb-6">
-                                <p className="text-gray-500 text-sm uppercase tracking-wide font-semibold mb-1">Selling Bulk</p>
-                                <h4 className="text-2xl font-bold text-gray-900">{detailsProduct.title}</h4>
-                                <p className="text-green-600 font-bold text-lg">{detailsProduct.price}</p>
+                        
+                        <div className="mt-auto pt-3 flex items-center justify-between border-t border-gray-50">
+                            <div className="flex flex-col">
+                                <span className="text-lg font-black text-gray-900">₹{product.price}</span>
+                                {product.originalPrice && product.originalPrice !== product.price && (
+                                    <span className="text-[10px] text-gray-400 font-medium line-through">₹{product.originalPrice}</span>
+                                )}
                             </div>
-
-                            <div className="space-y-3">
-                                <a href={`tel:${detailsProduct.contact || '+919999999999'}`} className="block w-full py-4 bg-green-600 text-white font-bold rounded-xl text-center hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                                    Call Farmer Now
-                                </a>
-                                <button onClick={() => toast('Feature coming soon!', { icon: '🚧' })} className="block w-full py-4 bg-white border-2 border-green-100 text-green-700 font-bold rounded-xl text-center hover:bg-green-50 transition-colors flex items-center justify-center gap-2">
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" /></svg>
-                                    Chat on WhatsApp
-                                </button>
-                            </div>
-                            <div className="mt-6 text-center text-xs text-gray-400">
-                                Verify product details before payment. <br />
-                                GreenBond is not responsible for direct transactions.
-                            </div>
+                            <button 
+                                onClick={(e) => addToCart(e, product)}
+                                className="w-9 h-9 md:w-10 md:h-10 bg-green-50 text-green-600 hover:bg-green-600 hover:text-white rounded-xl flex items-center justify-center transition-colors shadow-sm shrink-0"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
-            )}
+            ))}
+        </div>
+    );
 
+    return (
+        <div className="bg-gray-50 min-h-screen pb-24 md:pb-8">
+            {/* Header Structure */}
+            <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto">
+                            <div className="hidden md:flex items-center justify-center w-10 h-10 bg-green-100 rounded-xl text-green-700 font-black text-xl cursor-pointer" onClick={() => navigate('/user/marketplace')}>
+                                G
+                            </div>
+                            <button onClick={requestLocation} className="flex flex-col items-start hover:bg-gray-50 px-2 py-1 rounded-lg transition-colors flex-1">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                                    Deliver To
+                                </span>
+                                <span className="text-sm font-bold text-gray-900 truncate w-[200px] text-left">{location.address}</span>
+                            </button>
+                            
+                            {/* Mobile User Icons */}
+                            <div className="flex md:hidden items-center gap-2">
+                                <button onClick={() => navigate('/user/profile')} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                </button>
+                                <button onClick={() => navigate('/user/cart')} className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-700">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* Search Bar - Unified */}
+                        <div className="flex-1 w-full max-w-2xl relative">
+                            <input 
+                                type="text"
+                                placeholder={`Search ${metaData.categoryCounts['All'] || '1000+'} products...`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                className="w-full bg-gray-100 border-none rounded-2xl py-3 px-12 text-gray-900 focus:ring-2 focus:ring-green-500 transition-shadow"
+                            />
+                            <svg className="w-5 h-5 text-gray-400 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            
+                            {/* Suggestions Dropdown */}
+                            {showSuggestions && suggestions.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                                    {suggestions.map(sug => (
+                                        <button 
+                                            key={sug.id}
+                                            onClick={() => { setSearchQuery(sug.title); setShowSuggestions(false); }}
+                                            className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-50 last:border-0"
+                                        >
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                            </div>
+                                            <div>
+                                                <div className="font-semibold text-gray-900">{sug.title}</div>
+                                                <div className="text-xs text-gray-400">{sug.category}</div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Desktop User Icons */}
+                        <div className="hidden md:flex items-center gap-3">
+                            <button onClick={() => navigate('/user/profile')} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            </button>
+                            <button onClick={() => navigate('/user/cart')} className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 hover:bg-green-200 relative">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="border-t border-gray-100 bg-white shadow-sm">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex gap-2 md:gap-4 overflow-x-auto py-3 hide-scrollbar">
+                            <button onClick={() => setActivePhase('SHOPPING')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'SHOPPING' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🛍️ Shopping</button>
+                            <button onClick={() => setActivePhase('QUICK')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'QUICK' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>⚡ Quick <span className="font-normal text-xs">(10-15m)</span></button>
+                            <button onClick={() => setActivePhase('FRESH')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'FRESH' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🌱 Fresh <span className="font-normal text-xs">(Farmer)</span></button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                
+                {/* Unified Discovery UI - Only shown in SHOPPING phase */}
+                {activePhase === 'SHOPPING' && (
+                    <div className="mb-8">
+                        {/* Trending Searches */}
+                        <div className="mb-6">
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-3">Trending Searches</span>
+                            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+                                {TRENDING_SEARCHES.map(term => (
+                                    <button 
+                                        key={term}
+                                        onClick={() => handleSearchClick(term)}
+                                        className="flex-shrink-0 px-4 py-1.5 bg-white border border-gray-200 rounded-full text-sm font-semibold text-gray-600 hover:border-green-500 hover:text-green-600 transition-colors"
+                                    >
+                                        <svg className="w-3 h-3 inline-block mr-1.5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                                        {term}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Category Filters (Scrollable) */}
+                        <div className="mb-10">
+                            <h3 className="text-xl font-black text-gray-900 mb-4">Categories</h3>
+                            <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
+                                {CATEGORIES.map((cat, idx) => {
+                                    const count = metaData.categoryCounts[cat] || (cat === 'All' ? metaData.categoryCounts['All'] : 0);
+                                    const isActive = activeCategory === cat;
+                                    
+                                    // Don't show categories with 0 count unless it's "All" or loading
+                                    if (count === 0 && cat !== 'All' && metaData.categoryCounts['All']) return null;
+
+                                    return (
+                                        <button 
+                                            key={idx} 
+                                            onClick={() => handleCategoryClick(cat)}
+                                            className={`flex-shrink-0 px-6 py-4 rounded-2xl flex flex-col items-start gap-1 min-w-[120px] transition-all duration-300 ${isActive ? 'bg-gray-900 text-white shadow-xl scale-105' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-900 shadow-sm'}`}
+                                        >
+                                            <span className="font-bold text-sm leading-tight text-left">{cat}</span>
+                                            {count > 0 && <span className={`text-[10px] font-semibold ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>({count})</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Best Deals & New Arrivals (Only show if on 'All' and not searching) */}
+                        {activeCategory === 'All' && !searchQuery && !isLoading && (
+                            <div className="space-y-10 mb-12">
+                                {metaData.bestDeals?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-xl font-black text-gray-900 mb-4">Best Deals 🔥</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(metaData.bestDeals)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Main Product Grid / Loading State */}
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-black text-gray-900">
+                        {activePhase === 'SHOPPING' 
+                            ? (activeCategory === 'All' ? (searchQuery ? `Search Results` : `All Products`) : `${activeCategory} Products`) 
+                            : `${activePhase === 'QUICK' ? 'Quick Delivery' : 'Fresh Farm'} Products`}
+                    </h2>
+                    {activePhase === 'SHOPPING' && metaData.categoryCounts[activeCategory] && !searchQuery && (
+                        <span className="text-gray-500 font-semibold">{metaData.categoryCounts[activeCategory]} items</span>
+                    )}
+                </div>
+
+                {isLoading || (isSearching && searchQuery.length > 0) ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} className="bg-white rounded-2xl h-72 border border-gray-100 animate-pulse overflow-hidden">
+                                <div className="h-40 bg-gray-200 w-full mb-4"></div>
+                                <div className="px-4">
+                                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                                    <div className="h-3 bg-gray-200 rounded w-1/2 mb-4"></div>
+                                    <div className="h-6 bg-gray-200 rounded w-1/4"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : products.length === 0 && queryCompleted ? (
+                    <div className="text-center py-16 px-4 bg-white rounded-3xl border border-gray-100 shadow-sm max-w-2xl mx-auto mt-6">
+                        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                        <h3 className="text-2xl font-black text-gray-900 mb-3">No products found</h3>
+                        <p className="text-gray-500 mb-8">Try adjusting your search or switching to "All" categories.</p>
+                        <button 
+                            onClick={() => { setSearchQuery(''); setActiveCategory('All'); setPage(1); }} 
+                            className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-colors"
+                        >
+                            Reset Search & Filters
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {renderProductCards(products)}
+                        {hasMore && products.length > 0 && !isSearching && (
+                            <div className="flex justify-center mt-12 mb-8">
+                                <button 
+                                    onClick={handleLoadMore}
+                                    className="px-8 py-3 bg-gray-900 text-white font-bold rounded-xl shadow-lg hover:bg-gray-800 transition-colors"
+                                >
+                                    Load More Products
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </main>
         </div>
     );
 };

@@ -120,15 +120,19 @@ const UserSignup = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md 2xl:max-w-xl w-full space-y-8 2xl:space-y-12 bg-white/80 backdrop-blur-lg p-10 2xl:p-14 rounded-3xl shadow-2xl border border-white/50 relative">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md 2xl:max-w-xl w-full space-y-8 2xl:space-y-12 premium-card p-10 2xl:p-14 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-600 to-green-400"></div>
                 <Link to="/" className="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors">
                     Back
                 </Link>
-                <div>
-                    <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900">Create User Account</h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Join the sustainable finance revolution.
+                <div className="text-center mt-4">
+                    <div className="mx-auto h-16 w-16 bg-green-100 rounded-2xl flex items-center justify-center mb-4 border border-green-200">
+                        <span className="text-green-700 font-bold text-3xl font-heading">G</span>
+                    </div>
+                    <h2 className="mt-2 text-3xl font-black text-gray-900 tracking-tight font-heading">Create Account</h2>
+                    <p className="mt-2 text-sm text-gray-600 font-medium">
+                        Join GreenBond for fresh local deliveries.
                     </p>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSignup}>
@@ -240,11 +244,11 @@ const UserSignup = () => {
                         <button 
                             type="submit" 
                             disabled={isSubmitting}
-                            className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white ${
+                            className={`group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-bold rounded-xl text-white ${
                                 isSubmitting 
-                                ? 'bg-teal-400 cursor-not-allowed' 
-                                : 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700'
-                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 shadow-lg`}
+                                ? 'bg-emerald-400 cursor-not-allowed' 
+                                : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 focus:border-emerald-500 shadow-md transform transition-all hover:-translate-y-0.5'
+                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500`}
                         >
                             {isSubmitting ? (
                                 <span className="flex items-center">
@@ -257,10 +261,10 @@ const UserSignup = () => {
                             ) : 'Create Account'}
                         </button>
                     </div>
-                    <div className="text-center">
+                    <div className="text-center mt-6">
                         <p className="text-sm text-gray-600">
                             Already have an account?{' '}
-                            <Link to="/login/user" className="font-medium text-teal-600 hover:text-teal-500 transition-colors">
+                            <Link to="/login/user" className="font-bold text-green-700 hover:text-green-800 transition-colors">
                                 Sign in
                             </Link>
                         </p>

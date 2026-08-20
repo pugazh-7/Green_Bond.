@@ -1,3 +1,4 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -14,6 +15,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const AdminDashboard = () => {
+    const { accessToken } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('overview');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -42,7 +44,7 @@ const AdminDashboard = () => {
 
         const loadRealTimeData = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = accessToken;
                 const headers = { 'Authorization': `Bearer ${token}` };
 
                 const [usersRes, farmersRes, partnersRes, ordersRes, productsRes, auditRes] = await Promise.all([
@@ -91,14 +93,14 @@ const AdminDashboard = () => {
     const handleLogout = () => {
         localStorage.removeItem('userRole');
         localStorage.removeItem('green_bond_current_user');
-        localStorage.removeItem('token');
+        
         toast.success('Logged out successfully');
         navigate('/');
     };
 
     const handleVerifyFarmer = async (farmerId, newStatus) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/farmers/${farmerId}/verify`, {
                 method: 'PUT',
                 headers: {

@@ -8,6 +8,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
+import marketplaceRoutes from './routes/marketplaceRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -37,10 +39,11 @@ const __dirname = path.dirname(__filename);
 // Security Middleware
 app.use(helmet());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: '10kb' })); // Limit body size
 
 // Rate Limiting
@@ -53,7 +56,7 @@ app.use('/api', limiter);
 
 const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 20, // Limit each IP to 20 requests per `window` for auth
+    max: process.env.NODE_ENV === 'production' ? 20 : 1000, // Limit each IP to 1000 requests per `window` for auth in dev
     message: { message: 'Too many authentication attempts, please try again after an hour' }
 });
 app.use('/api/auth', authLimiter);
@@ -98,6 +101,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/shop', shopRoutes);
+app.use('/api/marketplace', marketplaceRoutes);
 
 // Static Files
 app.use(express.static(path.join(__dirname, '../frontend/dist')));

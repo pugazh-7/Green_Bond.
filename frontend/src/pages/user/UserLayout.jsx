@@ -1,9 +1,10 @@
 import React from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../assets/logo.jpeg';
 
 const UserLayout = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const scrollRef = React.useRef(null);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
@@ -52,7 +53,7 @@ const UserLayout = () => {
                     <p className="text-xs text-gray-500 font-medium ml-1">User Panel</p>
                 </div>
                 <nav className="mt-6">
-                    <Link to="/user" className="px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600 flex justify-between items-center group transition-colors">
+                    <Link to="/user/dashboard" className="px-6 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600 flex justify-between items-center group transition-colors">
                         <span>My Order</span>
                         {orderCount > 0 && (
                             <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
@@ -147,24 +148,41 @@ const UserLayout = () => {
                     </button>
                 )}
 
-                {/* Mobile Floating Cart Button */}
-                {cartCount > 0 && (
-                    <button
-                        onClick={() => navigate('/user/cart')}
-                        className={`fixed ${showScrollButton ? 'bottom-24' : 'bottom-8'} right-8 z-50 md:hidden p-4 bg-teal-600 text-white rounded-full shadow-2xl hover:bg-teal-700 transition-all duration-300 animate-bounce cursor-pointer flex items-center justify-center`}
-                        title="View Cart"
-                        aria-label="View Cart"
-                    >
+                </div>
+                
+                {/* Mobile Bottom Navigation */}
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 flex items-center justify-around px-2 py-3 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    <Link to="/user/dashboard" className={`flex flex-col items-center gap-1 ${location.pathname === '/user/dashboard' ? 'text-green-600' : 'text-gray-500'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        <span className="text-[10px] font-medium">Home</span>
+                    </Link>
+                    
+                    <Link to="/user/marketplace?phase=SHOPPING" className={`flex flex-col items-center gap-1 ${(location.pathname === '/user/marketplace' && (!location.search || location.search.includes('SHOPPING'))) ? 'text-gray-900' : 'text-gray-500'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                        <span className="text-[10px] font-medium">Shopping</span>
+                    </Link>
+                    
+                    <Link to="/user/marketplace?phase=QUICK" className={`flex flex-col items-center gap-1 ${location.search.includes('QUICK') ? 'text-purple-600' : 'text-gray-500'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <span className="text-[10px] font-medium">Quick</span>
+                    </Link>
+                    
+                    <Link to="/user/marketplace?phase=FRESH" className={`flex flex-col items-center gap-1 ${location.search.includes('FRESH') ? 'text-green-600' : 'text-gray-500'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        <span className="text-[10px] font-medium">Fresh</span>
+                    </Link>
+
+                    <Link to="/user/cart" className={`flex flex-col items-center gap-1 relative ${location.pathname === '/user/cart' ? 'text-teal-600' : 'text-gray-500'}`}>
                         <div className="relative">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
-                                {cartCount}
-                            </span>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            {cartCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                                    {cartCount}
+                                </span>
+                            )}
                         </div>
-                    </button>
-                )}
+                        <span className="text-[10px] font-medium">Cart</span>
+                    </Link>
                 </div>
             </div>
         </div>

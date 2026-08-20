@@ -1,13 +1,15 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
 const CustomerOrders = () => {
+    const { accessToken } = useAuth();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const fetchOrders = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             if (!token) return;
 
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/farmer-orders`, {
@@ -36,7 +38,7 @@ const CustomerOrders = () => {
 
     const handleUpdateStatus = async (orderId, newStatus) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`, {
                 method: 'PUT',
                 headers: {

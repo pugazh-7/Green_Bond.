@@ -3,13 +3,13 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
 const ShopOrders = () => {
-    const { user } = useAuth();
+    const { user, accessToken } = useAuth();
     const [orders, setOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchOrders = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const response = await fetch('/api/orders/shop-orders', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -30,7 +30,7 @@ const ShopOrders = () => {
 
     const updateOrderStatus = async (orderId, newStatus) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`/api/orders/${orderId}/status`, {
                 method: 'PUT',
                 headers: { 

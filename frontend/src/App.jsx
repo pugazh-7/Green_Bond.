@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+﻿import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import LandingPage from './pages/LandingPage';
@@ -23,6 +23,7 @@ const Marketplace = React.lazy(() => import('./pages/user/Marketplace'));
 const Portfolio = React.lazy(() => import('./pages/user/Portfolio'));
 const Cart = React.lazy(() => import('./pages/user/Cart'));
 const BulkOrders = React.lazy(() => import('./pages/user/BulkOrders'));
+const ProductDetails = React.lazy(() => import('./pages/user/ProductDetails'));
 
 const ClientLayout = React.lazy(() => import('./pages/client/ClientLayout'));
 const ClientDashboard = React.lazy(() => import('./pages/client/ClientDashboard'));
@@ -88,11 +89,13 @@ function App() {
               <UserLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<UserDashboard />} />
+            <Route index element={<Navigate to="marketplace" replace />} />
+            <Route path="dashboard" element={<UserDashboard />} />
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="cart" element={<Cart />} />
-            <Route path="bulk-orders" element={<BulkOrders />} />
+                        <Route path="bulk-orders" element={<BulkOrders />} />
+            <Route path="product/:id" element={<ProductDetails />} />
           </Route>
 
           {/* Client / Kyle / Farmer Routes - Only for 'client' role */}
@@ -154,3 +157,4 @@ function App() {
 }
 
 export default App;
+

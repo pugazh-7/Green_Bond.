@@ -36,7 +36,6 @@ const ShopLogin = () => {
             if (response.ok) {
                 toast.success('Login successful!', { id: loadingToast });
                 login(data.shop, data.token);
-                navigate('/shop');
             } else {
                 toast.error(data.message || 'Login failed', { id: loadingToast });
             }

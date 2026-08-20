@@ -30,6 +30,10 @@ const farmerSchema = new mongoose.Schema({
         type: { type: String, enum: ['Point'], default: 'Point' },
         coordinates: { type: [Number], default: [0, 0] } // [longitude, latitude]
     },
+    serviceRadius: {
+        type: Number,
+        default: 20 // Default service radius in kilometers
+    },
     pin: {
         type: String,
         required: true,

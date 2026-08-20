@@ -1,3 +1,4 @@
+import { useAuth } from '../../context/AuthContext';
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -17,6 +18,7 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const MapController = ({ position }) => {
+    const { accessToken } = useAuth();
     const map = useMap();
     useEffect(() => {
         if (position) {
@@ -34,7 +36,7 @@ const UserDashboard = () => {
 
     const fetchOrders = async (isPolling = false) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             if (!token) {
                 setIsLoading(false);
                 return;
@@ -66,7 +68,7 @@ const UserDashboard = () => {
         fetchOrders();
         
         // Socket.IO for real-time updates
-        const token = localStorage.getItem('token');
+        const token = accessToken;
         let userId = null;
         if (token) {
             try {
@@ -150,7 +152,7 @@ const UserDashboard = () => {
     const confirmCancelOrder = async () => {
         if (!latestOrder) return;
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${latestOrder.id}/status`, {
                 method: 'PUT',
                 headers: { 

@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const DeliveryOrders = () => {
-    const { user } = useAuth();
+    const { user, accessToken } = useAuth();
     const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchOrders = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch('/api/orders/delivery-orders', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -32,7 +32,7 @@ const DeliveryOrders = () => {
 
     const handleUpdateStatus = async (orderId, newStatus) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`/api/orders/${orderId}/status`, {
                 method: 'PUT',
                 headers: { 
@@ -59,7 +59,7 @@ const DeliveryOrders = () => {
         if (!otp) return;
         
         try {
-            const token = localStorage.getItem('token');
+            const token = accessToken;
             const res = await fetch(`/api/orders/${orderId}/verify-pickup-otp`, {
                 method: 'POST',
                 headers: { 

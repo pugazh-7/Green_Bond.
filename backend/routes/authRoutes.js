@@ -10,6 +10,21 @@ import DeliveryPartner from '../models/DeliveryPartner.js';
 import Shop from '../models/Shop.js';
 import { isWithinServiceArea } from '../utils/locationUtils.js';
 
+const generateTokens = (payload) => {
+    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    return { accessToken, refreshToken };
+};
+
+const setRefreshCookie = (res, refreshToken) => {
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+};
+
 // Register User
 router.post('/register-user', async (req, res) => {
     try {
@@ -149,9 +164,10 @@ router.post('/login-user', async (req, res) => {
             role: canonicalRole
         };
 
-        const token = jwt.sign({ id: user._id, role: canonicalRole }, JWT_SECRET, { expiresIn: '7d' });
+        const { accessToken, refreshToken } = generateTokens({ id: user._id, role: canonicalRole });
+        setRefreshCookie(res, refreshToken);
 
-        res.status(200).json({ message: 'Login successful', user: userData, token });
+        res.status(200).json({ message: 'Login successful', user: userData, token: accessToken });
     } catch (error) {
         console.error("User login error:", error);
         res.status(500).json({ message: 'Server error during login', error: error.message });
@@ -184,7 +200,8 @@ router.post('/login-farmer', async (req, res) => {
              await farmer.save();
         }
 
-        const token = jwt.sign({ id: farmer._id, role: 'client' }, JWT_SECRET, { expiresIn: '7d' });
+        const { accessToken, refreshToken } = generateTokens({ id: farmer._id, role: 'client' });
+        setRefreshCookie(res, refreshToken);
 
         // Include verificationStatus in login response, but omit sensitive info
         const farmerData = {
@@ -197,7 +214,7 @@ router.post('/login-farmer', async (req, res) => {
             role: 'client'
         };
 
-        res.status(200).json({ message: 'Login successful', farmer: farmerData, token });
+        res.status(200).json({ message: 'Login successful', farmer: farmerData, token: accessToken });
     } catch (error) {
         console.error("Farmer login error:", error);
         res.status(500).json({ message: 'Server error during login', error: error.message });
@@ -227,7 +244,8 @@ router.post('/login-delivery', async (req, res) => {
              await partner.save();
         }
 
-        const token = jwt.sign({ id: partner._id, role: 'delivery' }, JWT_SECRET, { expiresIn: '7d' });
+        const { accessToken, refreshToken } = generateTokens({ id: partner._id, role: 'delivery' });
+        setRefreshCookie(res, refreshToken);
 
         const partnerData = {
             id: partner._id,
@@ -238,7 +256,7 @@ router.post('/login-delivery', async (req, res) => {
             role: partner.role
         };
 
-        res.status(200).json({ message: 'Login successful', partner: partnerData, token });
+        res.status(200).json({ message: 'Login successful', partner: partnerData, token: accessToken });
     } catch (error) {
         console.error("Delivery login error:", error);
         res.status(500).json({ message: 'Server error during login', error: error.message });
@@ -290,7 +308,8 @@ router.post('/login-shop', async (req, res) => {
             return res.status(401).json({ message: 'Invalid mobile or password' });
         }
 
-        const token = jwt.sign({ id: shop._id, role: 'shop' }, JWT_SECRET, { expiresIn: '7d' });
+        const { accessToken, refreshToken } = generateTokens({ id: shop._id, role: 'shop' });
+        setRefreshCookie(res, refreshToken);
 
         const shopData = {
             id: shop._id,
@@ -301,11 +320,62 @@ router.post('/login-shop', async (req, res) => {
             isActive: shop.isActive
         };
 
-        res.status(200).json({ message: 'Login successful', shop: shopData, token });
+        res.status(200).json({ message: 'Login successful', shop: shopData, token: accessToken });
     } catch (error) {
         console.error("Shop login error:", error);
         res.status(500).json({ message: 'Server error during login', error: error.message });
     }
+});
+
+// Refresh Token
+router.get('/refresh-token', async (req, res) => {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+        return res.status(401).json({ message: 'No refresh token provided' });
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, JWT_SECRET);
+        const { id, role } = decoded;
+
+        let userData = null;
+
+        if (role === 'user' || role === 'customer' || role === 'admin') {
+            const user = await User.findById(id).select('-password');
+            if (user) {
+                const canonicalRole = user.role === 'customer' ? 'user' : user.role;
+                userData = { id: user._id, name: user.name, email: user.email, mobile: user.mobile, role: canonicalRole };
+            }
+        } else if (role === 'client' || role === 'farmer') {
+            const farmer = await Farmer.findById(id).select('-pin');
+            if (farmer) userData = { id: farmer._id, name: farmer.name, mobile: farmer.mobile, verificationStatus: farmer.verificationStatus, location: farmer.location, address: farmer.address, role: 'client' };
+        } else if (role === 'shop') {
+            const shop = await Shop.findById(id).select('-password');
+            if (shop) userData = { id: shop._id, name: shop.name, ownerName: shop.ownerName, mobile: shop.mobile, role: 'shop', isActive: shop.isActive };
+        } else if (role === 'delivery') {
+            const partner = await DeliveryPartner.findById(id).select('-password');
+            if (partner) userData = { id: partner._id, name: partner.name, email: partner.email, mobile: partner.mobile, status: partner.status, role: 'delivery' };
+        }
+
+        if (!userData) {
+            res.clearCookie('refreshToken');
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const { accessToken, refreshToken: newRefreshToken } = generateTokens({ id, role });
+        setRefreshCookie(res, newRefreshToken); // Rotate refresh token (optional but good practice)
+
+        res.status(200).json({ user: userData, token: accessToken });
+    } catch (error) {
+        res.clearCookie('refreshToken');
+        return res.status(401).json({ message: 'Invalid or expired refresh token' });
+    }
+});
+
+// Logout
+router.post('/logout', (req, res) => {
+    res.clearCookie('refreshToken');
+    res.status(200).json({ message: 'Logged out successfully' });
 });
 
 import { verifyToken, isDelivery } from '../middleware/auth.js';
