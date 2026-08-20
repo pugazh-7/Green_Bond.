@@ -10,11 +10,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
     useEffect(() => {
         if (!userRole || !token) {
-            toast.error('Please login to access this page.');
+            toast.error('Please login to access this page.', { id: 'login-error' });
         } else if (allowedRoles && !allowedRoles.includes(userRole)) {
-            toast.error('You are not authorized to access this page.');
+            toast.error('You are not authorized to access this page.', { id: 'unauthorized-error' });
         }
-    }, [userRole, token, allowedRoles]);
+    }, [userRole, token, allowedRoles ? allowedRoles.join(',') : '']);
 
     if (!userRole || !token) {
         // Redirect to landing page or specific login based on tried path could be better, 

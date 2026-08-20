@@ -1,9 +1,10 @@
 import React, { Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import LandingPage from './pages/LandingPage';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
 
 // Keep auth routes eagerly loaded for fast navigation
 import UserLogin from './pages/auth/UserLogin';
@@ -12,6 +13,8 @@ import UserSignup from './pages/auth/UserSignup';
 import ClientSignup from './pages/auth/ClientSignup';
 import DeliveryLogin from './pages/auth/DeliveryLogin';
 import DeliverySignup from './pages/auth/DeliverySignup';
+import ShopLogin from './pages/auth/ShopLogin';
+import ShopSignup from './pages/auth/ShopSignup';
 
 // Lazy load heavy components
 const UserLayout = React.lazy(() => import('./pages/user/UserLayout'));
@@ -34,6 +37,11 @@ const DeliveryOrders = React.lazy(() => import('./pages/delivery/DeliveryOrders'
 const DeliveryHistory = React.lazy(() => import('./pages/delivery/DeliveryHistory'));
 const DeliveryTracking = React.lazy(() => import('./pages/delivery/DeliveryTracking'));
 
+const ShopLayout = React.lazy(() => import('./pages/shop/ShopLayout'));
+const ShopDashboard = React.lazy(() => import('./pages/shop/ShopDashboard'));
+const ShopOrders = React.lazy(() => import('./pages/shop/ShopOrders'));
+const ShopProducts = React.lazy(() => import('./pages/shop/ShopProducts'));
+
 const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard'));
 
 const LoadingFallback = () => (
@@ -49,6 +57,22 @@ const LoadingFallback = () => (
 );
 
 function App() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <LoadingFallback />;
+  }
+
+  const isAuthRoute = location.pathname.startsWith('/login') || location.pathname.startsWith('/signup');
+  if (user && (location.pathname === '/' || isAuthRoute)) {
+      if (user.role === 'user' || user.role === 'customer') return <Navigate to="/user" replace />;
+      if (user.role === 'client' || user.role === 'farmer') return <Navigate to="/client" replace />;
+      if (user.role === 'shop') return <Navigate to="/shop" replace />;
+      if (user.role === 'delivery') return <Navigate to="/delivery" replace />;
+      if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  }
+
   return (
     <>
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
@@ -91,6 +115,8 @@ function App() {
           <Route path="/signup/farmer" element={<ClientSignup />} />
           <Route path="/signup/delivery" element={<DeliverySignup />} />
           <Route path="/login/delivery" element={<DeliveryLogin />} />
+          <Route path="/signup/shop" element={<ShopSignup />} />
+          <Route path="/login/shop" element={<ShopLogin />} />
 
           {/* Delivery Partner Routes - Only for 'delivery' role */}
           <Route path="/delivery" element={
@@ -102,6 +128,17 @@ function App() {
             <Route path="orders" element={<DeliveryOrders />} />
             <Route path="history" element={<DeliveryHistory />} />
             <Route path="tracking" element={<DeliveryTracking />} />
+          </Route>
+
+          {/* Shop Owner Routes - Only for 'shop' role */}
+          <Route path="/shop" element={
+            <ProtectedRoute allowedRoles={['shop']}>
+              <ShopLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<ShopDashboard />} />
+            <Route path="orders" element={<ShopOrders />} />
+            <Route path="products" element={<ShopProducts />} />
           </Route>
 
           {/* Admin Routes - Only for 'admin' role */}

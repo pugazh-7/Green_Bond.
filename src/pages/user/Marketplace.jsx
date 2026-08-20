@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 
 import { PRODUCTS_DATA as DEFAULT_PRODUCTS, PROJECTS_DATA as DEFAULT_BONDS } from '../../data/products';
 import toast from 'react-hot-toast';
+import { useLocation } from 'react-router-dom';
 
 const Marketplace = () => {
     // ... same component logic ...
@@ -15,12 +16,18 @@ const Marketplace = () => {
     const [products, setProducts] = useState(DEFAULT_PRODUCTS);
     const [bonds, setBonds] = useState(DEFAULT_BONDS);
     const [isLoading, setIsLoading] = useState(true);
+    
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const mode = searchParams.get('mode') || 'fresh'; // 'shop' or 'fresh'
 
     React.useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
+                const sourceType = mode === 'shop' ? 'SHOP' : 'FARMER';
+                // Add lat/lng from LocationContext later if we want geolocation filters
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products?sourceType=${sourceType}`);
                 if (response.ok) {
                     const backendProducts = await response.json();
                     
@@ -35,7 +42,12 @@ const Marketplace = () => {
                         !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
                     );
 
-                    setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
+                    // If shop mode, we only want SHOP products (backend already filtered it, but we also ignore DEFAULT_PRODUCTS which are mock FARMER data)
+                    if (mode === 'shop') {
+                        setProducts(uniqueBackend);
+                    } else {
+                        setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching marketplace data:', error);
@@ -45,7 +57,7 @@ const Marketplace = () => {
         };
 
         fetchData();
-    }, []);
+    }, [mode]);
 
 
 
@@ -194,9 +206,12 @@ const Marketplace = () => {
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Marketplace</h1>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                            {mode === 'shop' ? 'Local Shops' : 'Farmer Marketplace'}
+                        </h1>
                         <p className="text-gray-600 mt-1">
-                            {activeTab === 'bonds' ? 'Invest in sustainable projects.' : 'Buy fresh produce directly from farmers.'}
+                            {activeTab === 'bonds' ? 'Invest in sustainable projects.' : 
+                             mode === 'shop' ? 'Quick delivery from nearby stores.' : 'Buy fresh produce directly from farmers.'}
                         </p>
                     </div>
 
@@ -204,9 +219,9 @@ const Marketplace = () => {
                     <div className="bg-gray-100 p-1 rounded-lg flex">
                         <button
                             onClick={() => { setActiveTab('produce'); setFilter('All'); }}
-                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'produce' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'produce' ? (mode === 'shop' ? 'bg-white text-yellow-700 shadow-sm' : 'bg-white text-green-700 shadow-sm') : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Farm Produce
+                            {mode === 'shop' ? 'Shop Items' : 'Farm Produce'}
                         </button>
                         <button
                             onClick={() => { setActiveTab('bonds'); setFilter('All'); }}
