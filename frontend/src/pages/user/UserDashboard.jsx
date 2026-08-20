@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 let DefaultIcon = L.icon({
     iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
@@ -33,13 +34,17 @@ const UserDashboard = () => {
 
     const fetchOrders = async (isPolling = false) => {
         try {
-            const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
-            if (!currentUser.email) {
+            const token = localStorage.getItem('token');
+            if (!token) {
                 setIsLoading(false);
                 return;
             }
 
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/user/${encodeURIComponent(currentUser.email)}`);
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/my-orders`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data.length > 0) {
@@ -60,18 +65,37 @@ const UserDashboard = () => {
     useEffect(() => {
         fetchOrders();
         
+        // Socket.IO for real-time updates
+        const token = localStorage.getItem('token');
+        let userId = null;
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                userId = payload.id;
+            } catch (e) {}
+        }
+        
+        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        if (userId) {
+            socket.emit('join', userId);
+            socket.on('order_update', () => {
+                fetchOrders(true);
+            });
+        }
+        
         pollTimerRef.current = setInterval(() => {
             fetchOrders(true);
-        }, 15000);
+        }, 60000); // 60s fallback sync
 
         return () => {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            socket.disconnect();
         };
     }, []);
 
     // Stop polling if delivered or cancelled
     useEffect(() => {
-        if (latestOrder && ['Delivered', 'Cancelled'].includes(latestOrder.status)) {
+        if (latestOrder && ['DELIVERED', 'CANCELLED'].includes(latestOrder.status)) {
             if (pollTimerRef.current) {
                 clearInterval(pollTimerRef.current);
                 pollTimerRef.current = null;
@@ -86,10 +110,11 @@ const UserDashboard = () => {
         
         // Dynamic map location based on order status for simulation since we don't have real live driver GPS
         let lat = 13.0827, lng = 80.2707; 
-        if (['Placed', 'Pending'].includes(latestOrder.status)) { lat = 13.1000; lng = 80.3000; } // Farm Location
-        else if (latestOrder.status === 'Accepted') { lat = 13.0900; lng = 80.2800; } // Packing
-        else if (latestOrder.status === 'Shipped') { lat = 13.0850; lng = 80.2750; } // En route
-        else if (latestOrder.status === 'Delivered') { lat = 13.0827; lng = 80.2707; } // Destination
+        const status = latestOrder.status;
+        if (['PLACED'].includes(status)) { lat = 13.1000; lng = 80.3000; } // Farm Location
+        else if (['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(status)) { lat = 13.0900; lng = 80.2800; } // Packing
+        else if (['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status)) { lat = 13.0850; lng = 80.2750; } // En route
+        else if (['DELIVERED'].includes(status)) { lat = 13.0827; lng = 80.2707; } // Destination
         
         setTrackingLoc({ lat, lng });
     }, [latestOrder]);
@@ -125,13 +150,17 @@ const UserDashboard = () => {
     const confirmCancelOrder = async () => {
         if (!latestOrder) return;
         try {
+            const token = localStorage.getItem('token');
             const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${latestOrder.id}/status`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'Cancelled' })
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ status: 'CANCELLED' })
             });
             if (res.ok) {
-                setLatestOrder({ ...latestOrder, status: 'Cancelled' });
+                setLatestOrder({ ...latestOrder, status: 'CANCELLED' });
                 toast.success("Order cancelled successfully.");
             } else {
                 toast.error("Failed to cancel order.");
@@ -203,6 +232,7 @@ const UserDashboard = () => {
     const eta = calculateETA(latestOrder.createdAt);
     const etaShortTime = calculateETA(latestOrder.createdAt).split(', ').pop();
     const items = latestOrder.items || [];
+    const s = latestOrder.status;
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -249,7 +279,7 @@ const UserDashboard = () => {
                             <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Estimated Delivery</p>
                             <h2 className="text-4xl font-extrabold text-gray-900 mt-1">{eta}</h2>
                             <p className="text-green-600 font-medium mt-1">
-                                {latestOrder.status === 'Delivered' ? 'Delivered successfully' : 'On Time'}
+                                {s === 'DELIVERED' ? 'Delivered successfully' : 'On Time'}
                             </p>
                         </div>
                         <div className="flex -space-x-4">
@@ -258,6 +288,18 @@ const UserDashboard = () => {
                             ))}
                         </div>
                     </div>
+
+                    {s === 'OUT_FOR_DELIVERY' && latestOrder.deliveryOtp && (
+                        <div className="mb-8 border border-green-200 bg-green-50 p-4 rounded-xl flex justify-between items-center">
+                            <div>
+                                <h4 className="font-bold text-green-800">Delivery Security PIN</h4>
+                                <p className="text-sm text-green-700">Provide this to the partner to receive your order.</p>
+                            </div>
+                            <div className="bg-white border border-green-300 px-4 py-2 rounded-lg font-mono text-3xl font-black text-green-700 tracking-[0.2em] shadow-inner">
+                                {latestOrder.deliveryOtp}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Timeline */}
                     <div className="relative">
@@ -274,13 +316,13 @@ const UserDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Step 2: Packed by Farmer (Accepted) */}
+                            {/* Step 2: Packed by Farmer (Accepted / Ready / Assigned) */}
                             <div className="flex gap-6 relative">
-                                {['Accepted'].includes(latestOrder.status) ? (
+                                {['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
-                                ) : ['Shipped', 'Delivered'].includes(latestOrder.status) ? (
+                                ) : ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
                                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -290,13 +332,11 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Accepted'].includes(latestOrder.status) ? 'text-blue-600' : ['Shipped', 'Delivered'].includes(latestOrder.status) ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    <h4 className={`font-bold ${['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? 'text-blue-600' : ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) ? 'text-gray-900' : 'text-gray-400'}`}>
                                         Packed by Farmer
                                     </h4>
-                                    <p className={`text-sm ${['Accepted'].includes(latestOrder.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {latestOrder.status === 'Accepted' && latestOrder.acceptedAt 
-                                            ? `Packed at ${formatShortTime(latestOrder.acceptedAt)}` 
-                                            : ['Shipped', 'Delivered'].includes(latestOrder.status) && latestOrder.acceptedAt
+                                    <p className={`text-sm ${['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
+                                        {['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) && latestOrder.acceptedAt
                                             ? `Packed at ${formatShortTime(latestOrder.acceptedAt)}`
                                             : 'Pending'
                                         }
@@ -306,11 +346,11 @@ const UserDashboard = () => {
 
                             {/* Step 3: Out for Delivery */}
                             <div className="flex gap-6 relative">
-                                {['Shipped'].includes(latestOrder.status) ? (
+                                {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                     </div>
-                                ) : ['Delivered'].includes(latestOrder.status) ? (
+                                ) : ['DELIVERED'].includes(s) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
                                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -320,13 +360,11 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Shipped'].includes(latestOrder.status) ? 'text-blue-600' : ['Delivered'].includes(latestOrder.status) ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    <h4 className={`font-bold ${['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? 'text-blue-600' : ['DELIVERED'].includes(s) ? 'text-gray-900' : 'text-gray-400'}`}>
                                         Out for Delivery
                                     </h4>
-                                    <p className={`text-sm ${['Shipped'].includes(latestOrder.status) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {latestOrder.status === 'Shipped' && latestOrder.shippedAt 
-                                            ? `Left at ${formatShortTime(latestOrder.shippedAt)}` 
-                                            : ['Delivered'].includes(latestOrder.status) && latestOrder.shippedAt
+                                    <p className={`text-sm ${['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
+                                        {['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) && latestOrder.shippedAt
                                             ? `Left at ${formatShortTime(latestOrder.shippedAt)}`
                                             : 'Estimated'
                                         }
@@ -336,7 +374,7 @@ const UserDashboard = () => {
 
                             {/* Step 4: Delivered */}
                             <div className="flex gap-6 relative">
-                                {['Delivered'].includes(latestOrder.status) ? (
+                                {['DELIVERED'].includes(s) ? (
                                     <div className="z-10 w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border-4 border-green-100 shadow-xl ring-4 ring-green-50">
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                     </div>
@@ -346,9 +384,9 @@ const UserDashboard = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <h4 className={`font-bold ${['Delivered'].includes(latestOrder.status) ? 'text-green-600' : 'text-gray-400'}`}>Delivered</h4>
+                                    <h4 className={`font-bold ${['DELIVERED'].includes(s) ? 'text-green-600' : 'text-gray-400'}`}>Delivered</h4>
                                     <p className="text-sm text-gray-500">
-                                        {latestOrder.status === 'Delivered' && latestOrder.deliveredAt 
+                                        {['DELIVERED'].includes(s) && latestOrder.deliveredAt 
                                             ? formatDate(latestOrder.deliveredAt)
                                             : `Expected by ${etaShortTime}`
                                         }
@@ -362,7 +400,7 @@ const UserDashboard = () => {
                 <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 flex justify-between items-center">
                     <button className="text-gray-600 font-semibold hover:text-gray-900 text-sm">Need Help?</button>
                     <div className="flex gap-4">
-                        {['Placed', 'Pending'].includes(latestOrder.status) && (
+                        {['PLACED'].includes(s) && (
                             <button
                                 onClick={handleCancelOrder}
                                 className="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors shadow-sm"
@@ -390,11 +428,11 @@ const UserDashboard = () => {
                                 </div>
                                 <div className="text-right flex flex-col items-end">
                                     <span className={`inline-block px-3 py-1 text-xs font-bold uppercase rounded-full mb-1 ${
-                                        order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                                        order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                        order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
+                                        order.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
                                         'bg-blue-50 text-blue-700'
                                     }`}>
-                                        {order.status}
+                                        {order.status.replace(/_/g, ' ')}
                                     </span>
                                     <p className="text-sm font-semibold text-gray-900">{order.total}</p>
                                 </div>

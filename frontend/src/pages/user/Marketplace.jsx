@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 
 import { PRODUCTS_DATA as DEFAULT_PRODUCTS, PROJECTS_DATA as DEFAULT_BONDS } from '../../data/products';
 import toast from 'react-hot-toast';
+import { useLocation } from 'react-router-dom';
 
 const Marketplace = () => {
     // ... same component logic ...
@@ -14,38 +15,49 @@ const Marketplace = () => {
 
     const [products, setProducts] = useState(DEFAULT_PRODUCTS);
     const [bonds, setBonds] = useState(DEFAULT_BONDS);
-    // const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const mode = searchParams.get('mode') || 'fresh'; // 'shop' or 'fresh'
 
-    // React.useEffect(() => {
-    //     const fetchData = async () => {
-    //         setIsLoading(true);
-    //         try {
-    //             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
-    //             if (response.ok) {
-    //                 const backendProducts = await response.json();
+    React.useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const sourceType = mode === 'shop' ? 'SHOP' : 'FARMER';
+                // Add lat/lng from LocationContext later if we want geolocation filters
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products?sourceType=${sourceType}`);
+                if (response.ok) {
+                    const backendProducts = await response.json();
                     
-    //                 // Add unique backend products (mapped to include an id for React keys)
-    //                 const normalizedBackend = backendProducts.map(p => ({
-    //                     ...p,
-    //                     id: p._id || p.id // Mongodb uses _id
-    //                 }));
+                    // Add unique backend products (mapped to include an id for React keys)
+                    const normalizedBackend = backendProducts.map(p => ({
+                        ...p,
+                        id: p._id || p.id // Mongodb uses _id
+                    }));
                     
-    //                 // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
-    //                 const uniqueBackend = normalizedBackend.filter(bp => 
-    //                     !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
-    //                 );
+                    // Filter out any backend products that might already be in DEFAULT_PRODUCTS (unlikely)
+                    const uniqueBackend = normalizedBackend.filter(bp => 
+                        !DEFAULT_PRODUCTS.some(dp => dp.title === bp.title && dp.farmer === bp.farmer)
+                    );
 
-    //                 setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
-    //             }
-    //         } catch (error) {
-    //             console.error('Error fetching marketplace data:', error);
-    //         } finally {
-    //             setIsLoading(false);
-    //         }
-    //     };
+                    // If shop mode, we only want SHOP products (backend already filtered it, but we also ignore DEFAULT_PRODUCTS which are mock FARMER data)
+                    if (mode === 'shop') {
+                        setProducts(uniqueBackend);
+                    } else {
+                        setProducts([...DEFAULT_PRODUCTS, ...uniqueBackend]);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching marketplace data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-    //     fetchData();
-    // }, []);
+        fetchData();
+    }, [mode]);
 
 
 
@@ -194,9 +206,12 @@ const Marketplace = () => {
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Marketplace</h1>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                            {mode === 'shop' ? 'Local Shops' : 'Farmer Marketplace'}
+                        </h1>
                         <p className="text-gray-600 mt-1">
-                            {activeTab === 'bonds' ? 'Invest in sustainable projects.' : 'Buy fresh produce directly from farmers.'}
+                            {activeTab === 'bonds' ? 'Invest in sustainable projects.' : 
+                             mode === 'shop' ? 'Quick delivery from nearby stores.' : 'Buy fresh produce directly from farmers.'}
                         </p>
                     </div>
 
@@ -204,9 +219,9 @@ const Marketplace = () => {
                     <div className="bg-gray-100 p-1 rounded-lg flex">
                         <button
                             onClick={() => { setActiveTab('produce'); setFilter('All'); }}
-                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'produce' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-6 py-2 rounded-md font-semibold transition-all ${activeTab === 'produce' ? (mode === 'shop' ? 'bg-white text-yellow-700 shadow-sm' : 'bg-white text-green-700 shadow-sm') : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            Farm Produce
+                            {mode === 'shop' ? 'Shop Items' : 'Farm Produce'}
                         </button>
                         <button
                             onClick={() => { setActiveTab('bonds'); setFilter('All'); }}
@@ -276,7 +291,7 @@ const Marketplace = () => {
                             return (
                                 <div key={bond.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
                                     <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                        <img src={bond.image} alt={bond.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                                        <img src={bond.image} alt={bond.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                         <div className="absolute top-1 lg:top-4 right-1 lg:right-4 bg-white/90 backdrop-blur-sm px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold text-green-700 uppercase">{bond.category}</div>
                                     </div>
                                     <div className="p-2 lg:p-5 flex-1 flex flex-col">
@@ -304,7 +319,7 @@ const Marketplace = () => {
                         filteredProducts.map(item => (
                             <div key={item.id} className="bg-white rounded-lg lg:rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group h-full border border-gray-100">
                                 <div className="aspect-square lg:aspect-[4/3] w-full overflow-hidden relative bg-gray-50">
-                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                                    <img src={item.image} alt={item.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
                                     <div className="absolute top-1 lg:top-4 left-1 lg:left-4 bg-green-600 text-white px-1.5 lg:px-3 py-0.5 lg:py-1 rounded-full text-[6px] lg:text-xs font-bold uppercase shadow-sm">{item.category}</div>
                                 </div>
                                 <div className="p-2 lg:p-5 flex-1 flex flex-col">

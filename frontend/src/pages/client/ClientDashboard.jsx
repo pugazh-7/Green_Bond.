@@ -15,6 +15,9 @@ const ClientDashboard = () => {
         setProducts(savedProducts);
     }, []);
 
+    const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+    const isVerified = currentUser.verificationStatus === 'APPROVED';
+
     const handleDeleteProduct = (productId) => {
         if (window.confirm('Are you sure you want to remove this product listing?')) {
             const updatedProducts = products.filter(p => p.id !== productId);
@@ -29,14 +32,39 @@ const ClientDashboard = () => {
 
     return (
         <div className="space-y-8">
-            <header className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-gray-900">Farmer Dashboard</h2>
-                <button
-                    onClick={() => navigate('/client/add-product')}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 font-medium text-sm"
-                >
-                    + Add New Listing
-                </button>
+            <header className="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                        Farmer Dashboard
+                        {isVerified && (
+                            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full font-bold border border-green-200 shadow-sm flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                VERIFIED FARMER
+                            </span>
+                        )}
+                        {!isVerified && (
+                            <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-bold border border-yellow-200 shadow-sm flex items-center gap-1">
+                                PENDING VERIFICATION
+                            </span>
+                        )}
+                    </h2>
+                </div>
+                {isVerified ? (
+                    <button
+                        onClick={() => navigate('/client/add-product')}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 font-medium text-sm"
+                    >
+                        + Add New Listing
+                    </button>
+                ) : (
+                    <button
+                        disabled
+                        className="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg shadow-sm cursor-not-allowed font-medium text-sm"
+                        title="Admin verification required to list products"
+                    >
+                        + Add New Listing (Verification Required)
+                    </button>
+                )}
             </header>
 
             {/* Stats Cards */}

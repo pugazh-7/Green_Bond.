@@ -33,6 +33,7 @@ const ClientLogin = () => {
     const [showPin, setShowPin] = useState(false);
     const [showResetPin, setShowResetPin] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDelayed, setIsDelayed] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -50,8 +51,10 @@ const ClientLogin = () => {
         }
 
         setIsLoading(true);
+        setIsDelayed(false);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
 
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-farmer`, {
@@ -64,6 +67,7 @@ const ClientLogin = () => {
             });
 
             clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -72,6 +76,7 @@ const ClientLogin = () => {
                 
                 localStorage.setItem('userRole', role);
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
+                if (data.token) localStorage.setItem('token', data.token);
                 
                 if (rememberMe) {
                     localStorage.setItem('remembered_client_name', name);
@@ -92,6 +97,7 @@ const ClientLogin = () => {
             }
         } catch (error) {
             clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             console.error('Login error:', error);
             if (error.name === 'AbortError') {
                 toast.error('Request timed out. Please try again.');
@@ -100,6 +106,7 @@ const ClientLogin = () => {
             }
         } finally {
             setIsLoading(false);
+            setIsDelayed(false);
         }
     };
 
@@ -346,7 +353,7 @@ const ClientLogin = () => {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Signing in...
+                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Signing in..."}
                                 </span>
                             ) : 'Secure Login'}
                         </button>

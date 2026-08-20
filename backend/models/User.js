@@ -23,12 +23,33 @@ const userSchema = new mongoose.Schema({
         required: true,
         minlength: 6
     },
+    location: {
+        lat: { type: Number },
+        lng: { type: Number },
+        address: { type: String }
+    },
+    locationGeo: {
+        type: { type: String, enum: ['Point'], default: 'Point' },
+        coordinates: { type: [Number], default: [0, 0] } // [longitude, latitude]
+    },
+    addresses: [{
+        label: { type: String, enum: ['HOME', 'WORK', 'OTHER'], default: 'HOME' },
+        name: { type: String },
+        address: { type: String },
+        city: { type: String },
+        state: { type: String },
+        pin: { type: String },
+        lat: { type: Number },
+        lng: { type: Number },
+        isDefault: { type: Boolean, default: false }
+    }],
     role: {
         type: String,
-        enum: ['customer', 'admin'],
-        default: 'customer'
+        enum: ['customer', 'user', 'admin'],
+        default: 'user'
     }
 }, { timestamps: true });
 
-export default mongoose.model('User', userSchema);
+userSchema.index({ locationGeo: '2dsphere' });
 
+export default mongoose.model('User', userSchema);

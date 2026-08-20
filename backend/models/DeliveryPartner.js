@@ -23,11 +23,28 @@ const deliveryPartnerSchema = new mongoose.Schema({
         required: true,
         minlength: 6
     },
+    location: {
+        lat: { type: Number },
+        lng: { type: Number },
+        address: { type: String },
+        updatedAt: { type: Date }
+    },
+    locationGeo: {
+        type: { type: String, enum: ['Point'], default: 'Point' },
+        coordinates: { type: [Number], default: [0, 0] } // [longitude, latitude]
+    },
+    status: {
+        type: String,
+        enum: ['Available', 'Offline'],
+        default: 'Offline'
+    },
     role: {
         type: String,
         default: 'delivery'
     }
 }, { timestamps: true });
 
-export default mongoose.model('DeliveryPartner', deliveryPartnerSchema);
+deliveryPartnerSchema.index({ status: 1 });
+deliveryPartnerSchema.index({ locationGeo: '2dsphere' });
 
+export default mongoose.model('DeliveryPartner', deliveryPartnerSchema);

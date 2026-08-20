@@ -1,17 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LocationPicker from '../../components/LocationPicker';
+
+const loadRazorpay = () => {
+    return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => {
+            resolve(true);
+        };
+        script.onerror = () => {
+            resolve(false);
+        };
+        document.body.appendChild(script);
+    });
+};
 
 const Cart = () => {
     const [cartItems, setCartItems] = useState([]);
     const navigate = useNavigate();
+    const [savedAddresses, setSavedAddresses] = useState([]);
+    const [selectedAddressMode, setSelectedAddressMode] = useState('SAVED'); // 'SAVED' or 'NEW'
+    const [selectedSavedAddress, setSelectedSavedAddress] = useState(null);
+    const [newDeliveryLocation, setNewDeliveryLocation] = useState(null);
 
     useEffect(() => {
         const savedCart = localStorage.getItem('user_cart');
         if (savedCart) {
             setCartItems(JSON.parse(savedCart));
         }
+        fetchAddresses();
     }, []);
+
+    const fetchAddresses = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/user/addresses`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setSavedAddresses(data);
+                if (data.length > 0) {
+                    const defaultAddr = data.find(a => a.isDefault) || data[0];
+                    setSelectedSavedAddress(defaultAddr);
+                } else {
+                    setSelectedAddressMode('NEW');
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch addresses");
+        }
+    };
 
     const removeFromCart = (id) => {
         const updatedCart = cartItems.filter(item => item.cartId !== id);
@@ -22,20 +64,16 @@ const Cart = () => {
     const updateQuantity = (cartId, delta) => {
         const updatedCart = cartItems.map(item => {
             if (item.cartId === cartId) {
-                // Determine unit
                 const priceParts = item.price.split('/');
                 const unit = priceParts.length > 1 ? priceParts[1].trim().toLowerCase() : '';
-
                 let newQty = item.quantity + delta;
 
                 if (delta > 0 && unit === 'kg' && item.quantity >= 5) {
                     toast.error("For orders over 5kg, please use the Bulk Order option");
                     return item;
                 }
-
                 newQty = Math.max(1, newQty);
                 if (unit === 'kg') newQty = Math.min(5, newQty);
-
                 return { ...item, quantity: newQty };
             }
             return item;
@@ -52,117 +90,193 @@ const Cart = () => {
     };
 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState('UPI'); // UPI, Card, NetBanking, COD
+    const [paymentMethod, setPaymentMethod] = useState('ONLINE'); // 'ONLINE' or 'COD'
     const [isProcessing, setIsProcessing] = useState(false);
-    const [upiId, setUpiId] = useState('');
-    const [isUpiVerified, setIsUpiVerified] = useState(false);
-    const [isVerifyingUpi, setIsVerifyingUpi] = useState(false);
-    const [showQR, setShowQR] = useState(false);
+    
+    const getFinalLocation = () => {
+        if (selectedAddressMode === 'SAVED' && selectedSavedAddress) {
+            return selectedSavedAddress;
+        }
+        return newDeliveryLocation;
+    };
 
-    const handlePlaceOrder = () => {
+    const handleCheckoutClick = () => {
         if (cartItems.length === 0) return;
+        const finalLoc = getFinalLocation();
+        if (!finalLoc || !finalLoc.lat || !finalLoc.lng) {
+            toast.error("Please provide a valid delivery location.");
+            return;
+        }
         setShowPaymentModal(true);
     };
 
     const [orderSuccess, setOrderSuccess] = useState(false);
     const [placedOrderId, setPlacedOrderId] = useState(null);
 
-    const checkPaymentStatus = (method) => {
-        if (method === 'COD') return 'Pending';
-        return 'Paid';
-    };
-
-    const verifyUpi = () => {
-        if (!upiId.includes('@')) {
-            toast.error("Please enter a valid UPI ID (e.g., name@okaxis)");
-            return;
+    const checkServiceability = async (lat, lng) => {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/check-serviceability`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ lat, lng })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || 'Location is out of service area.');
         }
-        setIsVerifyingUpi(true);
-        setTimeout(() => {
-            setIsVerifyingUpi(false);
-            setIsUpiVerified(true);
-            toast.success("UPI ID Verified!");
-        }, 1500);
+        return true;
     };
 
-    const confirmOrder = async () => {
+    const handlePayment = async () => {
         setIsProcessing(true);
         const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+        const token = localStorage.getItem('token');
         
-        if (!currentUser.email) {
+        if (!token) {
             toast.error("Please log in to place an order");
             setIsProcessing(false);
             return;
         }
 
-        const status = paymentMethod === 'COD' ? 'Pending' : 'Paid';
-
-        const orderData = {
-            customerEmail: currentUser.email,
-            customerName: currentUser.name || "Guest User",
-            items: cartItems.map(i => ({
-                cartId: i.cartId,
-                title: i.title,
-                price: i.price,
-                farmer: i.farmer,
-                location: i.location,
-                image: i.image,
-                quantity: i.quantity
-            })),
-            qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-            total: `₹${calculateTotal().toLocaleString()}`,
-            totalAmount: calculateTotal(),
-            paymentMethod: paymentMethod,
-            paymentStatus: status,
-            deliveryAddress: "123, Green Street, Chennai", // In a real app this would come from a form
-            pickupAddress: cartItems[0].location || "Multiple Locations"
-        };
+        const finalLoc = getFinalLocation();
 
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-            
+            // 1. Serviceability Check
+            await checkServiceability(finalLoc.lat, finalLoc.lng);
+
+            // 2. Create Order Backend
+            const orderData = {
+                customerEmail: currentUser.email,
+                customerName: currentUser.name || "Guest User",
+                items: cartItems.map(i => ({
+                    cartId: i.cartId,
+                    productId: i.productId,
+                    title: i.title,
+                    price: i.price,
+                    farmer: i.farmer,
+                    farmerId: i.farmerId,
+                    location: i.location,
+                    image: i.image,
+                    quantity: i.quantity
+                })),
+                qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+                total: `₹${calculateTotal().toLocaleString()}`,
+                totalAmount: calculateTotal(),
+                paymentMethod: paymentMethod,
+                paymentStatus: 'Pending',
+                deliveryAddress: finalLoc.address || "Location Provided",
+                deliveryLocation: { lat: finalLoc.lat, lng: finalLoc.lng },
+                pickupAddress: cartItems[0].location || "Multiple Locations",
+                pickupLocation: cartItems[0].farmerLocationGeo ? { lat: cartItems[0].farmerLocationGeo.coordinates[1], lng: cartItems[0].farmerLocationGeo.coordinates[0] } : undefined
+            };
+
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderData),
-                signal: controller.signal
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(orderData)
             });
             
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-                const data = await response.json();
-                setPlacedOrderId(data.order.id);
-                localStorage.removeItem('user_cart');
-                setCartItems([]);
-                
-                setIsProcessing(false);
-                setOrderSuccess(true);
-                
-                setTimeout(() => {
-                    setOrderSuccess(false);
-                    setShowPaymentModal(false);
-                    navigate('/user');
-                }, 3000);
-            } else {
+            if (!response.ok) {
                 const err = await response.json();
-                toast.error(err.message || 'Error placing order');
-                setIsProcessing(false);
+                throw new Error(err.message || 'Error placing order');
             }
+
+            const data = await response.json();
+            const orderId = data.order.id;
+            setPlacedOrderId(orderId);
+
+            if (paymentMethod === 'COD') {
+                handleSuccess();
+                return;
+            }
+
+            // 3. Online Payment Flow (Razorpay)
+            const isLoaded = await loadRazorpay();
+            if (!isLoaded) {
+                throw new Error("Razorpay SDK failed to load. Are you online?");
+            }
+
+            const rzpRes = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/create-order`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ orderId: orderId })
+            });
+
+            if (!rzpRes.ok) throw new Error("Error initiating payment gateway.");
+            
+            const rzpData = await rzpRes.json();
+
+            const options = {
+                key: rzpData.key,
+                amount: rzpData.amount,
+                currency: rzpData.currency,
+                name: "Green Bond",
+                description: "Sustainable Produce",
+                order_id: rzpData.id,
+                handler: async function (response) {
+                    try {
+                        const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/verify`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+                        
+                        if (verifyRes.ok) {
+                            handleSuccess();
+                        } else {
+                            toast.error("Payment verification failed. Please contact support.");
+                            setIsProcessing(false);
+                        }
+                    } catch (err) {
+                        toast.error("Error verifying payment.");
+                        setIsProcessing(false);
+                    }
+                },
+                prefill: {
+                    name: currentUser.name,
+                    email: currentUser.email,
+                    contact: currentUser.mobile
+                },
+                theme: { color: "#16a34a" },
+                modal: {
+                    ondismiss: function() {
+                        toast.error("Payment cancelled.");
+                        setIsProcessing(false);
+                    }
+                }
+            };
+
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', function (response){
+                toast.error(`Payment Failed: ${response.error.description}`);
+                setIsProcessing(false);
+            });
+            rzp.open();
+
         } catch (error) {
             console.error('Order creation error:', error);
-            if (error.name === 'AbortError') {
-                toast.error('Network timeout. Please check your connection.');
-            } else {
-                toast.error('Server error. Please try again later.');
-            }
+            toast.error(error.message || 'Server error. Please try again later.');
             setIsProcessing(false);
         }
     };
 
-    return (
+    const handleSuccess = () => {
+        localStorage.removeItem('user_cart');
+        setCartItems([]);
+        setIsProcessing(false);
+        setOrderSuccess(true);
+        setTimeout(() => {
+            setOrderSuccess(false);
+            setShowPaymentModal(false);
+            navigate('/user');
+        }, 3000);
+    };
 
+    return (
         <div className="max-w-4xl mx-auto space-y-8">
             <header>
                 <h1 className="text-3xl font-bold text-gray-900">My Cart</h1>
@@ -171,17 +285,8 @@ const Cart = () => {
 
             {cartItems.length === 0 ? (
                 <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-200">
-                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                    </div>
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
-                    <p className="text-gray-500 mb-6">Looks like you haven't added any fresh produce yet.</p>
-                    <button
-                        onClick={() => navigate('/user/marketplace')}
-                        className="px-6 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors"
-                    >
+                    <button onClick={() => navigate('/user/marketplace')} className="mt-4 px-6 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700">
                         Go to Marketplace
                     </button>
                 </div>
@@ -195,26 +300,13 @@ const Cart = () => {
                                 <div className="flex-1">
                                     <div className="flex justify-between">
                                         <h3 className="font-bold text-gray-900">{item.title}</h3>
-                                        <button onClick={() => removeFromCart(item.cartId)} className="text-gray-400 hover:text-red-500 transition-colors">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                                        <button onClick={() => removeFromCart(item.cartId)} className="text-red-500 text-sm">Remove</button>
                                     </div>
-                                    <p className="text-sm text-gray-500">{item.farmer} • {item.location}</p>
                                     <div className="mt-4 flex justify-between items-center">
                                         <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => updateQuantity(item.cartId, -1)}
-                                                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" /></svg>
-                                            </button>
+                                            <button onClick={() => updateQuantity(item.cartId, -1)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">-</button>
                                             <span className="font-bold text-gray-900">{item.quantity}</span>
-                                            <button
-                                                onClick={() => updateQuantity(item.cartId, 1)}
-                                                className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-700 hover:bg-green-100"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                            </button>
+                                            <button onClick={() => updateQuantity(item.cartId, 1)} className="w-8 h-8 rounded-full bg-green-50 text-green-700 flex items-center justify-center font-bold">+</button>
                                         </div>
                                         <p className="font-bold text-green-700">₹{(parseInt(item.price.replace(/[^\d]/g, '')) * item.quantity).toLocaleString()}</p>
                                     </div>
@@ -223,10 +315,53 @@ const Cart = () => {
                         ))}
                     </div>
 
-                    {/* Summary Card */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 sticky top-8">
-                            <h3 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h3>
+                    {/* Summary & Address */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Delivery Location</h3>
+                            
+                            <div className="flex gap-2 mb-4">
+                                {savedAddresses.length > 0 && (
+                                    <button 
+                                        onClick={() => setSelectedAddressMode('SAVED')}
+                                        className={`flex-1 py-2 text-sm rounded-lg font-medium transition-colors ${selectedAddressMode === 'SAVED' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                    >
+                                        Saved
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => setSelectedAddressMode('NEW')}
+                                    className={`flex-1 py-2 text-sm rounded-lg font-medium transition-colors ${selectedAddressMode === 'NEW' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                >
+                                    New Address
+                                </button>
+                            </div>
+
+                            {selectedAddressMode === 'SAVED' && savedAddresses.length > 0 && (
+                                <div className="space-y-3">
+                                    {savedAddresses.map(addr => (
+                                        <div 
+                                            key={addr._id}
+                                            onClick={() => setSelectedSavedAddress(addr)}
+                                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedSavedAddress?._id === addr._id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="font-bold text-sm text-gray-900">{addr.label}</span>
+                                                {addr.isDefault && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Default</span>}
+                                            </div>
+                                            <p className="text-xs text-gray-600 line-clamp-2">{addr.address}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {selectedAddressMode === 'NEW' && (
+                                <LocationPicker onLocationChange={(loc) => setNewDeliveryLocation(loc)} />
+                            )}
+                        </div>
+
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Order Summary</h3>
                             <div className="space-y-4 mb-6">
                                 <div className="flex justify-between text-gray-600">
                                     <span>Subtotal</span>
@@ -243,18 +378,16 @@ const Cart = () => {
                                 </div>
                             </div>
                             <button
-                                onClick={handlePlaceOrder}
-                                className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-100 active:scale-95"
+                                onClick={handleCheckoutClick}
+                                className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg active:scale-95"
                             >
-                                Place Order
+                                Checkout
                             </button>
-                            <p className="text-center text-xs text-gray-400 mt-4">
-                                By placing an order, you agree to our Terms of Service.
-                            </p>
                         </div>
                     </div>
                 </div>
             )}
+            
             {/* Payment Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -262,131 +395,43 @@ const Cart = () => {
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         {orderSuccess ? (
                             <div className="p-10 text-center">
-                                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-                                    <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                                    </svg>
+                                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <span className="text-4xl">✅</span>
                                 </div>
-                                <h3 className="text-2xl font-bold text-green-700 mb-2">Payment Successful!</h3>
-                                <p className="text-gray-500">Order ID: <span className="font-mono font-bold text-gray-800">{placedOrderId}</span></p>
-                                <p className="text-sm text-gray-400 mt-4">Redirecting you to dashboard...</p>
+                                <h3 className="text-2xl font-bold text-green-700 mb-2">Order Successful!</h3>
+                                <p className="text-gray-500">Order ID: <span className="font-mono font-bold">{placedOrderId}</span></p>
                             </div>
                         ) : (
                             <>
                                 <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                                    <h3 className="text-xl font-bold text-gray-900">Select Payment Method</h3>
-                                    <button onClick={() => setShowPaymentModal(false)} disabled={isProcessing} className="text-gray-400 hover:text-gray-600 disabled:opacity-50">
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                    </button>
+                                    <h3 className="text-xl font-bold text-gray-900">Select Payment</h3>
+                                    <button onClick={() => setShowPaymentModal(false)} disabled={isProcessing} className="text-gray-400 hover:text-gray-600">✖</button>
                                 </div>
-
-                                <div className="p-6 space-y-3">
-                                    {/* UPI Option */}
-                                    <div className={`p-4 rounded-xl border-2 transition-all ${paymentMethod === 'UPI' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <label className="flex items-center gap-4 cursor-pointer">
-                                            <input type="radio" name="payment" value="UPI" checked={paymentMethod === 'UPI'} onChange={(e) => { setPaymentMethod(e.target.value); setIsUpiVerified(false); }} className="w-5 h-5 text-green-600 focus:ring-green-500" />
-                                            <div className="flex-1">
-                                                <span className="font-bold text-gray-900 block">UPI</span>
-                                                <span className="text-xs text-gray-500">Google Pay, PhonePe, Paytm</span>
-                                            </div>
-                                            <span className="text-2xl">📱</span>
-                                        </label>
-
-                                        {paymentMethod === 'UPI' && (
-                                            <div className="mt-4 flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Enter UPI ID (e.g. name@okaxis)"
-                                                    value={upiId}
-                                                    onChange={(e) => { setUpiId(e.target.value); setIsUpiVerified(false); }}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
-                                                />
-                                                <button
-                                                    onClick={verifyUpi}
-                                                    disabled={isVerifyingUpi || isUpiVerified}
-                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${isUpiVerified ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50'}`}
-                                                >
-                                                    {isVerifyingUpi ? 'Verifying...' : isUpiVerified ? '✓ Verified' : 'Verify'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* QR Option */}
-                                    <div className={`p-4 rounded-xl border-2 transition-all ${paymentMethod === 'QR' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <label className="flex items-center gap-4 cursor-pointer">
-                                            <input type="radio" name="payment" value="QR" checked={paymentMethod === 'QR'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
-                                            <div className="flex-1">
-                                                <span className="font-bold text-gray-900 block">Scan QR Code</span>
-                                                <span className="text-xs text-gray-500">Instant payment via any app</span>
-                                            </div>
-                                            <span className="text-2xl">🔳</span>
-                                        </label>
-
-                                        {paymentMethod === 'QR' && (
-                                            <div className="mt-4 flex flex-col items-center p-4 bg-white rounded-xl border border-dashed border-gray-200">
-                                                <img
-                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=greenbond@bank&pn=GreenBond%20Marketplace&am=${calculateTotal()}&cu=INR`}
-                                                    alt="Payment QR"
-                                                    className="w-32 h-32 mb-2"
-                                                />
-                                                <p className="text-[10px] text-gray-400 font-medium">Scan with any UPI App to Pay ₹{calculateTotal().toLocaleString()}</p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Card Option */}
-                                    <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'Card' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <input type="radio" name="payment" value="Card" checked={paymentMethod === 'Card'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
+                                <div className="p-6 space-y-4">
+                                    <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'ONLINE' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
+                                        <input type="radio" checked={paymentMethod === 'ONLINE'} onChange={() => setPaymentMethod('ONLINE')} className="w-5 h-5 text-green-600 focus:ring-green-500" />
                                         <div className="flex-1">
-                                            <span className="font-bold text-gray-900 block">Credit / Debit Card</span>
-                                            <span className="text-xs text-gray-500">Visa, Mastercard, Rupay</span>
+                                            <span className="font-bold text-gray-900 block">Pay Online</span>
+                                            <span className="text-xs text-gray-500">UPI, QR, Cards, NetBanking</span>
                                         </div>
-                                        <span className="text-2xl">💳</span>
                                     </label>
 
-                                    {/* Net Banking */}
-                                    <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'NetBanking' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <input type="radio" name="payment" value="NetBanking" checked={paymentMethod === 'NetBanking'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
-                                        <div className="flex-1">
-                                            <span className="font-bold text-gray-900 block">Net Banking</span>
-                                            <span className="text-xs text-gray-500">All Indian Banks</span>
-                                        </div>
-                                        <span className="text-2xl">🏦</span>
-                                    </label>
-
-                                    {/* COD */}
                                     <label className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === 'COD' ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}>
-                                        <input type="radio" name="payment" value="COD" checked={paymentMethod === 'COD'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 text-green-600 focus:ring-green-500" />
+                                        <input type="radio" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} className="w-5 h-5 text-green-600 focus:ring-green-500" />
                                         <div className="flex-1">
                                             <span className="font-bold text-gray-900 block">Cash on Delivery</span>
                                             <span className="text-xs text-gray-500">Pay when you receive</span>
                                         </div>
-                                        <span className="text-2xl">💵</span>
                                     </label>
                                 </div>
 
                                 <div className="p-6 bg-gray-50 border-t border-gray-100">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <span className="text-gray-600">Total Amount</span>
-                                        <span className="text-xl font-bold text-green-700">₹{calculateTotal().toLocaleString()}</span>
-                                    </div>
                                     <button
-                                        onClick={confirmOrder}
-                                        disabled={isProcessing || (paymentMethod === 'UPI' && !isUpiVerified)}
-                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                        onClick={handlePayment}
+                                        disabled={isProcessing}
+                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-70 flex justify-center items-center"
                                     >
-                                        {isProcessing ? (
-                                            <>
-                                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                                {paymentMethod === 'QR' ? 'Verifying Payment...' : 'Processing...'}
-                                            </>
-                                        ) : (
-                                            (paymentMethod === 'UPI' && !isUpiVerified) ? 'Please Verify UPI ID' : 'Pay & Confirm Order'
-                                        )}
+                                        {isProcessing ? 'Processing...' : `Pay ₹${calculateTotal().toLocaleString()}`}
                                     </button>
                                 </div>
                             </>

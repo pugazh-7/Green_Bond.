@@ -17,6 +17,16 @@ const AddProduct = () => {
         minOrder: ''
     });
 
+    const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
+    const isVerified = currentUser.verificationStatus === 'APPROVED';
+
+    React.useEffect(() => {
+        if (!isVerified) {
+            toast.error('Only APPROVED farmers can add products.');
+            navigate('/client');
+        }
+    }, [isVerified, navigate]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 

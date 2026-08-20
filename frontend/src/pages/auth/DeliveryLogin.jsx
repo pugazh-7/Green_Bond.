@@ -9,6 +9,7 @@ const DeliveryLogin = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDelayed, setIsDelayed] = useState(false);
 
     // Forgot Password States
     const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -46,8 +47,10 @@ const DeliveryLogin = () => {
         }
 
         setIsLoading(true);
+        setIsDelayed(false);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
         const cleanEmail = email.trim().toLowerCase();
 
         try {
@@ -61,6 +64,7 @@ const DeliveryLogin = () => {
             });
 
             clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -69,6 +73,7 @@ const DeliveryLogin = () => {
                 
                 localStorage.setItem('userRole', role);
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
+                if (data.token) localStorage.setItem('token', data.token);
                 
                 if (rememberMe) {
                     localStorage.setItem('remembered_delivery_email', cleanEmail);
@@ -87,6 +92,7 @@ const DeliveryLogin = () => {
             }
         } catch (error) {
             clearTimeout(timeoutId);
+            clearTimeout(delayTimeoutId);
             console.error('Login error:', error);
             if (error.name === 'AbortError') {
                 toast.error('Request timed out. Please try again.');
@@ -95,6 +101,7 @@ const DeliveryLogin = () => {
             }
         } finally {
             setIsLoading(false);
+            setIsDelayed(false);
         }
     };
 
@@ -299,7 +306,7 @@ const DeliveryLogin = () => {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Signing in...
+                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Signing in..."}
                                 </span>
                             ) : 'Login'}
                         </button>
