@@ -31,7 +31,7 @@ export const SocketProvider = ({ children }) => {
             } catch(e) {}
         }
 
-        const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        const newSocket = io(import.meta.env.VITE_API_URL || '');
         
         newSocket.on('connect', () => {
             console.log('Connected to socket server');
@@ -53,3 +53,4 @@ export const SocketProvider = ({ children }) => {
         </SocketContext.Provider>
     );
 };
+

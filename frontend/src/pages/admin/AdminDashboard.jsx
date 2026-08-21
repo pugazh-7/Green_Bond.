@@ -48,12 +48,12 @@ const AdminDashboard = () => {
                 const headers = { 'Authorization': `Bearer ${token}` };
 
                 const [usersRes, farmersRes, partnersRes, ordersRes, productsRes, auditRes] = await Promise.all([
-                    fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, { headers }),
-                    fetch(`${import.meta.env.VITE_API_URL}/api/admin/farmers`, { headers }),
-                    fetch(`${import.meta.env.VITE_API_URL}/api/admin/delivery-partners`, { headers }),
-                    fetch(`${import.meta.env.VITE_API_URL}/api/orders/admin/all`, { headers }),
-                    fetch(`${import.meta.env.VITE_API_URL}/api/products`),
-                    fetch(`${import.meta.env.VITE_API_URL}/api/admin/audit`, { headers })
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/users`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/farmers`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/delivery-partners`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/admin/all`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/products`),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/audit`, { headers })
                 ]);
 
                 if (usersRes.ok) setUsers(await usersRes.json());
@@ -101,7 +101,7 @@ const AdminDashboard = () => {
     const handleVerifyFarmer = async (farmerId, newStatus) => {
         try {
             const token = accessToken;
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/farmers/${farmerId}/verify`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/farmers/${farmerId}/verify`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -697,3 +697,5 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
+

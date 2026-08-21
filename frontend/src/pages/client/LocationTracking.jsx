@@ -45,7 +45,7 @@ const LocationTracking = () => {
             const token = accessToken;
             if (!token) return;
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/farmer-orders`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/farmer-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -263,3 +263,5 @@ const LocationTracking = () => {
 };
 
 export default LocationTracking;
+
+

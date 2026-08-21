@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import AuthLayout from '../../components/auth/AuthLayout';
+import PasswordInput from '../../components/auth/PasswordInput';
 
 const ClientLogin = () => {
     const { login } = useAuth();
@@ -11,7 +13,13 @@ const ClientLogin = () => {
     const [pin, setPin] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
 
-    React.useEffect(() => {
+    const [showForgotPin, setShowForgotPin] = useState(false);
+    const [resetName, setResetName] = useState('');
+    const [resetMobile, setResetMobile] = useState('');
+    const [newPin, setNewPin] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
         const rememberedName = localStorage.getItem('remembered_client_name');
         const rememberedMobile = localStorage.getItem('remembered_client_mobile');
         if (rememberedMobile) {
@@ -19,27 +27,10 @@ const ClientLogin = () => {
             setMobile(rememberedMobile);
             setRememberMe(true);
         }
-
-        // Auto-redirect if already logged in
-        const userRole = localStorage.getItem('userRole');
-        if (userRole === 'client') {
-            navigate('/client');
-        }
-    }, [navigate]);
-
-
-    const [showForgotPin, setShowForgotPin] = useState(false);
-    const [resetName, setResetName] = useState('');
-    const [resetMobile, setResetMobile] = useState('');
-    const [newPin, setNewPin] = useState('');
-    const [showPin, setShowPin] = useState(false);
-    const [showResetPin, setShowResetPin] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isDelayed, setIsDelayed] = useState(false);
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
-
         if (isLoading) return;
 
         if (mobile.length !== 10) {
@@ -47,29 +38,20 @@ const ClientLogin = () => {
             return;
         }
 
-        if (!rememberMe) {
-            toast.error("Please select the 'Remember me' checkbox to proceed.");
-            return;
-        }
-
         setIsLoading(true);
-        setIsDelayed(false);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-farmer`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-farmer`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, mobile, pin }),
-                signal: controller.signal
+                signal: controller.signal,
+                credentials: 'include'
             });
 
             clearTimeout(timeoutId);
-            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -92,43 +74,41 @@ const ClientLogin = () => {
 
                 toast.success(`Welcome back, ${user.name}!`);
             } else {
-                toast.error(data.message || 'Invalid Name, Mobile Number or PIN. Please try again.');
+                toast.error(data.message || 'Invalid Name, Mobile Number or PIN.');
             }
         } catch (error) {
             clearTimeout(timeoutId);
-            clearTimeout(delayTimeoutId);
             console.error('Login error:', error);
-            if (error.name === 'AbortError') {
-                toast.error('Request timed out. Please try again.');
-            } else {
-                toast.error('Server error. Please try again later.');
-            }
+            if (error.name === 'AbortError') toast.error('Request timed out.');
+            else toast.error('Unable to connect to GreenBond. Please try again.');
         } finally {
             setIsLoading(false);
-            setIsDelayed(false);
         }
     };
 
     const handleForgotPin = async (e) => {
         e.preventDefault();
-        
-        if (!resetMobile || !newPin) {
+        if (!resetName || !resetMobile || !newPin) {
             toast.error("Please fill in all fields.");
+            return;
+        }
+        if (resetMobile.length !== 10) {
+            toast.error('Mobile Number must be exactly 10 digits.');
             return;
         }
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/reset-pin-farmer`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/reset-pin-farmer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: resetMobile, newPin })
+                body: JSON.stringify({ name: resetName, mobile: resetMobile, newPin })
             });
 
             const data = await response.json();
-
             if (response.ok) {
-                toast.success('PIN reset successfully! Please login with your new PIN.');
+                toast.success('PIN reset successfully!');
                 setShowForgotPin(false);
+                setResetName('');
                 setResetMobile('');
                 setNewPin('');
             } else {
@@ -136,241 +116,123 @@ const ClientLogin = () => {
             }
         } catch (error) {
             console.error('Reset error:', error);
-            toast.error('Server error. Please try again later.');
+            toast.error('Unable to connect to GreenBond. Please try again.');
         }
     };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F4F9F4] py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-md 2xl:max-w-xl w-full bg-white p-8 2xl:p-12 2xl:space-y-4 rounded-2xl shadow-xl border-t-4 border-green-600 relative">
-
-                <Link to="/" className="absolute top-6 left-6 text-green-700 hover:text-green-900 transition-colors flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                    </svg>
-                    Back
-                </Link>
-
-                <div className="text-center mb-8">
-                    <div className="mx-auto h-20 w-20 bg-green-100 rounded-full flex items-center justify-center mb-4 border-4 border-green-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Farmer Login</h2>
-                    <div className="flex items-center justify-center mt-2 gap-2 text-green-700 bg-green-50 py-1 px-3 rounded-full inline-flex mx-auto w-fit">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-xs font-semibold uppercase tracking-wider">100% Secure & Encrypted</span>
-                    </div>
-                </div>
-
-                {showForgotPin ? (
-                    <form className="space-y-6" onSubmit={handleForgotPin}>
-                        <div className="text-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Reset Your PIN</h3>
-                            <p className="text-sm text-gray-600">Enter details to verify identity</p>
+    if (showForgotPin) {
+        return (
+            <AuthLayout 
+                heroImage="https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80"
+                heroTitle="Reset PIN"
+                heroSubtitle="Securely recover access to your farmer dashboard."
+                userRole="Farmer"
+            >
+                <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+                    <button type="button" onClick={() => setShowForgotPin(false)} className="mb-6 flex items-center text-sm font-medium text-gray-500 hover:text-green-600 transition-colors">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        Back to login
+                    </button>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Reset PIN</h2>
+                    <p className="text-gray-500 text-sm mb-6">Enter your details and a new PIN.</p>
+                    
+                    <form onSubmit={handleForgotPin} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                            <input type="text" required value={resetName} onChange={(e) => setResetName(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="Your name" />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
-                            <input
-                                type="text"
-                                required
-                                value={resetName}
-                                onChange={(e) => setResetName(e.target.value)}
-                                className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
-                                placeholder="Enter Your Registered Name"
-                            />
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                            <input type="tel" required value={resetMobile} onChange={(e) => setResetMobile(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile" maxLength="10" />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
-                            <input
-                                type="tel"
-                                required
-                                maxLength={10}
-                                value={resetMobile}
-                                onChange={(e) => setResetMobile(e.target.value.replace(/\D/g, ''))}
-                                className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
-                                placeholder="Enter Registered Mobile"
-                            />
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New PIN</label>
+                            <PasswordInput value={newPin} onChange={(e) => setNewPin(e.target.value)} placeholder="Enter new PIN" />
                         </div>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">New PIN <span className="text-red-500">*</span></label>
-                            <div className="relative">
-                                <input
-                                    type={showResetPin ? "text" : "password"}
-                                    required
-                                    value={newPin}
-                                    onChange={(e) => setNewPin(e.target.value)}
-                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500"
-                                    placeholder="Set New 4-Digit PIN"
-                                    maxLength={4}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowResetPin(!showResetPin)}
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                                >
-                                    {showResetPin ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                        <button
-                            type="submit"
-                            className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                        >
+                        <button type="submit" className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform transition-all hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                             Reset PIN
                         </button>
-                        <div className="text-center mt-4">
-                            <button
-                                type="button"
-                                onClick={() => setShowForgotPin(false)}
-                                className="text-sm font-bold text-green-700 hover:text-green-600"
-                            >
-                                Back to Login
-                            </button>
-                        </div>
                     </form>
-                ) : (
-                    <form className="space-y-6" onSubmit={handleLogin}>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-                            <input
-                                type="text"
-                                required
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-lg"
-                                placeholder=" Enter Your Name"
-                            />
-                        </div>
+                </div>
+            </AuthLayout>
+        );
+    }
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
-                            <div className="relative rounded-md shadow-sm">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <span className="text-gray-500 sm:text-sm font-bold">+91</span>
-                                </div>
-                                <input
-                                    type="tel"
-                                    required
-                                    value={mobile}
-                                    maxLength={10}
-                                    onChange={(e) => {
-                                        const value = e.target.value.replace(/\D/g, '');
-                                        if (value.length <= 10) setMobile(value);
-                                    }}
-                                    className="focus:ring-green-500 focus:border-green-500 block w-full pl-12 pr-12 sm:text-lg border-gray-300 rounded-lg py-3"
-                                    placeholder="Enter Mobile Number"
-                                />
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                                    </svg>
-                                </div>
+    return (
+        <AuthLayout 
+            heroImage="https://images.unsplash.com/photo-1595841696677-6489ff3f8cd1?auto=format&fit=crop&q=80"
+            heroTitle="Sell directly to customers. Grow your local market."
+            heroSubtitle="Empowering farmers with a modern digital marketplace."
+            userRole="Farmer"
+        >
+            <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 w-full">
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-black text-gray-900 mb-1 font-heading">Farmer Login</h2>
+                    <p className="text-gray-500 text-sm">Access your farmer dashboard</p>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                             </div>
+                            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="Your name" />
                         </div>
-
-
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Pin / Password <span className="text-red-500">*</span></label>
-                            <div className="relative">
-                                <input
-                                    type={showPin ? "text" : "password"}
-                                    required
-                                    value={pin}
-                                    onChange={(e) => setPin(e.target.value)}
-                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-lg"
-                                    placeholder="Enter your PIN"
-                                    maxLength={4}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPin(!showPin)}
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                                >
-                                    {showPin ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    )}
-                                </button>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mobile Number</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                             </div>
+                            <input type="tel" required value={mobile} onChange={(e) => setMobile(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile" maxLength="10" />
                         </div>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">PIN</label>
+                        <PasswordInput value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Enter PIN" />
+                    </div>
 
-                        <div className="flex items-center justify-between">
-                            <div 
-                                className="flex items-center cursor-pointer group"
-                                onClick={() => setRememberMe(!rememberMe)}
-                            >
-                                <input 
-                                    type="checkbox" 
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer" 
-                                />
-                                <span className="ml-2 text-sm text-gray-900 group-hover:text-green-600 transition-colors">
-                                    Remember me <span className="text-red-500">*</span>
-                                </span>
-                            </div>
-                            <div className="text-sm">
-                                <button type="button" onClick={() => setShowForgotPin(true)} className="font-bold text-green-600 hover:text-green-500">
-                                    Forgot PIN?
-                                </button>
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white transition-colors ${
-                                isLoading 
-                                ? 'bg-green-400 cursor-not-allowed' 
-                                : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
-                            }`}
-                        >
-                            {isLoading ? (
-                                <span className="flex items-center">
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Signing in..."}
-                                </span>
-                            ) : 'Secure Login'}
+                    <div className="flex items-center justify-between pt-1">
+                        <label className="flex items-center cursor-pointer group">
+                            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 cursor-pointer" />
+                            <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-900 transition-colors">Remember me</span>
+                        </label>
+                        <button type="button" onClick={() => setShowForgotPin(true)} className="text-sm font-semibold text-green-600 hover:text-green-800 transition-colors">
+                            Forgot PIN?
                         </button>
+                    </div>
 
-                        <div className="text-center mt-4 pt-4 border-t border-gray-100">
-                            <p className="text-sm text-gray-600">
-                                New Farmer?{' '}
-                                <Link to="/signup/farmer" className="font-bold text-green-700 hover:text-green-600">
-                                    Create Account
-                                </Link>
-                            </p>
-                        </div>
-                    </form>
-                )}
+                    <button 
+                        type="submit" 
+                        disabled={isLoading}
+                        className={`w-full py-3 px-4 rounded-xl text-white font-bold text-sm tracking-wide transition-all ${
+                            isLoading 
+                            ? 'bg-green-400 cursor-not-allowed' 
+                            : 'bg-green-600 hover:bg-green-700 shadow-[0_4px_14px_0_rgba(22,163,74,0.39)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.23)] hover:-translate-y-0.5'
+                        }`}
+                    >
+                        {isLoading ? 'SIGNING IN...' : 'SIGN IN'}
+                    </button>
+                </form>
+
+                <div className="mt-8 text-center border-t border-gray-100 pt-6">
+                    <p className="text-sm text-gray-600">
+                        New farmer?{' '}
+                        <Link to="/signup/farmer" className="font-bold text-green-600 hover:text-green-800 transition-colors">
+                            Register as Farmer
+                        </Link>
+                    </p>
+                </div>
             </div>
-        </div>
+        </AuthLayout>
     );
 };
 
 export default ClientLogin;
+
 

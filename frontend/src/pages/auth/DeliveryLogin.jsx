@@ -1,41 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import AuthLayout from '../../components/auth/AuthLayout';
+import PasswordInput from '../../components/auth/PasswordInput';
 
 const DeliveryLogin = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isDelayed, setIsDelayed] = useState(false);
 
     // Forgot Password States
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [showNewPassword, setShowNewPassword] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const rememberedEmail = localStorage.getItem('remembered_delivery_email');
         if (rememberedEmail) {
             setEmail(rememberedEmail);
             setRememberMe(true);
         }
-
-        // Auto-redirect if already logged in
-        const userRole = localStorage.getItem('userRole');
-        if (userRole === 'delivery') {
-            navigate('/delivery');
-        }
-    }, [navigate]);
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
-
         if (isLoading) return;
 
         if (!email || !password) {
@@ -43,30 +35,21 @@ const DeliveryLogin = () => {
             return;
         }
 
-        if (!rememberMe) {
-            toast.error("Please select the 'Remember me' checkbox to proceed.");
-            return;
-        }
-
         setIsLoading(true);
-        setIsDelayed(false);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const delayTimeoutId = setTimeout(() => setIsDelayed(true), 3000);
         const cleanEmail = email.trim().toLowerCase();
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-delivery`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-delivery`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: cleanEmail, password }),
-                signal: controller.signal
+                signal: controller.signal,
+                credentials: 'include'
             });
 
             clearTimeout(timeoutId);
-            clearTimeout(delayTimeoutId);
             const data = await response.json();
 
             if (response.ok) {
@@ -87,42 +70,35 @@ const DeliveryLogin = () => {
 
                 toast.success(`Welcome back, ${user.name}!`);
             } else {
-                toast.error(data.message || 'Invalid Email or Password. Please try again.');
+                toast.error(data.message || 'Invalid Email or Password.');
             }
         } catch (error) {
             clearTimeout(timeoutId);
-            clearTimeout(delayTimeoutId);
             console.error('Login error:', error);
-            if (error.name === 'AbortError') {
-                toast.error('Request timed out. Please try again.');
-            } else {
-                toast.error('Server error. Please try again later.');
-            }
+            if (error.name === 'AbortError') toast.error('Request timed out.');
+            else toast.error('Unable to connect to GreenBond.');
         } finally {
             setIsLoading(false);
-            setIsDelayed(false);
         }
     };
 
     const handleForgotPassword = async (e) => {
         e.preventDefault();
-        
         if (!resetEmail || !newPassword) {
             toast.error("Please fill in all fields.");
             return;
         }
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/reset-password-delivery`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/reset-password-delivery`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: resetEmail, newPassword })
             });
 
             const data = await response.json();
-
             if (response.ok) {
-                toast.success('Password reset successfully! Please login with new password.');
+                toast.success('Password reset successfully!');
                 setShowForgotPassword(false);
                 setResetEmail('');
                 setNewPassword('');
@@ -131,199 +107,122 @@ const DeliveryLogin = () => {
             }
         } catch (error) {
             console.error('Reset error:', error);
-            toast.error('Server error. Please try again later.');
+            toast.error('Unable to connect to GreenBond.');
         }
     };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-md 2xl:max-w-xl w-full bg-white p-8 2xl:p-12 2xl:space-y-4 rounded-2xl shadow-xl border-t-4 border-blue-600 relative">
-
-                <Link to="/" className="absolute top-6 left-6 text-blue-700 hover:text-blue-900 transition-colors flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                    </svg>
-                    Back
-                </Link>
-
-                <div className="text-center mb-8">
-                    <div className="mx-auto h-20 w-20 bg-blue-100 rounded-full flex items-center justify-center mb-4 border-4 border-blue-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        {showForgotPassword ? 'Reset Password' : 'Delivery Partner Login'}
-                    </h2>
-                </div>
-
-                {showForgotPassword ? (
-                    <form className="space-y-6" onSubmit={handleForgotPassword}>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
-                                <input 
-                                    type="email" 
-                                    required 
-                                    value={resetEmail} 
-                                    onChange={(e) => setResetEmail(e.target.value)} 
-                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-lg" 
-                                    placeholder="Registered email address" 
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">New Password <span className="text-red-500">*</span></label>
-                                <div className="relative">
-                                    <input 
-                                        type={showNewPassword ? "text" : "password"} 
-                                        required 
-                                        value={newPassword} 
-                                        onChange={(e) => setNewPassword(e.target.value)} 
-                                        className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-lg" 
-                                        placeholder="Set new password" 
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowNewPassword(!showNewPassword)}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                                    >
-                                        {showNewPassword ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+    if (showForgotPassword) {
+        return (
+            <AuthLayout 
+                heroImage="https://images.unsplash.com/photo-1551281223-9c869fb209b5?auto=format&fit=crop&q=80"
+                heroTitle="Reset Password"
+                heroSubtitle="Securely recover access to your account."
+                userRole="Delivery Partner"
+            >
+                <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+                    <button type="button" onClick={() => setShowForgotPassword(false)} className="mb-6 flex items-center text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        Back to login
+                    </button>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Reset Password</h2>
+                    <p className="text-gray-500 text-sm mb-6">Enter your email and new password.</p>
+                    
+                    <form onSubmit={handleForgotPassword} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                            <input type="email" required value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm outline-none" placeholder="Enter your email" />
                         </div>
-
-                        <button
-                            type="submit"
-                            className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                        >
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                            <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
+                        </div>
+                        <button type="submit" className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform transition-all hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                             Reset Password
                         </button>
-                        
-                        <div className="text-center">
-                            <button
-                                type="button"
-                                onClick={() => setShowForgotPassword(false)}
-                                className="text-sm font-bold text-blue-700 hover:text-blue-600" 
-                            >
-                                Back to Login
-                            </button>
-                        </div>
                     </form>
-                ) : (
-                    <form className="space-y-6" onSubmit={handleLogin}>
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Email Address <span className="text-red-500">*</span></label>
+                </div>
+            </AuthLayout>
+        );
+    }
+
+    return (
+        <AuthLayout 
+            heroImage="https://images.unsplash.com/photo-1551281223-9c869fb209b5?auto=format&fit=crop&q=80"
+            heroTitle="Deliver locally. Earn flexibly."
+            heroSubtitle="Join our delivery fleet and earn on your own schedule."
+            userRole="Delivery Partner"
+        >
+            <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 w-full">
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-black text-gray-900 mb-1 font-heading">Delivery Login</h2>
+                    <p className="text-gray-500 text-sm">Access your delivery dashboard</p>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                            </div>
                             <input
                                 type="email"
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-lg"
-                                placeholder="Email address"
+                                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-sm outline-none"
+                                placeholder="you@example.com"
                             />
                         </div>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                        <PasswordInput 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)} 
+                        />
+                    </div>
 
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
-                            <div className="relative">
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="appearance-none block w-full px-4 py-3 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-lg"
-                                    placeholder="Enter your password"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                                >
-                                    {showPassword ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div 
-                                className="flex items-center cursor-pointer group"
-                                onClick={() => setRememberMe(!rememberMe)}
-                            >
-                                <input 
-                                    type="checkbox" 
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer" 
-                                />
-                                <span className="ml-2 text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
-                                    Remember me <span className="text-red-500">*</span>
-                                </span>
-                            </div>
-                            <div className="text-sm">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowForgotPassword(true)}
-                                    className="font-bold text-blue-700 hover:text-blue-600"
-                                >
-                                    Forgot password?
-                                </button>
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white transition-colors ${
-                                isLoading
-                                ? 'bg-blue-400 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-                            }`}
-                        >
-                            {isLoading ? (
-                                <span className="flex items-center">
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    {isDelayed ? "Taking a little longer than usual. Please wait..." : "Signing in..."}
-                                </span>
-                            ) : 'Login'}
+                    <div className="flex items-center justify-between pt-1">
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                            />
+                            <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-900 transition-colors">Remember me</span>
+                        </label>
+                        <button type="button" onClick={() => setShowForgotPassword(true)} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                            Forgot password?
                         </button>
+                    </div>
 
-                        <div className="text-center mt-4 pt-4 border-t border-gray-100">
-                            <p className="text-sm text-gray-600">
-                                New Partner?{' '}
-                                <Link to="/signup/delivery" className="font-bold text-blue-700 hover:text-blue-600">
-                                    Register Here
-                                </Link>
-                            </p>
-                        </div>
-                    </form>
-                )}
+                    <button 
+                        type="submit" 
+                        disabled={isLoading}
+                        className={`w-full py-3 px-4 rounded-xl text-white font-bold text-sm tracking-wide transition-all ${
+                            isLoading 
+                            ? 'bg-blue-400 cursor-not-allowed' 
+                            : 'bg-blue-600 hover:bg-blue-700 shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] hover:-translate-y-0.5'
+                        }`}
+                    >
+                        {isLoading ? 'SIGNING IN...' : 'SIGN IN'}
+                    </button>
+                </form>
+
+                <div className="mt-8 text-center border-t border-gray-100 pt-6">
+                    <p className="text-sm text-gray-600">
+                        Want to deliver with GreenBond?{' '}
+                        <Link to="/signup/delivery" className="font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                            Register now
+                        </Link>
+                    </p>
+                </div>
             </div>
-        </div>
+        </AuthLayout>
     );
 };
 
 export default DeliveryLogin;
-

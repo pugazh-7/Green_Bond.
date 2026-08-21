@@ -67,7 +67,7 @@ const DeliveryTracking = () => {
         if (!orderId) return;
         try {
             const token = accessToken;
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/delivery-orders`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/delivery-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -118,7 +118,7 @@ const DeliveryTracking = () => {
         
         try {
             const token = accessToken;
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${order.id}/${endpoint}`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${order.id}/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -302,3 +302,5 @@ const DeliveryTracking = () => {
 };
 
 export default DeliveryTracking;
+
+

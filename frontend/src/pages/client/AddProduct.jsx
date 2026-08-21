@@ -64,7 +64,7 @@ const AddProduct = () => {
         };
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products/add`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/products/add`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -270,3 +270,5 @@ const AddProduct = () => {
 };
 
 export default AddProduct;
+
+

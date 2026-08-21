@@ -12,7 +12,7 @@ const CustomerOrders = () => {
             const token = accessToken;
             if (!token) return;
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/farmer-orders`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/farmer-orders`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -39,7 +39,7 @@ const CustomerOrders = () => {
     const handleUpdateStatus = async (orderId, newStatus) => {
         try {
             const token = accessToken;
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${orderId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -185,3 +185,5 @@ const CustomerOrders = () => {
 };
 
 export default CustomerOrders;
+
+

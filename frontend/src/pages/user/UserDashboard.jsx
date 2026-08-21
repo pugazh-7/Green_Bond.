@@ -42,7 +42,7 @@ const UserDashboard = () => {
                 return;
             }
 
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/my-orders`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/my-orders`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -77,7 +77,7 @@ const UserDashboard = () => {
             } catch (e) {}
         }
         
-        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        const socket = io(import.meta.env.VITE_API_URL || '');
         if (userId) {
             socket.emit('join', userId);
             socket.on('order_update', () => {
@@ -153,7 +153,7 @@ const UserDashboard = () => {
         if (!latestOrder) return;
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${latestOrder.id}/status`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${latestOrder.id}/status`, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -448,3 +448,6 @@ const UserDashboard = () => {
 };
 
 export default UserDashboard;
+
+
+

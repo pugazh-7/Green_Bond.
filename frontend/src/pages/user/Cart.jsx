@@ -37,7 +37,7 @@ const Cart = () => {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/user/addresses`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/user/addresses`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -115,7 +115,7 @@ const Cart = () => {
 
     const checkServiceability = async (lat, lng) => {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/check-serviceability`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/check-serviceability`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ lat, lng })
@@ -170,7 +170,7 @@ const Cart = () => {
                 pickupLocation: cartItems[0].farmerLocationGeo ? { lat: cartItems[0].farmerLocationGeo.coordinates[1], lng: cartItems[0].farmerLocationGeo.coordinates[0] } : undefined
             };
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/orders`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(orderData)
@@ -196,7 +196,7 @@ const Cart = () => {
                 throw new Error("Razorpay SDK failed to load. Are you online?");
             }
 
-            const rzpRes = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/create-order`, {
+            const rzpRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/payments/create-order`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ orderId: orderId })
@@ -215,7 +215,7 @@ const Cart = () => {
                 order_id: rzpData.id,
                 handler: async function (response) {
                     try {
-                        const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/verify`, {
+                        const verifyRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/payments/verify`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                             body: JSON.stringify({
@@ -485,4 +485,6 @@ const Cart = () => {
 };
 
 export default Cart;
+
+
 

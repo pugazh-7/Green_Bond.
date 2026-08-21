@@ -18,7 +18,7 @@ const DeliveryDashboard = () => {
             const token = accessToken;
             if (!token) return;
 
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/delivery-orders`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/delivery-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -50,7 +50,7 @@ const DeliveryDashboard = () => {
             } catch (e) {}
         }
 
-        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        const socket = io(import.meta.env.VITE_API_URL || '');
         if (deliveryId) {
             socket.emit('join', deliveryId);
             socket.on('order_update', () => {
@@ -197,3 +197,6 @@ const DeliveryDashboard = () => {
 };
 
 export default DeliveryDashboard;
+
+
+

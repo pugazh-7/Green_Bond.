@@ -6,6 +6,9 @@ import { HashRouter } from 'react-router-dom'
 import { SocketProvider } from './context/SocketContext.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { LocationProvider } from './context/LocationContext.jsx'
+import { setupGlobalFetch } from './utils/apiFetch.js'
+
+setupGlobalFetch();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

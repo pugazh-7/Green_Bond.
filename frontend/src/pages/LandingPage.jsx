@@ -151,15 +151,63 @@ const LandingPage = () => {
                     </div>
                 </section>
                 
-                {/* Partnership Banner */}
-                <section className="mt-auto py-12 bg-gray-900 text-white text-center">
-                    <p className="text-gray-400 mb-4">Want to sell on Green Bond?</p>
-                    <div className="flex justify-center gap-4 text-sm font-medium">
-                        <Link to="/signup/farmer" className="hover:text-green-400">Become a Farmer</Link>
-                        <span>|</span>
-                        <Link to="/signup/shop" className="hover:text-yellow-400">Register your Shop</Link>
-                        <span>|</span>
-                        <Link to="/signup/delivery" className="hover:text-blue-400">Join as Delivery Partner</Link>
+                {/* Premium Role Selection */}
+                <section className="mt-auto py-20 bg-gray-50 border-t border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4">
+                        <div className="text-center mb-12">
+                            <h2 className="text-3xl font-black text-gray-900 font-heading mb-4">Join the GreenBond Ecosystem</h2>
+                            <p className="text-gray-500 max-w-2xl mx-auto">Whether you want to shop fresh groceries or grow your own local business, we have a place for you.</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {/* Customer */}
+                            <Link to="/login/user" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 hover:border-green-200 transition-all duration-300 hover:-translate-y-1">
+                                <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center mb-6 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-green-700 transition-colors">Customer</h3>
+                                <p className="text-sm text-gray-500 mb-4">Shop quick essentials and fresh local produce.</p>
+                                <div className="text-green-600 font-semibold text-sm flex items-center">
+                                    Sign In <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </div>
+                            </Link>
+
+                            {/* Farmer */}
+                            <Link to="/login/farmer" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 hover:border-green-200 transition-all duration-300 hover:-translate-y-1">
+                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-emerald-700 transition-colors">Farmer</h3>
+                                <p className="text-sm text-gray-500 mb-4">Sell directly to customers and maximize your profit.</p>
+                                <div className="text-emerald-600 font-semibold text-sm flex items-center">
+                                    Sell Produce <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </div>
+                            </Link>
+
+                            {/* Shop Owner */}
+                            <Link to="/login/shop" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 hover:border-yellow-200 transition-all duration-300 hover:-translate-y-1">
+                                <div className="w-12 h-12 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center mb-6 group-hover:bg-yellow-500 group-hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"/><path d="M12 3v6"/></svg>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-yellow-700 transition-colors">Shop Owner</h3>
+                                <p className="text-sm text-gray-500 mb-4">Digitize your local store and reach more nearby buyers.</p>
+                                <div className="text-yellow-600 font-semibold text-sm flex items-center">
+                                    Sell Locally <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </div>
+                            </Link>
+
+                            {/* Delivery */}
+                            <Link to="/login/delivery" className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 hover:border-blue-200 transition-all duration-300 hover:-translate-y-1">
+                                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="18.5" cy="17.5" r="2.5"/><path d="M15 6H3v6h12v-6zM15 6h2.5l2.5 3v3h-5V6z"/></svg>
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors">Delivery</h3>
+                                <p className="text-sm text-gray-500 mb-4">Earn flexibly by delivering orders in your area.</p>
+                                <div className="text-blue-600 font-semibold text-sm flex items-center">
+                                    Deliver & Earn <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </div>
+                            </Link>
+                        </div>
                     </div>
                 </section>
             </main>
