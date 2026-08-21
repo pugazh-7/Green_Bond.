@@ -14,17 +14,21 @@ export const SocketProvider = ({ children }) => {
         const currentUserStr = localStorage.getItem('green_bond_current_user');
         
         let idToJoin = null;
-        if (currentUserStr) {
-            const user = JSON.parse(currentUserStr);
-            idToJoin = user._id || user.id;
+        if (currentUserStr && currentUserStr !== 'undefined') {
+            try {
+                const user = JSON.parse(currentUserStr);
+                idToJoin = user._id || user.id;
+            } catch(e) {}
         } else {
             // Fallbacks for legacy if needed
-            const userStr = localStorage.getItem('user');
-            const farmerStr = localStorage.getItem('farmer');
-            const deliveryStr = localStorage.getItem('deliveryPartner');
-            if (userStr) idToJoin = JSON.parse(userStr).id;
-            else if (farmerStr) idToJoin = JSON.parse(farmerStr)._id || JSON.parse(farmerStr).id;
-            else if (deliveryStr) idToJoin = JSON.parse(deliveryStr)._id || JSON.parse(deliveryStr).id;
+            try {
+                const userStr = localStorage.getItem('user');
+                const farmerStr = localStorage.getItem('farmer');
+                const deliveryStr = localStorage.getItem('deliveryPartner');
+                if (userStr && userStr !== 'undefined') idToJoin = JSON.parse(userStr).id;
+                else if (farmerStr && farmerStr !== 'undefined') idToJoin = JSON.parse(farmerStr)._id || JSON.parse(farmerStr).id;
+                else if (deliveryStr && deliveryStr !== 'undefined') idToJoin = JSON.parse(deliveryStr)._id || JSON.parse(deliveryStr).id;
+            } catch(e) {}
         }
 
         const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');

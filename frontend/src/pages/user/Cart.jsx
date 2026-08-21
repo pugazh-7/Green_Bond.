@@ -279,11 +279,41 @@ const Cart = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <header>
-                <h1 className="text-3xl font-bold text-gray-900">My Cart</h1>
+                <h1 className="text-3xl font-black font-heading text-gray-900">My Cart</h1>
                 <p className="text-gray-500 mt-1">Review your items and proceed to checkout.</p>
             </header>
 
-            {cartItems.length === 0 ? (
+            {(() => {
+                const shoppingItems = cartItems.filter(i => i.cartType === 'SHOPPING' || !i.cartType);
+                const quickItems = cartItems.filter(i => i.cartType === 'QUICK');
+                const freshItems = cartItems.filter(i => i.cartType === 'FRESH');
+                
+                const renderItem = (item) => (
+                    <div key={item.cartId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition-shadow">
+                        <img src={item.image} alt={item.title || item.name} className="w-24 h-24 object-contain bg-gray-50 rounded-xl p-2" />
+                        <div className="flex-1 flex flex-col justify-between">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="font-bold text-gray-900 leading-tight">{item.title || item.name}</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">{item.brand || item.farmerName}</p>
+                                </div>
+                                <button onClick={() => removeFromCart(item.cartId)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                            <div className="flex justify-between items-end mt-2">
+                                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100">
+                                    <button onClick={() => updateQuantity(item.cartId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">-</button>
+                                    <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
+                                    <button onClick={() => updateQuantity(item.cartId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">+</button>
+                                </div>
+                                <p className="font-black font-heading text-lg text-green-700">₹{(parseInt(String(item.price).replace(/[^\d]/g, '')) * item.quantity).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+                return cartItems.length === 0 ? (
                 <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-200">
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
                     <button onClick={() => navigate('/user/marketplace')} className="mt-4 px-6 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700">
@@ -293,26 +323,36 @@ const Cart = () => {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Items List */}
-                    <div className="lg:col-span-2 space-y-4">
-                        {cartItems.map((item) => (
-                            <div key={item.cartId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4">
-                                <img src={item.image} alt={item.title} className="w-24 h-24 object-cover rounded-xl" />
-                                <div className="flex-1">
-                                    <div className="flex justify-between">
-                                        <h3 className="font-bold text-gray-900">{item.title}</h3>
-                                        <button onClick={() => removeFromCart(item.cartId)} className="text-red-500 text-sm">Remove</button>
-                                    </div>
-                                    <div className="mt-4 flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            <button onClick={() => updateQuantity(item.cartId, -1)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold">-</button>
-                                            <span className="font-bold text-gray-900">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.cartId, 1)} className="w-8 h-8 rounded-full bg-green-50 text-green-700 flex items-center justify-center font-bold">+</button>
-                                        </div>
-                                        <p className="font-bold text-green-700">₹{(parseInt(item.price.replace(/[^\d]/g, '')) * item.quantity).toLocaleString()}</p>
-                                    </div>
+                    <div className="lg:col-span-2 space-y-8">
+                        {quickItems.length > 0 && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">⚡</span>
+                                    <h2 className="text-lg font-black font-heading text-purple-900">Quick Delivery <span className="text-sm font-medium text-purple-600">(10-15 mins)</span></h2>
                                 </div>
+                                {quickItems.map(renderItem)}
                             </div>
-                        ))}
+                        )}
+                        
+                        {freshItems.length > 0 && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🥬</span>
+                                    <h2 className="text-lg font-black font-heading text-green-900">Farm Direct <span className="text-sm font-medium text-green-600">(Sourced directly)</span></h2>
+                                </div>
+                                {freshItems.map(renderItem)}
+                            </div>
+                        )}
+                        
+                        {shoppingItems.length > 0 && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">🛍️</span>
+                                    <h2 className="text-lg font-black font-heading text-gray-900">Shopping <span className="text-sm font-medium text-gray-500">(Standard Delivery)</span></h2>
+                                </div>
+                                {shoppingItems.map(renderItem)}
+                            </div>
+                        )}
                     </div>
 
                     {/* Summary & Address */}
@@ -386,7 +426,8 @@ const Cart = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            );
+            })()}
             
             {/* Payment Modal */}
             {showPaymentModal && (

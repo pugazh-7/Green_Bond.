@@ -1,24 +1,26 @@
-﻿import React, { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import LandingPage from './pages/LandingPage';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 
 // Keep auth routes eagerly loaded for fast navigation
-import UserLogin from './pages/auth/UserLogin';
-import ClientLogin from './pages/auth/ClientLogin';
-import UserSignup from './pages/auth/UserSignup';
-import ClientSignup from './pages/auth/ClientSignup';
+import MainMarketplace from './pages/user/MainMarketplace';
+import UserOrders from './pages/user/UserOrders';
 import DeliveryLogin from './pages/auth/DeliveryLogin';
 import DeliverySignup from './pages/auth/DeliverySignup';
 import ShopLogin from './pages/auth/ShopLogin';
 import ShopSignup from './pages/auth/ShopSignup';
+import UserLogin from './pages/auth/UserLogin';
+import ClientLogin from './pages/auth/ClientLogin';
+import UserSignup from './pages/auth/UserSignup';
+import ClientSignup from './pages/auth/ClientSignup';
 
 // Lazy load heavy components
 const UserLayout = React.lazy(() => import('./pages/user/UserLayout'));
-const UserDashboard = React.lazy(() => import('./pages/user/UserDashboard'));
 const Marketplace = React.lazy(() => import('./pages/user/Marketplace'));
 const Portfolio = React.lazy(() => import('./pages/user/Portfolio'));
 const Cart = React.lazy(() => import('./pages/user/Cart'));
@@ -75,7 +77,7 @@ function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
@@ -89,13 +91,11 @@ function App() {
               <UserLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<Navigate to="marketplace" replace />} />
-            <Route path="dashboard" element={<UserDashboard />} />
-            <Route path="marketplace" element={<Marketplace />} />
-            <Route path="portfolio" element={<Portfolio />} />
+            <Route index element={<MainMarketplace />} />
+            <Route path="orders" element={<UserOrders />} />
             <Route path="cart" element={<Cart />} />
-                        <Route path="bulk-orders" element={<BulkOrders />} />
             <Route path="product/:id" element={<ProductDetails />} />
+            <Route path="profile" element={<div className="p-8 text-center"><h1 className="text-2xl font-bold">Profile</h1><p className="text-gray-500">Coming soon</p></div>} />
           </Route>
 
           {/* Client / Kyle / Farmer Routes - Only for 'client' role */}
@@ -152,9 +152,8 @@ function App() {
           } />
         </Routes>
       </Suspense>
-    </>
+    </ErrorBoundary>
   );
 }
 
 export default App;
-

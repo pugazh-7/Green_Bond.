@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import Product from '../models/Product.js';
 import Shop from '../models/Shop.js';
 import Farmer from '../models/Farmer.js';
@@ -123,23 +123,55 @@ router.get('/availability', async (req, res) => {
     }
 });
 
-// --- Shopping Metadata (Counts, Deals, Popular) ---
+// --- Shopping Metadata (Counts, Deals, Popular, Category Sections) ---
 router.get('/shopping-meta', async (req, res) => {
     try {
-        const [counts, bestDeals, newArrivals] = await Promise.all([
+        const coreCategories = [
+            'Fruits & Vegetables', 'Grocery', 'Dairy & Breakfast', 'Snacks', 
+            'Drinks', 'Personal Care', 'Household', 'Electronics', 
+            'Fashion', 'Beauty', 'Home & Kitchen'
+        ];
+
+        // Prepare the promises
+        const promises = [
             Product.aggregate([
                 { $match: { marketplaceType: 'SHOPPING', isActive: true, availableQuantity: { $gt: 0 } } },
                 { $group: { _id: '$category', count: { $sum: 1 } } }
             ]),
             Product.find({ marketplaceType: 'SHOPPING', isActive: true, discountPercentage: { $gt: 0 }, availableQuantity: { $gt: 0 } })
                 .sort({ discountPercentage: -1 })
-                .limit(10)
+                .limit(6)
                 .lean(),
             Product.find({ marketplaceType: 'SHOPPING', isActive: true, availableQuantity: { $gt: 0 } })
                 .sort({ createdAt: -1 })
-                .limit(10)
+                .limit(6)
                 .lean()
-        ]);
+        ];
+
+        // Add a query for each core category to get top 6 products
+        coreCategories.forEach(cat => {
+            promises.push(
+                Product.find({ marketplaceType: 'SHOPPING', isActive: true, category: cat, availableQuantity: { $gt: 0 } })
+                    .sort({ createdAt: -1, rating: -1 }) // simple heuristic for 'top'
+                    .limit(6)
+                    .lean()
+            );
+        });
+
+        const results = await Promise.all(promises);
+
+        const counts = results[0];
+        const bestDeals = results[1];
+        const newArrivals = results[2];
+
+        let categoryProducts = {};
+        for (let i = 0; i < coreCategories.length; i++) {
+            const cat = coreCategories[i];
+            const products = results[3 + i];
+            if (products && products.length > 0) {
+                categoryProducts[cat] = products.map(p => ({ ...p, id: p._id }));
+            }
+        }
         
         let formattedCounts = {};
         let totalShopping = 0;
@@ -154,7 +186,8 @@ router.get('/shopping-meta', async (req, res) => {
         res.json({
             categoryCounts: formattedCounts,
             bestDeals: bestDeals.map(p => ({ ...p, id: p._id })),
-            newArrivals: newArrivals.map(p => ({ ...p, id: p._id }))
+            newArrivals: newArrivals.map(p => ({ ...p, id: p._id })),
+            categoryProducts
         });
     } catch (error) {
         console.error("Meta error:", error);

@@ -12,9 +12,18 @@ export const LocationProvider = ({ children }) => {
     useEffect(() => {
         // Load saved location on mount
         const savedLocation = localStorage.getItem('green_bond_location');
-        if (savedLocation) {
-            setLocation(JSON.parse(savedLocation));
-            setPermissionGranted(true);
+        if (savedLocation && savedLocation !== 'undefined') {
+            try {
+                setLocation(JSON.parse(savedLocation));
+                setPermissionGranted(true);
+            } catch(e) {
+                console.error("Error parsing location", e);
+                // Use default location for Thiruvannamalai
+                setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
+            }
+        } else {
+            // Provide default location immediately so marketplace can load
+            setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
         }
     }, []);
 
@@ -55,6 +64,7 @@ export const LocationProvider = ({ children }) => {
             );
         } else {
             console.error('Geolocation is not supported by this browser.');
+            setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
             setIsFetching(false);
         }
     };

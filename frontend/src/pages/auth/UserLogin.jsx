@@ -24,11 +24,7 @@ const UserLogin = () => {
             setRememberMe(true);
         }
         
-        // Auto-redirect if already logged in
-        const userRole = localStorage.getItem('userRole');
-        if (userRole === 'user' || userRole === 'admin') {
-            navigate(userRole === 'admin' ? '/admin/dashboard' : '/user/marketplace');
-        }
+        // Auto-redirect is handled globally by App.jsx after session restoration
     }, [navigate]);
 
     const handleLogin = async (e) => {
@@ -318,3 +314,4 @@ const UserLogin = () => {
 };
 
 export default UserLogin;
+

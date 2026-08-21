@@ -7,8 +7,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const { accessToken, loading, user } = useAuth();
     const location = useLocation();
 
-    // Use user.role from AuthContext, fallback to localStorage if needed during fast refresh
-    const userRole = user?.role || localStorage.getItem('userRole');
+    // Rely strictly on AuthContext after loading has resolved
+    const userRole = user?.role;
     const token = accessToken;
 
     useEffect(() => {

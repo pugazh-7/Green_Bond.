@@ -28,7 +28,7 @@ const MapController = ({ position }) => {
     return null;
 };
 
-const UserDashboard = () => {
+const UserOrders = () => {
     const [latestOrder, setLatestOrder] = useState(null);
     const [previousOrders, setPreviousOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -447,4 +447,4 @@ const UserDashboard = () => {
     );
 };
 
-export default UserDashboard;
+export default UserOrders;

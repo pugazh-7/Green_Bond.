@@ -1,4 +1,4 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Product from './models/Product.js';
 
@@ -96,6 +96,9 @@ const runSeeder = async () => {
         console.log("Connecting to MongoDB...");
         await mongoose.connect(process.env.MONGO_URI);
         console.log("Connected.");
+        
+        console.log("Clearing existing SHOPPING products from ADMIN...");
+        await Product.deleteMany({ marketplaceType: 'SHOPPING', sellerType: 'ADMIN' });
         
         console.log("Generating 1000+ products...");
         let allProducts = [];

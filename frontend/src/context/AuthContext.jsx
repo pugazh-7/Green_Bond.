@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
     const checkToken = async () => {
         try {
             // Using refresh-token endpoint to validate session and get a new access token
-            const response = await fetch(`/api/auth/refresh-token`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/refresh-token`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await fetch(`/api/auth/logout`, { 
+            await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/logout`, { 
                 method: 'POST', 
                 credentials: 'include' 
             });

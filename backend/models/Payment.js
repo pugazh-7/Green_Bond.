@@ -20,6 +20,5 @@ const paymentSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 paymentSchema.index({ orderId: 1 });
-paymentSchema.index({ gatewayOrderId: 1 });
 
 export default mongoose.model('Payment', paymentSchema);
