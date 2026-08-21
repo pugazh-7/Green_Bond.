@@ -18,11 +18,11 @@ const LandingPage = () => {
     }, [location, showLocationModal]);
 
     const handleLocationSelect = (loc) => {
-        manuallySetLocation(loc.lat, loc.lng, loc.address);
+        manuallySetLocation(loc);
         setShowLocationModal(false);
     };
 
-    const displayAddress = location 
+    const displayAddress = location?.address 
         ? (location.address.length > 30 ? location.address.substring(0, 30) + '...' : location.address)
         : 'Select Location';
 

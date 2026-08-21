@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLocationContext } from '../../context/LocationContext';
-import LocationHeader from '../../components/marketplace/LocationHeader';
 import SmartSearch from '../../components/marketplace/SmartSearch';
 import MarketplaceSwitcher from '../../components/marketplace/MarketplaceSwitcher';
 import ShoppingView from './views/ShoppingView';
@@ -15,7 +14,7 @@ const MainMarketplace = () => {
     const searchParams = new URLSearchParams(urlLocation.search);
     const initialPhase = searchParams.get('phase') || 'SHOPPING';
 
-    const { location, isFetching } = useLocationContext();
+    const { location, isFetching, hasResolvedInitialLocation } = useLocationContext();
     const [activePhase, setActivePhase] = useState(initialPhase);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -39,17 +38,28 @@ const MainMarketplace = () => {
         // For now, passing searchQuery down.
     };
 
-    const locationText = location?.address || (location?.lat ? `${Number(location.lat).toFixed(4)}, ${Number(location.lng).toFixed(4)}` : null);
-
     return (
         <div className="min-h-screen bg-gray-50/50 pb-20">
             {/* Unified Headers */}
-            <LocationHeader locationText={locationText} isFetching={isFetching} />
-            <SmartSearch onSearch={handleSearch} isSearching={isSearching} />
+            <div className="pt-2">
+                <SmartSearch onSearch={handleSearch} isSearching={isSearching} />
+            </div>
             <MarketplaceSwitcher activePhase={activePhase} onSwitch={handleSwitch} />
 
             {/* Content Views */}
-            <div className="mt-6">
+            <div className="mt-4">
+                {!hasResolvedInitialLocation ? (
+                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-pulse">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                            <span className="text-2xl opacity-50">📍</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">Establishing Delivery Location...</h3>
+                        <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                            Finding the best products and fastest delivery for your area.
+                        </p>
+                    </div>
+                ) : (
+                    <>
                 {activePhase === 'SHOPPING' && (
                     <ShoppingView 
                         location={location} 
@@ -70,6 +80,8 @@ const MainMarketplace = () => {
                         searchQuery={searchQuery} 
                         setIsSearching={setIsSearching} 
                     />
+                )}
+                    </>
                 )}
             </div>
         </div>

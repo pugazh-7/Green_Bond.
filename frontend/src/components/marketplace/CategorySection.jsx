@@ -69,19 +69,16 @@ const CategorySection = ({ id, category, subtitle, products = [], count = 0, onS
                 </div>
             </div>
 
-            <div className="px-4 md:px-8">
-                {/* 2x3 on mobile, 3x2 on desktop */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
-                    {displayProducts.map(product => (
-                        <div key={product._id || product.id} className="h-full">
-                            <ProductCard 
-                                product={product} 
-                                variant="shopping" 
-                                onAddToCart={onAddToCart}
-                            />
-                        </div>
-                    ))}
-                </div>
+            <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-3 md:gap-6 snap-x snap-mandatory no-scrollbar">
+                {displayProducts.map(product => (
+                    <div key={product._id || product.id} className="min-w-[150px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full pb-2">
+                        <ProductCard 
+                            product={product} 
+                            variant="shopping" 
+                            onAddToCart={onAddToCart}
+                        />
+                    </div>
+                ))}
             </div>
         </div>
     );

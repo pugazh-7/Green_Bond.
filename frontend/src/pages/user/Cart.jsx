@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import LocationPicker from '../../components/LocationPicker';
+import { useLocationContext } from '../../context/LocationContext';
 
 const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -20,40 +20,14 @@ const loadRazorpay = () => {
 const Cart = () => {
     const [cartItems, setCartItems] = useState([]);
     const navigate = useNavigate();
-    const [savedAddresses, setSavedAddresses] = useState([]);
-    const [selectedAddressMode, setSelectedAddressMode] = useState('SAVED'); // 'SAVED' or 'NEW'
-    const [selectedSavedAddress, setSelectedSavedAddress] = useState(null);
-    const [newDeliveryLocation, setNewDeliveryLocation] = useState(null);
+    const { location, setShowLocationModal } = useLocationContext();
 
     useEffect(() => {
         const savedCart = localStorage.getItem('user_cart');
         if (savedCart) {
             setCartItems(JSON.parse(savedCart));
         }
-        fetchAddresses();
     }, []);
-
-    const fetchAddresses = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/user/addresses`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setSavedAddresses(data);
-                if (data.length > 0) {
-                    const defaultAddr = data.find(a => a.isDefault) || data[0];
-                    setSelectedSavedAddress(defaultAddr);
-                } else {
-                    setSelectedAddressMode('NEW');
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch addresses");
-        }
-    };
 
     const removeFromCart = (id) => {
         const updatedCart = cartItems.filter(item => item.cartId !== id);
@@ -93,18 +67,11 @@ const Cart = () => {
     const [paymentMethod, setPaymentMethod] = useState('ONLINE'); // 'ONLINE' or 'COD'
     const [isProcessing, setIsProcessing] = useState(false);
     
-    const getFinalLocation = () => {
-        if (selectedAddressMode === 'SAVED' && selectedSavedAddress) {
-            return selectedSavedAddress;
-        }
-        return newDeliveryLocation;
-    };
-
     const handleCheckoutClick = () => {
         if (cartItems.length === 0) return;
-        const finalLoc = getFinalLocation();
-        if (!finalLoc || !finalLoc.lat || !finalLoc.lng) {
+        if (!location || !location.lat || !location.lng) {
             toast.error("Please provide a valid delivery location.");
+            setShowLocationModal(true);
             return;
         }
         setShowPaymentModal(true);
@@ -164,8 +131,8 @@ const Cart = () => {
                 totalAmount: calculateTotal(),
                 paymentMethod: paymentMethod,
                 paymentStatus: 'Pending',
-                deliveryAddress: finalLoc.address || "Location Provided",
-                deliveryLocation: { lat: finalLoc.lat, lng: finalLoc.lng },
+                deliveryAddress: location.address || "Location Provided",
+                deliveryLocation: { lat: location.lat, lng: location.lng },
                 pickupAddress: cartItems[0].location || "Multiple Locations",
                 pickupLocation: cartItems[0].farmerLocationGeo ? { lat: cartItems[0].farmerLocationGeo.coordinates[1], lng: cartItems[0].farmerLocationGeo.coordinates[0] } : undefined
             };
@@ -357,47 +324,28 @@ const Cart = () => {
 
                     {/* Summary & Address */}
                     <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                            <h3 className="text-xl font-bold text-gray-900 mb-4">Delivery Location</h3>
-                            
-                            <div className="flex gap-2 mb-4">
-                                {savedAddresses.length > 0 && (
-                                    <button 
-                                        onClick={() => setSelectedAddressMode('SAVED')}
-                                        className={`flex-1 py-2 text-sm rounded-lg font-medium transition-colors ${selectedAddressMode === 'SAVED' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                                    >
-                                        Saved
-                                    </button>
-                                )}
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-gray-900">Deliver to</h3>
                                 <button 
-                                    onClick={() => setSelectedAddressMode('NEW')}
-                                    className={`flex-1 py-2 text-sm rounded-lg font-medium transition-colors ${selectedAddressMode === 'NEW' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                    onClick={() => setShowLocationModal(true)}
+                                    className="text-sm font-bold text-green-600 hover:text-green-700 bg-green-50 px-3 py-1.5 rounded-full transition-colors"
                                 >
-                                    New Address
+                                    Change
                                 </button>
                             </div>
-
-                            {selectedAddressMode === 'SAVED' && savedAddresses.length > 0 && (
-                                <div className="space-y-3">
-                                    {savedAddresses.map(addr => (
-                                        <div 
-                                            key={addr._id}
-                                            onClick={() => setSelectedSavedAddress(addr)}
-                                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedSavedAddress?._id === addr._id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-200'}`}
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="font-bold text-sm text-gray-900">{addr.label}</span>
-                                                {addr.isDefault && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Default</span>}
-                                            </div>
-                                            <p className="text-xs text-gray-600 line-clamp-2">{addr.address}</p>
-                                        </div>
-                                    ))}
+                            
+                            <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div className="p-2 bg-white rounded-full shadow-sm text-xl mt-0.5">
+                                    {location?.label === 'Home' ? '🏠' : location?.label === 'Work' ? '💼' : '📍'}
                                 </div>
-                            )}
-
-                            {selectedAddressMode === 'NEW' && (
-                                <LocationPicker onLocationChange={(loc) => setNewDeliveryLocation(loc)} />
-                            )}
+                                <div>
+                                    <p className="font-bold text-gray-900">{location?.label || 'Delivery Location'}</p>
+                                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                        {location?.address || 'No location selected'}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
@@ -417,9 +365,10 @@ const Cart = () => {
                                     <span>₹{calculateTotal().toLocaleString()}</span>
                                 </div>
                             </div>
+                            {/* Desktop Checkout Button */}
                             <button
                                 onClick={handleCheckoutClick}
-                                className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg active:scale-95"
+                                className="hidden md:block w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg active:scale-95"
                             >
                                 Checkout
                             </button>
@@ -428,6 +377,25 @@ const Cart = () => {
                 </div>
             );
             })()}
+            
+            {/* Sticky Mobile Checkout Bar */}
+            {cartItems.length > 0 && (
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 pb-safe z-40 shadow-[0_-8px_30px_-1px_rgba(0,0,0,0.1)]">
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total</span>
+                            <span className="text-xl font-black font-heading text-gray-900">₹{calculateTotal().toLocaleString()}</span>
+                        </div>
+                        <button
+                            onClick={handleCheckoutClick}
+                            className="bg-green-600 text-white font-bold py-3.5 px-8 rounded-2xl shadow-lg shadow-green-600/30 active-press flex items-center gap-2"
+                        >
+                            Place Order
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            )}
             
             {/* Payment Modal */}
             {showPaymentModal && (

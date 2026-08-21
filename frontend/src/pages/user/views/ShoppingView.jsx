@@ -69,6 +69,10 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
             try {
                 let url = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/products?lat=${location.lat}&lng=${location.lng}&page=${page}&limit=20`;
                 
+                if (location.pincode) {
+                    url += `&pincode=${encodeURIComponent(location.pincode)}`;
+                }
+
                 if (debouncedSearch) {
                     url += `&q=${encodeURIComponent(debouncedSearch)}`;
                 }
@@ -88,6 +92,9 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         setIsFallback(true);
                         // Fetch popular products without search query
                         let fallbackUrl = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/products?lat=${location.lat}&lng=${location.lng}&page=1&limit=12`;
+                        if (location.pincode) {
+                            fallbackUrl += `&pincode=${encodeURIComponent(location.pincode)}`;
+                        }
                         if (activeCategory !== 'All') {
                             fallbackUrl += `&category=${encodeURIComponent(activeCategory)}`;
                         }

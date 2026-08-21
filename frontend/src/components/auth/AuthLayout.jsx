@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const AuthLayout = ({ children, heroImage, heroTitle, heroSubtitle, userRole = 'User' }) => {
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
+        <div className="min-h-[100dvh] bg-gray-50 flex flex-col md:flex-row font-sans">
             {/* Desktop Left Side (Hero Image & Branding) */}
             <div className="hidden md:flex md:w-1/2 lg:w-[55%] relative overflow-hidden bg-green-900">
                 <div 
@@ -44,7 +44,7 @@ const AuthLayout = ({ children, heroImage, heroTitle, heroSubtitle, userRole = '
             </div>
 
             {/* Mobile Header (Hidden on Desktop) */}
-            <div className="md:hidden bg-white shadow-sm px-4 py-4 sticky top-0 z-10 flex items-center justify-between border-b border-gray-100">
+            <div className="md:hidden bg-white shadow-sm px-4 pt-safe py-4 sticky top-0 z-10 flex items-center justify-between border-b border-gray-100">
                 <Link to="/" className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center text-white shadow-sm">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -56,7 +56,7 @@ const AuthLayout = ({ children, heroImage, heroTitle, heroSubtitle, userRole = '
             </div>
 
             {/* Right Side (Form) */}
-            <div className="flex-1 flex flex-col justify-center items-center p-4 sm:p-8 lg:p-12 relative">
+            <div className="flex-1 flex flex-col justify-start md:justify-center items-center p-4 pt-8 pb-safe sm:p-8 lg:p-12 relative overflow-y-auto">
                 {/* Background Pattern for right side */}
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#22c55e 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
                 

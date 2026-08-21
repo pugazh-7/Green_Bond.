@@ -2,38 +2,45 @@ import React from 'react';
 
 const MarketplaceSwitcher = ({ activePhase, onSwitch }) => {
     return (
-        <div className="px-4 md:px-8 mt-6">
-            <div className="bg-gray-100 p-1 rounded-2xl flex relative overflow-hidden w-full shadow-inner">
-                {/* Active Indicator Background */}
-                <div 
-                    className="absolute top-1 bottom-1 w-[32.33%] bg-white rounded-xl shadow-sm transition-transform duration-300 ease-out z-0"
-                    style={{ 
-                        transform: 
-                            activePhase === 'SHOPPING' ? 'translateX(2%)' : 
-                            activePhase === 'QUICK' ? 'translateX(102%)' : 
-                            'translateX(203%)'
-                    }}
-                />
-                
+        <div className="mt-6">
+            <div className="flex overflow-x-auto gap-3 px-4 md:px-8 pb-4 no-scrollbar snap-x">
+                {/* Shopping Card */}
                 <button 
                     onClick={() => onSwitch('SHOPPING')}
-                    className={`flex-1 relative z-10 py-3 text-sm font-extrabold flex items-center justify-center gap-2 transition-colors ${activePhase === 'SHOPPING' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-none w-[220px] p-4 rounded-3xl text-left transition-all duration-300 snap-center relative overflow-hidden active-press
+                        ${activePhase === 'SHOPPING' 
+                            ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-indigo-200 shadow-md shadow-indigo-100' 
+                            : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <span className="text-lg">🛍</span> Shopping
+                    <div className="text-3xl mb-2">🛍️</div>
+                    <h3 className={`font-black text-lg ${activePhase === 'SHOPPING' ? 'text-indigo-900' : 'text-gray-800'}`}>Shopping</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-1">Everything you need</p>
                 </button>
-                
+
+                {/* Quick Card */}
                 <button 
                     onClick={() => onSwitch('QUICK')}
-                    className={`flex-1 relative z-10 py-3 text-sm font-extrabold flex items-center justify-center gap-2 transition-colors ${activePhase === 'QUICK' ? 'text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-none w-[220px] p-4 rounded-3xl text-left transition-all duration-300 snap-center relative overflow-hidden active-press
+                        ${activePhase === 'QUICK' 
+                            ? 'bg-gradient-to-br from-purple-50 to-fuchsia-50 border-2 border-purple-200 shadow-md shadow-purple-100' 
+                            : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <span className="text-lg">⚡</span> Quick
+                    <div className="text-3xl mb-2">⚡</div>
+                    <h3 className={`font-black text-lg ${activePhase === 'QUICK' ? 'text-purple-900' : 'text-gray-800'}`}>Quick</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-1">Delivered in 10-15 min</p>
                 </button>
-                
+
+                {/* Fresh Card */}
                 <button 
                     onClick={() => onSwitch('FRESH')}
-                    className={`flex-1 relative z-10 py-3 text-sm font-extrabold flex items-center justify-center gap-2 transition-colors ${activePhase === 'FRESH' ? 'text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex-none w-[220px] p-4 rounded-3xl text-left transition-all duration-300 snap-center relative overflow-hidden active-press
+                        ${activePhase === 'FRESH' 
+                            ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 shadow-md shadow-green-100' 
+                            : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <span className="text-lg">🥬</span> Fresh
+                    <div className="text-3xl mb-2">🥬</div>
+                    <h3 className={`font-black text-lg ${activePhase === 'FRESH' ? 'text-green-900' : 'text-gray-800'}`}>Fresh</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-1">Direct from nearby farmers</p>
                 </button>
             </div>
         </div>

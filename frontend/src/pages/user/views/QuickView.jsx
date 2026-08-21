@@ -43,6 +43,10 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
             try {
                 let url = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/quick?lat=${location.lat}&lng=${location.lng}&page=${page}&limit=20`;
                 
+                if (location.pincode) {
+                    url += `&pincode=${encodeURIComponent(location.pincode)}`;
+                }
+
                 if (debouncedSearch) {
                     url += `&q=${encodeURIComponent(debouncedSearch)}`;
                 }

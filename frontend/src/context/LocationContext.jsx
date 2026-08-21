@@ -5,26 +5,32 @@ const LocationContext = createContext();
 export const useLocationContext = () => useContext(LocationContext);
 
 export const LocationProvider = ({ children }) => {
-    const [location, setLocation] = useState(null); // { lat, lng, address }
+    const [location, setLocation] = useState(null); // { lat, lng, address, area, city, pincode, label }
     const [permissionGranted, setPermissionGranted] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
+    const [showLocationModal, setShowLocationModal] = useState(false);
+    const [hasResolvedInitialLocation, setHasResolvedInitialLocation] = useState(false);
 
     useEffect(() => {
-        // Load saved location on mount
-        const savedLocation = localStorage.getItem('green_bond_location');
-        if (savedLocation && savedLocation !== 'undefined') {
-            try {
-                setLocation(JSON.parse(savedLocation));
-                setPermissionGranted(true);
-            } catch(e) {
-                console.error("Error parsing location", e);
-                // Use default location for Thiruvannamalai
-                setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
+        const resolveInitialLocation = () => {
+            const savedLocation = localStorage.getItem('green_bond_location');
+            if (savedLocation && savedLocation !== 'undefined') {
+                try {
+                    setLocation(JSON.parse(savedLocation));
+                    setPermissionGranted(true);
+                    setHasResolvedInitialLocation(true);
+                    return;
+                } catch(e) {
+                    console.error("Error parsing location", e);
+                }
             }
-        } else {
-            // Provide default location immediately so marketplace can load
-            setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
-        }
+            
+            // If no valid saved location, we must show the modal to get one.
+            setShowLocationModal(true);
+            setHasResolvedInitialLocation(true); // We resolved that we NEED a location
+        };
+
+        resolveInitialLocation();
     }, []);
 
     const requestLocation = () => {
@@ -36,22 +42,39 @@ export const LocationProvider = ({ children }) => {
                     const lng = position.coords.longitude;
                     
                     try {
-                        // Reverse geocoding using Nominatim (OpenStreetMap)
+                        // Enhanced Reverse Geocoding
                         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
                         const data = await response.json();
                         
                         const address = data.display_name || 'Unknown Location';
-                        const newLoc = { lat, lng, address };
+                        const area = data.address?.suburb || data.address?.neighbourhood || data.address?.village || '';
+                        const city = data.address?.city || data.address?.town || data.address?.county || '';
+                        const pincode = data.address?.postcode || '';
+                        const state = data.address?.state || '';
+                        
+                        const newLoc = { 
+                            lat, 
+                            lng, 
+                            address, 
+                            area, 
+                            city, 
+                            pincode,
+                            state,
+                            label: 'Current Location' 
+                        };
+                        
                         setLocation(newLoc);
                         localStorage.setItem('green_bond_location', JSON.stringify(newLoc));
                         setPermissionGranted(true);
+                        setShowLocationModal(false);
                     } catch (error) {
                         console.error('Error reverse geocoding:', error);
                         // Fallback
-                        const newLoc = { lat, lng, address: 'Location detected' };
+                        const newLoc = { lat, lng, address: 'Location detected', label: 'Current Location' };
                         setLocation(newLoc);
                         localStorage.setItem('green_bond_location', JSON.stringify(newLoc));
                         setPermissionGranted(true);
+                        setShowLocationModal(false);
                     } finally {
                         setIsFetching(false);
                     }
@@ -64,20 +87,29 @@ export const LocationProvider = ({ children }) => {
             );
         } else {
             console.error('Geolocation is not supported by this browser.');
-            setLocation({ lat: 12.2253, lng: 79.0747, address: 'Thiruvannamalai, Tamil Nadu, India' });
             setIsFetching(false);
         }
     };
 
-    const manuallySetLocation = (lat, lng, address) => {
-        const newLoc = { lat, lng, address };
-        setLocation(newLoc);
-        localStorage.setItem('green_bond_location', JSON.stringify(newLoc));
+    const manuallySetLocation = (locData) => {
+        // Expected locData format: { lat, lng, address, area, city, pincode, label }
+        setLocation(locData);
+        localStorage.setItem('green_bond_location', JSON.stringify(locData));
         setPermissionGranted(true);
+        setShowLocationModal(false);
     };
 
     return (
-        <LocationContext.Provider value={{ location, permissionGranted, requestLocation, manuallySetLocation, isFetching }}>
+        <LocationContext.Provider value={{ 
+            location, 
+            permissionGranted, 
+            requestLocation, 
+            manuallySetLocation, 
+            isFetching,
+            showLocationModal,
+            setShowLocationModal,
+            hasResolvedInitialLocation
+        }}>
             {children}
         </LocationContext.Provider>
     );

@@ -1,7 +1,7 @@
 import React from 'react';
 import ProductCard from '../product/ProductCard';
 
-const HorizontalProductList = ({ title, subtitle, products = [], isLoading = false, onAddToCart }) => {
+const HorizontalProductList = ({ title, subtitle, products = [], isLoading = false, onAddToCart, variant = 'shopping' }) => {
     if (!isLoading && (!products || products.length === 0)) return null;
 
     return (
@@ -19,23 +19,18 @@ const HorizontalProductList = ({ title, subtitle, products = [], isLoading = fal
                 )}
             </div>
 
-            <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-4 md:gap-6 snap-x snap-mandatory hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <style>{`
-                    .hide-scrollbar::-webkit-scrollbar {
-                        display: none;
-                    }
-                `}</style>
+            <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-4 md:gap-6 snap-x snap-mandatory no-scrollbar">
                 {isLoading ? (
                     // Skeleton Loaders
                     [...Array(5)].map((_, i) => (
-                        <div key={i} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 aspect-[4/5] bg-gray-100 rounded-3xl animate-pulse snap-start"></div>
+                        <div key={i} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 aspect-[4/5] bg-gray-100 rounded-3xl animate-shimmer snap-start border border-gray-100 shadow-sm"></div>
                     ))
                 ) : (
                     products.map(product => (
-                        <div key={product._id || product.id} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full">
+                        <div key={product._id || product.id} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full pb-2">
                             <ProductCard 
                                 product={product} 
-                                variant="shopping" 
+                                variant={variant} 
                                 onAddToCart={onAddToCart}
                             />
                         </div>

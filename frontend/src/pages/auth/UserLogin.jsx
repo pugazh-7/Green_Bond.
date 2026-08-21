@@ -69,7 +69,9 @@ const UserLogin = () => {
             }
         } catch (error) {
             clearTimeout(timeoutId);
-            console.error('Login error:', error);
+            console.error('GreenBond API error:', error);
+            console.error('Request URL:', `${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`);
+            console.error('Error message:', error.message);
             if (error.name === 'AbortError') toast.error('Request timed out.');
             else toast.error('Unable to connect to GreenBond. Please try again.');
         } finally {
