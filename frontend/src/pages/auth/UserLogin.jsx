@@ -47,33 +47,70 @@ const UserLogin = () => {
             });
 
             clearTimeout(timeoutId);
-            const data = await response.json();
+            
+            // Check content type before parsing JSON
+            const contentType = response.headers.get("content-type");
+            let data = {};
+            if (contentType && contentType.includes("application/json")) {
+                data = await response.json();
+            } else {
+                throw new Error("Invalid response format from server");
+            }
 
             if (response.ok) {
                 const user = data.user;
-                localStorage.setItem('userRole', user.role || 'user');
-                localStorage.setItem('green_bond_current_user', JSON.stringify(user));
-                if (data.token) localStorage.setItem('token', data.token);
                 
-                login(user, data.token);
+                // Safe localStorage handling for strict mobile browsers
+                try {
+                    localStorage.setItem('userRole', user.role || 'user');
+                    localStorage.setItem('green_bond_current_user', JSON.stringify(user));
+                    if (data.token) localStorage.setItem('token', data.token);
+                    
+                    if (rememberMe) {
+                        localStorage.setItem('remembered_user_email', cleanEmailInput);
+                    } else {
+                        localStorage.removeItem('remembered_user_email');
+                    }
+                } catch (storageError) {
+                    console.warn('Local storage is not available:', storageError);
+                }
 
-                if (rememberMe) {
-                    localStorage.setItem('remembered_user_email', cleanEmailInput);
-                } else {
-                    localStorage.removeItem('remembered_user_email');
+                // Call AuthContext login (safe wrapper to catch its own storage errors)
+                try {
+                    login(user, data.token);
+                } catch (loginError) {
+                    console.warn('Auth context login error:', loginError);
                 }
 
                 toast.success(`Welcome back, ${user.name}!`);
             } else {
-                toast.error(data.message || 'Invalid Email or Password.');
+                // Differentiate HTTP error statuses as requested
+                if (response.status === 400 || response.status === 401) {
+                    toast.error(data.message || 'Incorrect email/phone or password.');
+                } else if (response.status === 404) {
+                    toast.error('Account not found.');
+                } else if (response.status === 403) {
+                    toast.error('Access denied.');
+                } else if (response.status >= 500) {
+                    toast.error('GreenBond is temporarily unavailable. Please try again.');
+                } else {
+                    toast.error(data.message || 'Login failed.');
+                }
             }
         } catch (error) {
             clearTimeout(timeoutId);
             console.error('GreenBond API error:', error);
             console.error('Request URL:', `${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`);
             console.error('Error message:', error.message);
-            if (error.name === 'AbortError') toast.error('Request timed out.');
-            else toast.error('Unable to connect to GreenBond. Please try again.');
+            
+            if (error.name === 'AbortError') {
+                toast.error('Request timed out.');
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                toast.error('Unable to connect to GreenBond. Please check your internet connection.');
+            } else {
+                // Do not expose backend stack traces, but don't call it a network error either
+                toast.error('An unexpected error occurred during login.');
+            }
         } finally {
             setIsLoading(false);
         }

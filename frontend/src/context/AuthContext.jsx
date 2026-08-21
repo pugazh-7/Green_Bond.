@@ -49,8 +49,12 @@ export const AuthProvider = ({ children }) => {
     const login = (userData, token) => {
         setAccessToken(token);
         setUser(userData);
-        localStorage.setItem('userRole', userData.role);
-        localStorage.setItem('green_bond_current_user', JSON.stringify(userData));
+        try {
+            localStorage.setItem('userRole', userData.role);
+            localStorage.setItem('green_bond_current_user', JSON.stringify(userData));
+        } catch (e) {
+            console.warn("AuthContext: Local storage unavailable", e);
+        }
     };
 
     const logout = async () => {
