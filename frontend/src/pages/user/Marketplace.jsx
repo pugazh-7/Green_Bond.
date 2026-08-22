@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ProductCard from '../../components/product/ProductCard';
 import { resolveIcon, resolveCategoryIcon } from '../../utils/iconRegistry';
-import React from 'react';
 
 const CATEGORIES = [
     'All', 'Grocery', 'Fruits & Vegetables', 'Milk & Dairy', 'Snacks', 
