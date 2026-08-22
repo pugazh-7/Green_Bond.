@@ -1,7 +1,7 @@
 import React from 'react';
 import ProductCard from '../product/ProductCard';
 
-const HorizontalProductList = ({ title, subtitle, products = [], isLoading = false, onAddToCart, variant = 'shopping' }) => {
+const HorizontalProductList = ({ title, subtitle, products = [], isLoading = false, onAddToCart, variant = 'shopping', isPriority = false }) => {
     if (!isLoading && (!products || products.length === 0)) return null;
 
     return (
@@ -26,12 +26,13 @@ const HorizontalProductList = ({ title, subtitle, products = [], isLoading = fal
                         <div key={i} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 aspect-[4/5] bg-gray-100 rounded-3xl animate-shimmer snap-start border border-gray-100 shadow-sm"></div>
                     ))
                 ) : (
-                    products.map(product => (
+                    products.map((product, index) => (
                         <div key={product._id || product.id} className="min-w-[160px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full pb-2">
                             <ProductCard 
                                 product={product} 
                                 variant={variant} 
                                 onAddToCart={onAddToCart}
+                                priority={isPriority && index < 2}
                             />
                         </div>
                     ))

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ProductCard from '../../../components/product/ProductCard';
 import toast from 'react-hot-toast';
-
+import { resolveCategoryIcon } from '../../../utils/iconRegistry';
 import CategorySection from '../../../components/marketplace/CategorySection';
 
 const CATEGORIES = [
@@ -25,6 +25,18 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
         categoryProducts: {},
         categoryCounts: {}
     });
+
+    const observer = useRef();
+    const lastProductElementRef = useCallback(node => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setPage(prevPage => prevPage + 1);
+            }
+        }, { rootMargin: '200px' }); // Trigger a bit before they hit the absolute bottom
+        if (node) observer.current.observe(node);
+    }, [isLoading, hasMore]);
 
     useEffect(() => {
         const fetchMeta = async () => {
@@ -84,8 +96,8 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                 const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
-                    let newProducts = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : Array.isArray(data?.data?.products) ? data.data.products : Array.isArray(data?.data) ? data.data : [];
-                    let isLastPage = Array.isArray(data) ? true : (data?.currentPage >= data?.totalPages);
+                    let newProducts = data?.products || [];
+                    let isLastPage = (data?.pagination?.page || 1) >= (data?.pagination?.totalPages || 1);
                     
                     // Search Fallback Logic
                     if (debouncedSearch && newProducts.length === 0 && page === 1) {
@@ -101,7 +113,7 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         const fallbackRes = await fetch(fallbackUrl);
                         if (fallbackRes.ok) {
                             const fallbackData = await fallbackRes.json();
-                            newProducts = Array.isArray(fallbackData) ? fallbackData : Array.isArray(fallbackData?.products) ? fallbackData.products : Array.isArray(fallbackData?.data?.products) ? fallbackData.data.products : Array.isArray(fallbackData?.data) ? fallbackData.data : [];
+                            newProducts = fallbackData?.products || [];
                             isLastPage = true;
                         }
                     } else if (page === 1) {
@@ -180,8 +192,9 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         <button
                             key={cat}
                             onClick={() => handleCategoryNavClick(cat)}
-                            className={`px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-gray-900 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-gray-900 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
                         >
+                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
                             {cat}
                         </button>
                     ))}
@@ -214,6 +227,7 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         count={meta.bestDeals.length}
                         onSeeAll={() => handleSeeAll('All')}
                         onAddToCart={addToCart}
+                        isPriority={true}
                     />
 
                     {['Fruits & Vegetables', 'Grocery', 'Dairy & Breakfast', 'Snacks', 'Drinks', 'Personal Care', 'Household', 'Electronics', 'Fashion', 'Beauty', 'Home & Kitchen'].map(cat => {
@@ -290,13 +304,8 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                             ))}
                         </div>
                         {hasMore && (
-                            <div className="mt-10 text-center">
-                                <button 
-                                    onClick={() => setPage(p => p + 1)}
-                                    className="px-8 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-colors shadow-sm"
-                                >
-                                    {isLoading ? 'Loading...' : 'Load More'}
-                                </button>
+                            <div ref={lastProductElementRef} className="h-20 mt-6 flex items-center justify-center">
+                                {isLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>}
                             </div>
                         )}
                     </>

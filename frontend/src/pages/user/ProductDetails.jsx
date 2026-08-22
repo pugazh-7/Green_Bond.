@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import ProductImage from '../../components/shared/ProductImage';
+import { resolveIcon } from '../../utils/iconRegistry';
 
 const ProductDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [product, setProduct] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isBulkOrdering, setIsBulkOrdering] = useState(false);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -15,7 +19,7 @@ const ProductDetails = () => {
                 const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/products`);
                 if (res.ok) {
                     const data = await res.json();
-                    const products = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : Array.isArray(data?.data?.products) ? data.data.products : Array.isArray(data?.data) ? data.data : [];
+                    const products = data?.products || [];
                     const found = products.find(p => p.id === id || p._id === id);
                     if (found) {
                         setProduct(found);
@@ -81,6 +85,33 @@ const ProductDetails = () => {
         }
     };
 
+    const handleBulkOrder = async () => {
+        if (!product) return;
+        setIsBulkOrdering(true);
+        try {
+            const requestedQuantity = parseInt(product.minOrder) || 10;
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}`
+                },
+                body: JSON.stringify({ productId: product._id, requestedQuantity })
+            });
+            if (res.ok) {
+                toast.success('Bulk order inquiry sent to farmer!');
+                navigate('/user/bulk-orders');
+            } else {
+                const data = await res.json();
+                toast.error(data.message || 'Failed to submit bulk order.');
+            }
+        } catch (err) {
+            toast.error('Network error submitting bulk order.');
+        } finally {
+            setIsBulkOrdering(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -103,6 +134,14 @@ const ProductDetails = () => {
     const cartType = product.sourceType === 'SHOP' ? 'QUICK' : product.sourceType === 'FARMER' ? 'FRESH' : 'SHOPPING';
     const safeRating = Number(product.rating);
     const rating = (!isNaN(safeRating) ? safeRating : 4.0).toFixed(1);
+    
+    // Parse numeric price for calculation display
+    const rawPrice = product.price;
+    const numericPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+    const subtotal = numericPrice * (quantity > 0 ? quantity : 1);
+    
+    // Format Display string
+    const displayPrice = product.mrp || `₹${numericPrice}/${product.unit || 'kg'}`;
 
     return (
         <div className="min-h-screen bg-white md:bg-gray-50 pb-24 md:pb-8 animate-slide-up">
@@ -126,11 +165,9 @@ const ProductDetails = () => {
                                 {product.discountPercentage}% OFF
                             </div>
                         )}
-                        <img 
-                            src={product.image || 'https://images.unsplash.com/photo-1607344645866-009c320b63e0?q=80&w=500&auto=format&fit=crop'} 
-                            alt={product.title || product.name || 'Product'} 
+                        <ProductImage 
+                            product={product} 
                             className="max-w-[80%] max-h-[400px] object-contain drop-shadow-md hover:scale-105 transition-transform duration-500" 
-                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1607344645866-009c320b63e0?q=80&w=500&auto=format&fit=crop'; }}
                         />
                     </div>
 
@@ -141,17 +178,17 @@ const ProductDetails = () => {
                         <div className="mb-4 flex flex-wrap gap-2">
                             {cartType === 'QUICK' && (
                                 <span className="inline-flex items-center gap-1.5 bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <span className="text-sm">⚡</span> Delivery in 10-15 mins
+                                    <img src={resolveIcon('quick')} className="w-4 h-4 rounded-full" alt="Quick" /> Delivery in 10-15 mins
                                 </span>
                             )}
                             {cartType === 'FRESH' && (
                                 <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-800 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <span className="text-sm">🥬</span> Farm Direct Produce
+                                    <img src={resolveIcon('fresh')} className="w-4 h-4 rounded-full" alt="Fresh" /> Farm Direct Produce
                                 </span>
                             )}
                             {cartType === 'SHOPPING' && (
                                 <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <span className="text-sm">🛍️</span> Standard Delivery
+                                    <img src={resolveIcon('shopping')} className="w-4 h-4 rounded-full" alt="Shopping" /> Standard Delivery
                                 </span>
                             )}
                         </div>
@@ -177,9 +214,9 @@ const ProductDetails = () => {
                         {/* Price */}
                         <div className="flex items-end gap-3 mb-8">
                             <span className="text-4xl font-black font-heading text-gray-900">
-                                ₹{product.price}
+                                {displayPrice}
                             </span>
-                            {product.originalPrice > product.price && (
+                            {product.originalPrice > numericPrice && (
                                 <span className="text-lg text-gray-400 line-through font-semibold mb-1">
                                     ₹{product.originalPrice}
                                 </span>
@@ -199,14 +236,14 @@ const ProductDetails = () => {
                             <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0 text-xl shadow-sm">
                                 {cartType === 'FRESH' ? '🧑‍🌾' : cartType === 'QUICK' ? '🏬' : '📦'}
                             </div>
-                            <div>
+                            <div className="flex-1">
                                 <h4 className="font-bold text-gray-900 text-sm">
-                                    {cartType === 'FRESH' ? `Sourced from ${product.farmerName || 'a local farmer'}` : 
+                                    {cartType === 'FRESH' ? `Sourced from ${product.farmer || 'a local farmer'}` : 
                                      cartType === 'QUICK' ? 'Sold by Nearby Partner Shop' : 
                                      'Fulfilled by GreenBond'}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    {cartType === 'FRESH' ? 'Harvested recently and checked for quality.' : 
+                                    {cartType === 'FRESH' ? `Harvested in ${product.location || 'Local Village'}, checked for quality.` : 
                                      cartType === 'QUICK' ? 'Packed instantly upon order.' : 
                                      'Standard quality checks applied.'}
                                 </p>
@@ -214,23 +251,31 @@ const ProductDetails = () => {
                         </div>
 
                         {/* Add to Cart Area */}
-                        <div className="mt-auto pt-6 border-t border-gray-100 flex gap-4 hidden md:flex">
-                            <button className="w-14 h-14 rounded-2xl border-2 border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors shrink-0">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                            </button>
+                        <div className="mt-auto pt-6 border-t border-gray-100 flex gap-4 hidden md:flex flex-col md:flex-row">
                             {quantity > 0 ? (
                                 <div className="flex-1 flex items-center justify-between bg-green-600 text-white rounded-2xl shadow-lg border border-green-700 h-14 overflow-hidden">
                                     <button onClick={() => handleQuantityChange(-1)} className="px-6 h-full hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center font-bold text-2xl">−</button>
-                                    <span className="font-bold text-xl">{quantity}</span>
+                                    <span className="font-bold text-xl">{quantity} {product.unit || 'kg'} (₹{subtotal})</span>
                                     <button onClick={() => handleQuantityChange(1)} className="px-6 h-full hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center font-bold text-2xl">+</button>
                                 </div>
                             ) : (
                                 <button 
                                     onClick={() => handleQuantityChange(1)}
-                                    className="flex-1 bg-green-600 text-white font-bold text-lg rounded-2xl hover:bg-green-700 transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                                    className="flex-1 bg-green-600 text-white font-bold text-lg rounded-2xl hover:bg-green-700 transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2 h-14"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                     Add to Cart
+                                </button>
+                            )}
+                            
+                            {cartType === 'FRESH' && product.orderType === 'bulk' && (
+                                <button 
+                                    onClick={handleBulkOrder}
+                                    disabled={isBulkOrdering}
+                                    className="flex-1 bg-white text-green-700 border-2 border-green-600 font-bold text-lg rounded-2xl hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-2 h-14"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                    {isBulkOrdering ? 'Sending...' : 'Bulk Order'}
                                 </button>
                             )}
                         </div>
@@ -242,13 +287,22 @@ const ProductDetails = () => {
             {/* Mobile Sticky Add to Cart */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] md:hidden z-50 flex items-center gap-4">
                 <div className="flex-1">
-                    <span className="text-2xl font-black font-heading text-gray-900 block">₹{product.price}</span>
+                    <span className="text-2xl font-black font-heading text-gray-900 block">₹{subtotal}</span>
                     <span className="text-xs text-green-600 font-bold">Free Delivery</span>
                 </div>
+                {cartType === 'FRESH' && product.orderType === 'bulk' && quantity === 0 && (
+                    <button 
+                        onClick={handleBulkOrder}
+                        disabled={isBulkOrdering}
+                        className="px-3 bg-white text-green-700 border border-green-600 font-bold text-xs h-12 rounded-xl hover:bg-green-50 flex items-center justify-center whitespace-nowrap"
+                    >
+                        Bulk Order
+                    </button>
+                )}
                 {quantity > 0 ? (
                     <div className="flex-1 flex items-center justify-between bg-green-600 text-white rounded-xl shadow-md border border-green-700 h-12 overflow-hidden">
                         <button onClick={() => handleQuantityChange(-1)} className="px-4 h-full hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center font-bold text-xl">−</button>
-                        <span className="font-bold text-lg">{quantity}</span>
+                        <span className="font-bold text-sm whitespace-nowrap px-1">{quantity} {product.unit || 'kg'}</span>
                         <button onClick={() => handleQuantityChange(1)} className="px-4 h-full hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center font-bold text-xl">+</button>
                     </div>
                 ) : (

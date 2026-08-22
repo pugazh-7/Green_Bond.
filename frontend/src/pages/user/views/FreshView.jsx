@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
 import ProductCard from '../../../components/product/ProductCard';
 import toast from 'react-hot-toast';
 
@@ -15,6 +16,18 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
     const [error, setError] = useState(null);
 
     const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    const observer = useRef();
+    const lastProductElementRef = useCallback(node => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setPage(prevPage => prevPage + 1);
+            }
+        }, { rootMargin: '200px' });
+        if (node) observer.current.observe(node);
+    }, [isLoading, hasMore]);
 
     useEffect(() => {
         setIsSearching(true);
@@ -57,8 +70,8 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                 const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
-                    const newProducts = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : Array.isArray(data?.data?.products) ? data.data.products : Array.isArray(data?.data) ? data.data : [];
-                    const isLastPage = Array.isArray(data) ? true : (data?.currentPage >= data?.totalPages);
+                    const newProducts = data?.products || [];
+                    const isLastPage = (data?.pagination?.page || 1) >= (data?.pagination?.totalPages || 1);
                     
                     setProducts(prev => page === 1 ? newProducts : [...prev, ...newProducts]);
                     setHasMore(!isLastPage);
@@ -104,8 +117,8 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
             <div className="px-4 md:px-8 mb-6">
                 <div className="bg-green-100 border border-green-200 rounded-3xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden">
                     <div className="flex items-center gap-3 relative z-10">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <span className="text-2xl">🚜</span>
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden">
+                            <img src={resolveIcon('fresh')} alt="Fresh" className="w-full h-full object-cover" />
                         </div>
                         <div>
                             <h3 className="font-bold text-green-900 leading-tight">Farm Direct Produce</h3>
@@ -124,8 +137,9 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                         <button
                             key={cat}
                             onClick={() => setActiveCategory(cat)}
-                            className={`px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-green-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-green-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
                         >
+                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
                             {cat}
                         </button>
                     ))}
@@ -164,13 +178,8 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                             ))}
                         </div>
                         {hasMore && (
-                            <div className="mt-10 text-center">
-                                <button 
-                                    onClick={() => setPage(p => p + 1)}
-                                    className="px-8 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-colors shadow-sm"
-                                >
-                                    {isLoading ? 'Loading...' : 'Load More'}
-                                </button>
+                            <div ref={lastProductElementRef} className="h-20 mt-6 flex items-center justify-center">
+                                {isLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>}
                             </div>
                         )}
                     </>

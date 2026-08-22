@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { resolveIcon } from '../../utils/iconRegistry';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useLocationContext } from '../../context/LocationContext';
+import ProductImage from '../../components/shared/ProductImage';
 
 const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -105,7 +107,7 @@ const Cart = () => {
             return;
         }
 
-        const finalLoc = getFinalLocation();
+        const finalLoc = location || {};
 
         try {
             // 1. Serviceability Check
@@ -257,7 +259,7 @@ const Cart = () => {
                 
                 const renderItem = (item) => (
                     <div key={item.cartId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition-shadow">
-                        <img src={item.image} alt={item.title || item.name} className="w-24 h-24 object-contain bg-gray-50 rounded-xl p-2" />
+                        <ProductImage product={item} className="w-24 h-24 object-contain bg-gray-50 rounded-xl p-2" />
                         <div className="flex-1 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -294,7 +296,9 @@ const Cart = () => {
                         {quickItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xl">⚡</span>
+                                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                                        <img src={resolveIcon('quick')} alt="Quick" className="w-full h-full object-cover" />
+                                    </div>
                                     <h2 className="text-lg font-black font-heading text-purple-900">Quick Delivery <span className="text-sm font-medium text-purple-600">(10-15 mins)</span></h2>
                                 </div>
                                 {quickItems.map(renderItem)}
@@ -304,7 +308,9 @@ const Cart = () => {
                         {freshItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xl">🥬</span>
+                                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                                        <img src={resolveIcon('fresh')} alt="Fresh" className="w-full h-full object-cover" />
+                                    </div>
                                     <h2 className="text-lg font-black font-heading text-green-900">Farm Direct <span className="text-sm font-medium text-green-600">(Sourced directly)</span></h2>
                                 </div>
                                 {freshItems.map(renderItem)}
@@ -314,7 +320,9 @@ const Cart = () => {
                         {shoppingItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xl">🛍️</span>
+                                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                                        <img src={resolveIcon('shopping')} alt="Shopping" className="w-full h-full object-cover" />
+                                    </div>
                                     <h2 className="text-lg font-black font-heading text-gray-900">Shopping <span className="text-sm font-medium text-gray-500">(Standard Delivery)</span></h2>
                                 </div>
                                 {shoppingItems.map(renderItem)}

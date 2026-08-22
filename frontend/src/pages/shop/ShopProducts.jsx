@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import ProductImage from '../../components/shared/ProductImage';
 import { useLocationContext } from '../../context/LocationContext';
 
 const ShopProducts = () => {
@@ -167,7 +168,7 @@ const ShopProducts = () => {
                     {products.map(product => (
                         <div key={product._id || product.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                             <div className="h-40 bg-gray-100 relative">
-                                <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+                                <ProductImage product={product} className="w-full h-full object-cover" />
                                 <span className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded text-xs font-bold text-gray-700">{product.category}</span>
                             </div>
                             <div className="p-4 flex-1 flex flex-col">

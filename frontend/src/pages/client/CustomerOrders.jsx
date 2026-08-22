@@ -1,6 +1,7 @@
 import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import ProductImage from '../../components/shared/ProductImage';
 
 const CustomerOrders = () => {
     const { accessToken } = useAuth();
@@ -126,7 +127,7 @@ const CustomerOrders = () => {
                                         {order.items && order.items.map((item, idx) => (
                                             <div key={idx} className="flex justify-between items-center text-sm border-b border-gray-200 pb-3 last:border-0 last:pb-0">
                                                 <div className="flex items-center gap-3">
-                                                    {item.image && <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-md shadow-sm" />}
+                                                    {item.image && <ProductImage product={item} className="w-12 h-12 object-cover rounded-md shadow-sm" />}
                                                     <div className="flex flex-col">
                                                         <span className="font-bold text-gray-900">{item.title}</span>
                                                     </div>

@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ProductCard from '../../../components/product/ProductCard';
 import toast from 'react-hot-toast';
+import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
+
+import CategorySection from '../../../components/marketplace/CategorySection';
 
 const CATEGORIES = [
-    'All', 'Milk', 'Bread & Butter', 'Eggs', 'Snacks', 
-    'Cold Drinks', 'Ice Cream', 'Daily Essentials'
+    'All', 'Daily Essentials', 'Milk & Dairy', 'Bakery', 'Snacks', 
+    'Drinks', 'Grocery', 'Personal Care', 'Household', 
+    'Mobile Accessories', 'Electronics', 'Gifts', 'Mobiles', 'Fashion Essentials'
 ];
 
 const QuickView = ({ location, searchQuery, setIsSearching }) => {
@@ -16,6 +20,42 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
     const [error, setError] = useState(null);
 
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [meta, setMeta] = useState({ 
+        categoryProducts: {},
+        categoryCounts: {}
+    });
+
+    const observer = useRef();
+    const lastProductElementRef = useCallback(node => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setPage(prevPage => prevPage + 1);
+            }
+        }, { rootMargin: '200px' });
+        if (node) observer.current.observe(node);
+    }, [isLoading, hasMore]);
+
+    useEffect(() => {
+        const fetchMeta = async () => {
+            try {
+                // Ensure meta gets correct location parameters if available
+                let url = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/quick-meta?`;
+                if (location?.lat) {
+                    url += `lat=${location.lat}&lng=${location.lng}`;
+                }
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMeta(data);
+                }
+            } catch (e) {
+                console.error("Meta fetch error", e);
+            }
+        };
+        fetchMeta();
+    }, [location]);
 
     useEffect(() => {
         setIsSearching(true);
@@ -58,8 +98,8 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
                 const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
-                    const newProducts = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : Array.isArray(data?.data?.products) ? data.data.products : Array.isArray(data?.data) ? data.data : [];
-                    const isLastPage = Array.isArray(data) ? true : (data?.currentPage >= data?.totalPages);
+                    const newProducts = data?.products || [];
+                    const isLastPage = (data?.pagination?.page || 1) >= (data?.pagination?.totalPages || 1);
                     
                     setProducts(prev => page === 1 ? newProducts : [...prev, ...newProducts]);
                     setHasMore(!isLastPage);
@@ -99,14 +139,37 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
         window.dispatchEvent(new Event('storage')); 
     };
 
+    const handleCategoryNavClick = (cat) => {
+        if (activeCategory === 'All' && !debouncedSearch) {
+            if (cat === 'All') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+            const el = document.getElementById(`section-${cat}`);
+            if (el) {
+                const y = el.getBoundingClientRect().top + window.scrollY - 100;
+                window.scrollTo({ top: y, behavior: 'smooth' });
+            } else {
+                setActiveCategory(cat);
+            }
+        } else {
+            setActiveCategory(cat);
+        }
+    };
+
+    const handleSeeAll = (cat) => {
+        setActiveCategory(cat);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     return (
         <div className="animate-slide-up">
             {/* Quick Delivery Banner */}
             <div className="px-4 md:px-8 mb-6">
                 <div className="bg-purple-100 border border-purple-200 rounded-3xl p-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <span className="text-2xl">⚡</span>
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden">
+                            <img src={resolveIcon('quick')} alt="Quick" className="w-full h-full object-cover" />
                         </div>
                         <div>
                             <h3 className="font-bold text-purple-900 leading-tight">Delivery in 10-15 mins</h3>
@@ -122,17 +185,44 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
                     {CATEGORIES.map(cat => (
                         <button
                             key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            className={`px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-purple-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+                            onClick={() => handleCategoryNavClick(cat)}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-purple-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
                         >
+                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
                             {cat}
                         </button>
                     ))}
                 </div>
             </div>
 
+            {/* Banners & Rails Area */}
+            {activeCategory === 'All' && !debouncedSearch && (
+                <>
+                    {CATEGORIES.filter(cat => cat !== 'All').map(cat => {
+                        const catProducts = meta.categoryProducts?.[cat];
+                        if (!catProducts || catProducts.length === 0) return null;
+                        return (
+                            <CategorySection 
+                                key={cat}
+                                id={`section-${cat}`}
+                                category={cat}
+                                subtitle="In 10-15 minutes"
+                                products={catProducts}
+                                count={meta.categoryCounts?.[cat] || catProducts.length}
+                                onSeeAll={handleSeeAll}
+                                onAddToCart={addToCart}
+                                isQuick={true} // Add visual distinction if necessary
+                            />
+                        );
+                    })}
+                </>
+            )}
+
             {/* Products Grid */}
             <div className="px-4 md:px-8 pb-12">
+                <h2 className="text-xl md:text-2xl font-black text-gray-900 font-heading mb-4">
+                    {activeCategory !== 'All' ? activeCategory : debouncedSearch ? 'Search Results' : 'All Products'}
+                </h2>
                 {isLoading && page === 1 ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
                         {[...Array(8)].map((_, i) => (
@@ -163,13 +253,8 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
                             ))}
                         </div>
                         {hasMore && (
-                            <div className="mt-10 text-center">
-                                <button 
-                                    onClick={() => setPage(p => p + 1)}
-                                    className="px-8 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-colors shadow-sm"
-                                >
-                                    {isLoading ? 'Loading...' : 'Load More'}
-                                </button>
+                            <div ref={lastProductElementRef} className="h-20 mt-6 flex items-center justify-center">
+                                {isLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>}
                             </div>
                         )}
                     </>

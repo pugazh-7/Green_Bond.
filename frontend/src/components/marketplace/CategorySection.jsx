@@ -1,16 +1,17 @@
 import React from 'react';
 import ProductCard from '../product/ProductCard';
+import { resolveCategoryIcon } from '../../utils/iconRegistry';
 
 const getBadgeForCategory = (category) => {
     switch (category) {
-        case 'Trending Now': return { text: '🔥 TRENDING NOW', bg: 'bg-orange-100 text-orange-800' };
-        case 'Fruits & Vegetables': return { text: '🌱 FRESH TODAY', bg: 'bg-green-100 text-green-800' };
-        case 'Grocery': return { text: '🛒 ESSENTIALS', bg: 'bg-blue-100 text-blue-800' };
-        case 'Snacks': return { text: '⭐ CUSTOMER FAVOURITES', bg: 'bg-yellow-100 text-yellow-800' };
-        case 'Electronics': return { text: '⚡ FAST SELLING', bg: 'bg-purple-100 text-purple-800' };
-        case 'Best Deals': return { text: '💰 BEST VALUE', bg: 'bg-red-100 text-red-800' };
-        case 'New Arrivals': return { text: '🆕 NEW ARRIVALS', bg: 'bg-indigo-100 text-indigo-800' };
-        default: return { text: '💚 GREENBOND PICKS', bg: 'bg-teal-100 text-teal-800' };
+        case 'Trending Now': return { text: 'TRENDING NOW', bg: 'bg-orange-100 text-orange-800' };
+        case 'Fruits & Vegetables': return { text: 'FRESH TODAY', bg: 'bg-green-100 text-green-800' };
+        case 'Grocery': return { text: 'ESSENTIALS', bg: 'bg-blue-100 text-blue-800' };
+        case 'Snacks': return { text: 'CUSTOMER FAVOURITES', bg: 'bg-yellow-100 text-yellow-800' };
+        case 'Electronics': return { text: 'FAST SELLING', bg: 'bg-purple-100 text-purple-800' };
+        case 'Best Deals': return { text: 'BEST VALUE', bg: 'bg-red-100 text-red-800' };
+        case 'New Arrivals': return { text: 'NEW ARRIVALS', bg: 'bg-indigo-100 text-indigo-800' };
+        default: return { text: 'GREENBOND PICKS', bg: 'bg-teal-100 text-teal-800' };
     }
 };
 
@@ -34,7 +35,7 @@ const getThemeForCategory = (category) => {
     }
 };
 
-const CategorySection = ({ id, category, subtitle, products = [], count = 0, onSeeAll, onAddToCart }) => {
+const CategorySection = ({ id, category, subtitle, products = [], count = 0, onSeeAll, onAddToCart, isPriority = false, isQuick = false }) => {
     if (!products || products.length === 0) return null;
     
     // Display max 6 products exactly as requested
@@ -50,12 +51,14 @@ const CategorySection = ({ id, category, subtitle, products = [], count = 0, onS
                         <span className={`text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest uppercase mb-3 inline-block ${badge.bg}`}>
                             {badge.text}
                         </span>
-                        <h2 className="text-2xl md:text-3xl font-black font-heading text-gray-900 tracking-tight">
-                            {category === 'Fruits & Vegetables' ? '🍎 ' : ''}
-                            {category === 'Snacks' ? '🍪 ' : ''}
-                            {category === 'Electronics' ? '📱 ' : ''}
-                            {category}
-                        </h2>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm">
+                                <img src={resolveCategoryIcon(category)} alt={category} className="w-full h-full object-cover" />
+                            </div>
+                            <h2 className="text-2xl md:text-3xl font-black font-heading text-gray-900 tracking-tight">
+                                {category}
+                            </h2>
+                        </div>
                         {subtitle && <p className="text-sm md:text-base text-gray-500 font-medium mt-1">{subtitle}</p>}
                     </div>
                     
@@ -70,12 +73,13 @@ const CategorySection = ({ id, category, subtitle, products = [], count = 0, onS
             </div>
 
             <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-3 md:gap-6 snap-x snap-mandatory no-scrollbar">
-                {displayProducts.map(product => (
+                {displayProducts.map((product, index) => (
                     <div key={product._id || product.id} className="min-w-[150px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full pb-2">
                         <ProductCard 
                             product={product} 
-                            variant="shopping" 
+                            variant={isQuick ? "quick" : "shopping"} 
                             onAddToCart={onAddToCart}
+                            priority={isPriority && index < 2}
                         />
                     </div>
                 ))}

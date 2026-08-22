@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { resolveIcon } from '../../utils/iconRegistry';
+import ProductImage from './ProductImage';
 
-const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
+const ProductCard = ({ product, variant = 'shopping', onAddToCart, priority = false }) => {
     const navigate = useNavigate();
     
     // Safety check
@@ -17,6 +19,11 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
     const distanceKm = (!isNaN(safeDistance) ? safeDistance : 1.2).toFixed(1);
     const eta = product.eta || (variant === 'quick' ? '10-15 min' : '2 days');
     const fallbackImage = 'https://images.unsplash.com/photo-1607344645866-009c320b63e0?q=80&w=500&auto=format&fit=crop';
+    
+    // Parse numeric price to avoid ₹₹40/kg when DB already has string formats
+    const rawPrice = product.price;
+    const numericPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+    const displayPrice = product.mrp || `₹${numericPrice}/${product.unit || 'kg'}`;
 
     const [quantity, setQuantity] = useState(0);
     const [isWishlisted, setIsWishlisted] = useState(false);
@@ -62,7 +69,16 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
                     toast.success('Removed from cart');
                 }
             } else if (change > 0) {
-                cart.push({ ...product, quantity: 1, cartType: variant === 'shopping' ? 'SHOPPING' : variant === 'quick' ? 'QUICK' : 'FRESH' });
+                const newCartType = variant === 'shopping' ? 'SHOPPING' : variant === 'quick' ? 'QUICK' : 'FRESH';
+                const hasOtherType = cart.some(i => i.cartType && i.cartType !== newCartType);
+                
+                if (hasOtherType) {
+                    if (!window.confirm(`This item is from the ${newCartType} delivery source, but your cart has items from other sources. Continue adding?`)) {
+                        return;
+                    }
+                }
+                
+                cart.push({ ...product, quantity: 1, cartType: newCartType });
                 toast.success('Added to cart');
             }
             
@@ -80,14 +96,9 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
             className="premium-card flex flex-col h-full cursor-pointer overflow-hidden group relative hover:-translate-y-1 transition-transform duration-300"
         >
             {/* Image Container */}
-            <div className="relative aspect-[4/3] w-full bg-gray-50 overflow-hidden p-4 flex items-center justify-center">
-                <img 
-                    src={product.image || fallbackImage} 
-                    alt={product.name || product.title || 'Product'} 
-                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500 ease-out"
-                    loading="lazy"
-                    onError={(e) => { e.target.onerror = null; e.target.src = fallbackImage; }}
-                />
+            <div className="relative aspect-[4/3] w-full bg-gray-50 overflow-hidden group">
+                {/* Reusable Image Component */}
+                <ProductImage product={product} priority={priority} />
 
                 {/* Wishlist Button */}
                 <button 
@@ -105,16 +116,22 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
                         {discountStr}
                     </div>
                 )}
-                {variant === 'quick' && (
-                    <div className="absolute bottom-2 right-2 bg-purple-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
-                        <span className="text-yellow-300">⚡</span> {eta}
-                    </div>
-                )}
-                {variant === 'fresh' && (
-                    <div className="absolute top-2 left-2 bg-green-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
-                        <span className="text-white">🥬</span> Farm Direct
-                    </div>
-                )}
+                {variant === 'quick' && (() => {
+                    const QuickIcon = resolveIcon('quick');
+                    return (
+                        <div className="absolute bottom-2 right-2 bg-purple-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
+                            <QuickIcon className="w-3 h-3" /> {eta}
+                        </div>
+                    );
+                })()}
+                {variant === 'fresh' && (() => {
+                    const FreshIcon = resolveIcon('fresh');
+                    return (
+                        <div className="absolute top-2 left-2 bg-green-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
+                            <FreshIcon className="w-3 h-3" /> Farm Direct
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Content Container */}
@@ -122,7 +139,7 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
                 <div className="flex-1">
                     {/* Brand / Farmer Name */}
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 line-clamp-1">
-                        {variant === 'fresh' ? `Farmer: ${product.farmerName || 'Kumar'}` : product.brand}
+                        {variant === 'fresh' ? `Farmer: ${product.farmer || 'Local Farmer'}` : product.brand}
                     </p>
                     
                     {/* Title */}
@@ -136,9 +153,9 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
                     </p>
                     
                     {/* Stock Indicator */}
-                    {product.availableQuantity > 0 && product.availableQuantity <= 5 && (
+                    {(product.stock > 0 || product.availableQuantity > 0) && (product.stock <= 5 || product.availableQuantity <= 5) && (
                         <p className="text-[10px] text-red-500 font-bold mt-1">
-                            Only {product.availableQuantity} left!
+                            Only {product.stock !== undefined ? product.stock : (product.availableQuantity || 0)} left!
                         </p>
                     )}
                 </div>
@@ -148,20 +165,28 @@ const ProductCard = ({ product, variant = 'shopping', onAddToCart }) => {
                     <div>
                         <div className="flex items-center gap-1.5">
                             <span className="font-black text-gray-900 text-base font-heading">
-                                ₹{product.price}
+                                {displayPrice}
                             </span>
-                            {product.originalPrice > product.price && (
+                            {product.mrp > numericPrice && (
                                 <span className="text-xs text-gray-400 line-through font-medium">
-                                    ₹{product.originalPrice}
+                                    ₹{product.mrp}
                                 </span>
                             )}
                         </div>
-                        {/* Extra Context */}
                         {variant === 'shopping' && (
                             <div className="flex items-center gap-1 mt-0.5">
                                 <svg className="w-3 h-3 text-yellow-400 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
                                 <span className="text-[10px] font-bold text-gray-600">{rating}</span>
                             </div>
+                        )}
+                        {variant === 'quick' && (
+                            <p className="text-[10px] text-purple-700 font-semibold mt-0.5 flex flex-col">
+                                <span className="flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                    {product.sourceName || 'Local Shop'}
+                                </span>
+                                <span className="text-gray-400 mt-0.5">{distanceKm} km away</span>
+                            </p>
                         )}
                         {variant === 'fresh' && (
                             <p className="text-[10px] text-green-700 font-semibold mt-0.5 flex items-center gap-1">

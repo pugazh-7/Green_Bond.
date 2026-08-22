@@ -5,51 +5,59 @@ const ClientBulkInquiries = () => {
     const [inquiries, setInquiries] = useState([]);
 
     useEffect(() => {
-        // In a real app, we would fetch inquiries specific to this farmer.
-        // For this demo, we'll read the global 'green_bond_bulk_orders' which simulates all inquiries.
-        const allInquiries = JSON.parse(localStorage.getItem('green_bond_bulk_orders') || '[]');
-        setInquiries(allInquiries);
+        const fetchInquiries = async () => {
+            try {
+                const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders/farmer-inquiries`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setInquiries(data);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchInquiries();
     }, []);
 
-    const handleAccept = (orderId) => {
-        const updatedInquiries = inquiries.map(order => {
-            if (order.orderId === orderId) {
-                // Create a delivery task for this accepted order
-                const deliveryOrder = {
-                    id: `DEL-${order.orderId}`,
-                    customer: order.customer?.name || "Bulk Buyer",
-                    status: 'Placed', // 'Placed' makes it visible to delivery boys
-                    deliveryAddress: order.customer?.address || "Customer Preferred Location",
-                    pickupAddress: order.location || "Farmer Location",
-                    items: [order.title],
-                    price: order.price,
-                    date: new Date().toISOString()
-                };
-
-                // Sync to Delivery System
-                const existingDeliveryOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-                localStorage.setItem('green_bond_orders', JSON.stringify([...existingDeliveryOrders, deliveryOrder]));
-
-                return { ...order, status: 'Order Confirmed' };
+    const handleAccept = async (orderId) => {
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}`
+                },
+                body: JSON.stringify({ status: 'Order Confirmed' })
+            });
+            if (res.ok) {
+                setInquiries(prev => prev.map(order => order.orderId === orderId ? { ...order, status: 'Order Confirmed' } : order));
+                toast.success("Order Accepted! Customer will be notified.");
             }
-            return order;
-        });
-        setInquiries(updatedInquiries);
-        localStorage.setItem('green_bond_bulk_orders', JSON.stringify(updatedInquiries));
-        toast.success("Order Accepted! Delivery Request Created.");
+        } catch (err) {
+            toast.error("Failed to accept order");
+        }
     };
 
-    const handleReject = (orderId) => {
-        if (!confirm("Reject this order? This cannot be undone.")) return;
-        const updatedInquiries = inquiries.map(order => {
-            if (order.orderId === orderId) {
-                return { ...order, status: 'Order Rejected' };
+    const handleReject = async (orderId) => {
+        if (!window.confirm("Reject this order? This cannot be undone.")) return;
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}`
+                },
+                body: JSON.stringify({ status: 'Order Rejected' })
+            });
+            if (res.ok) {
+                setInquiries(prev => prev.map(order => order.orderId === orderId ? { ...order, status: 'Order Rejected' } : order));
+                toast.error("Order Rejected.");
             }
-            return order;
-        });
-        setInquiries(updatedInquiries);
-        localStorage.setItem('green_bond_bulk_orders', JSON.stringify(updatedInquiries));
-        toast.error("Order Rejected.");
+        } catch (err) {
+            toast.error("Failed to reject order");
+        }
     };
 
     return (

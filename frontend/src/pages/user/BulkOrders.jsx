@@ -6,8 +6,20 @@ const BulkOrders = () => {
     const [inquiries, setInquiries] = useState([]);
 
     useEffect(() => {
-        const savedInquiries = JSON.parse(localStorage.getItem('green_bond_bulk_orders') || '[]');
-        setInquiries(savedInquiries);
+        const fetchInquiries = async () => {
+            try {
+                const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders/my-inquiries`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setInquiries(data);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchInquiries();
     }, []);
 
     const handleCancel = (orderId) => {
@@ -44,16 +56,23 @@ const BulkOrders = () => {
         });
     };
 
-    const confirmCancel = (orderId) => {
-        const updatedInquiries = inquiries.map(order => {
-            if (order.orderId === orderId) {
-                return { ...order, status: 'Cancelled' };
+    const confirmCancel = async (orderId) => {
+        try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}`
+                },
+                body: JSON.stringify({ status: 'Cancelled' })
+            });
+            if (res.ok) {
+                setInquiries(prev => prev.map(order => order.orderId === orderId ? { ...order, status: 'Cancelled' } : order));
+                toast.success("Order cancelled.");
             }
-            return order;
-        });
-        setInquiries(updatedInquiries);
-        localStorage.setItem('green_bond_bulk_orders', JSON.stringify(updatedInquiries));
-        toast.success("Order cancelled.");
+        } catch (err) {
+            toast.error("Failed to cancel order");
+        }
     };
 
 

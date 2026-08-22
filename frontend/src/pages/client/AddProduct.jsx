@@ -49,7 +49,7 @@ const AddProduct = () => {
         const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
 
         const newProduct = {
-            title: formData.name,
+            name: formData.name,
             farmer: currentUser.name || "Authorized Farmer",
             location: currentUser.location || "Your Farm",
             price: `₹${formData.price}/${formData.unit}`,
@@ -58,7 +58,7 @@ const AddProduct = () => {
             contact: formData.mobile,
             image: formData.image || "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?q=80&w=1974&auto=format&fit=crop",
             description: formData.description,
-            availableQuantity: parseInt(formData.quantity),
+            stock: parseInt(formData.quantity),
             unit: formData.unit,
             orderType: formData.orderType
         };

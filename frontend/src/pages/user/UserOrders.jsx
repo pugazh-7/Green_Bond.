@@ -1,5 +1,6 @@
 import { useAuth } from '../../context/AuthContext';
 import React, { useEffect, useState, useRef } from 'react';
+import ProductImage from '../../components/shared/ProductImage';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -286,7 +287,9 @@ const UserOrders = () => {
                         </div>
                         <div className="flex -space-x-4">
                             {items.map((item, i) => (
-                                <img key={i} className="w-12 h-12 rounded-full border-4 border-white shadow-sm object-cover" src={item.image} alt={item.title} title={item.title} />
+                                <div key={i} className="w-12 h-12 rounded-full border-4 border-white shadow-sm overflow-hidden">
+                                    <ProductImage product={item} />
+                                </div>
                             ))}
                         </div>
                     </div>

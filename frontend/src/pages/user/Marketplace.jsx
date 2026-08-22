@@ -1,8 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocationContext } from '../../context/LocationContext';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ProductCard from '../../components/product/ProductCard';
+import { resolveIcon, resolveCategoryIcon } from '../../utils/iconRegistry';
+import React from 'react';
 
 const CATEGORIES = [
     'All', 'Grocery', 'Fruits & Vegetables', 'Milk & Dairy', 'Snacks', 
@@ -38,6 +41,10 @@ const Marketplace = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [queryCompleted, setQueryCompleted] = useState(false);
+    
+    // Quick Marketplace specific states
+    const [quickMeta, setQuickMeta] = useState(null);
+    const [quickShops, setQuickShops] = useState([]);
 
     useEffect(() => {
         const phase = searchParams.get('phase') || 'SHOPPING';
@@ -49,9 +56,10 @@ const Marketplace = () => {
         }
     }, [urlLocation.search]);
 
-    // Fetch Meta Data (Only once or on mount)
+    // Fetch Meta Data
     useEffect(() => {
-        const fetchMeta = async () => {
+        const fetchShoppingMeta = async () => {
+            if (activePhase !== 'SHOPPING') return;
             try {
                 const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/shopping-meta`);
                 if (res.ok) {
@@ -62,8 +70,24 @@ const Marketplace = () => {
                 console.error("Meta fetch failed", err);
             }
         };
-        fetchMeta();
-    }, []);
+        fetchShoppingMeta();
+    }, [activePhase]);
+
+    useEffect(() => {
+        const fetchQuickData = async () => {
+            if (activePhase !== 'QUICK' || !location?.lat || !location?.lng) return;
+            try {
+                const metaRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/quick-meta?lat=${location.lat}&lng=${location.lng}`);
+                if (metaRes.ok) setQuickMeta(await metaRes.json());
+
+                const shopsRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/quick-shops?lat=${location.lat}&lng=${location.lng}`);
+                if (shopsRes.ok) setQuickShops(await shopsRes.json());
+            } catch (err) {
+                console.error("Quick data fetch failed", err);
+            }
+        };
+        fetchQuickData();
+    }, [activePhase, location]);
 
     // Debounce search query
     useEffect(() => {
@@ -129,8 +153,8 @@ const Marketplace = () => {
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
-                const newProducts = Array.isArray(data) ? data : (data.products || []);
-                const isLastPage = Array.isArray(data) ? true : (data.currentPage >= data.totalPages);
+                const newProducts = data?.products || [];
+                const isLastPage = (data?.pagination?.page || 1) >= (data?.pagination?.totalPages || 1);
                 
                 if (page === 1) {
                     setProducts(newProducts);
@@ -166,25 +190,7 @@ const Marketplace = () => {
     };
 
     const addToCart = (e, product) => {
-        e.stopPropagation();
-        const currentCart = JSON.parse(localStorage.getItem('user_cart') || '[]');
-        const hasShopItems = currentCart.some(item => item.sourceType === 'SHOP');
-        const hasFreshItems = currentCart.some(item => item.sourceType === 'FARMER');
-        
-        if ((product.sourceType === 'SHOP' && hasFreshItems) || (product.sourceType === 'FARMER' && hasShopItems)) {
-            toast.error("Cannot mix Fresh Farmer items with Local Shop items. Please checkout separately.");
-            return;
-        }
-
-        const existingItem = currentCart.find(item => item._id === product._id);
-        if (existingItem) {
-            existingItem.quantity += 1;
-            localStorage.setItem('user_cart', JSON.stringify(currentCart));
-        } else {
-            localStorage.setItem('user_cart', JSON.stringify([...currentCart, { ...product, quantity: 1 }]));
-        }
-        toast.success(`Added ${product.title} to cart`);
-        window.dispatchEvent(new Event('cart_updated'));
+        // Now handled inside ProductCard
     };
 
     const goToProductDetails = (productId) => {
@@ -213,90 +219,12 @@ const Marketplace = () => {
     const renderProductCards = (items) => (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
             {items.map(product => (
-                <div 
-                    key={`${product._id}-${Math.random()}`}
-                    onClick={() => goToProductDetails(product.id || product._id)}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group relative cursor-pointer"
-                >
-                    {product.discountPercentage > 0 && (
-                        <div className="absolute top-3 left-3 z-10 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm">
-                            {product.discountPercentage}% OFF
-                        </div>
-                    )}
-                    
-                    <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 items-end">
-                        {activePhase === 'QUICK' && (
-                            <div className="bg-purple-100 text-purple-700 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-purple-200">
-                                ⚡ 10-15 min
-                            </div>
-                        )}
-                        {activePhase === 'FRESH' && (
-                            <div className="bg-green-100 text-green-700 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-green-200">
-                                🥬 Fresh from Farmer
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="h-40 md:h-48 w-full bg-gray-50 relative p-4 flex items-center justify-center overflow-hidden">
-                        <img 
-                            src={product.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=60'} 
-                            alt={product.title} 
-                            className="max-h-full max-w-full object-contain group-hover:scale-110 transition-transform duration-500 drop-shadow-md"
-                            loading="lazy"
-                            onError={(e) => {
-                                e.target.onerror = null; 
-                                e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=60';
-                            }}
-                        />
-                    </div>
-                    
-                    <div className="p-4 flex-1 flex flex-col">
-                        {activePhase !== 'FRESH' && product.brand && (
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{product.brand}</span>
-                        )}
-                        <h3 className="font-bold text-gray-900 text-sm md:text-base leading-tight mb-1 line-clamp-2">{product.title}</h3>
-                        
-                        {activePhase !== 'FRESH' && (
-                            <div className="flex items-center gap-1 mb-2">
-                                <svg className="w-3.5 h-3.5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                                <span className="text-xs font-bold text-gray-700">{product.rating || 4.5}</span>
-                                <span className="text-xs text-gray-400">({product.reviewCount || 10})</span>
-                            </div>
-                        )}
-
-                        <div className="text-xs font-medium text-gray-500 mb-2 truncate mt-auto flex flex-col gap-0.5">
-                            {activePhase === 'FRESH' ? (
-                                <>
-                                    <span className="text-green-700 font-bold">{product.sourceName || 'Farmer'}</span>
-                                    <span>{product.distanceKm}km away</span>
-                                    <span className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">🌱 Freshly Harvested</span>
-                                </>
-                            ) : activePhase === 'QUICK' ? (
-                                <>
-                                    <span className="text-purple-700 font-bold">🏪 {product.sourceName}</span>
-                                    <span>{product.distanceKm}km away</span>
-                                </>
-                            ) : (
-                                <span className="text-gray-400 text-[10px]">Sold by {product.sourceName || 'GreenBond Hub'}</span>
-                            )}
-                            <span className="text-[10px] text-green-600 font-semibold mt-1">In Stock: {product.availableQuantity} {product.unit}</span>
-                        </div>
-                        
-                        <div className="mt-auto pt-3 flex items-center justify-between border-t border-gray-50">
-                            <div className="flex flex-col">
-                                <span className="text-lg font-black text-gray-900">₹{product.price}</span>
-                                {product.originalPrice && product.originalPrice !== product.price && (
-                                    <span className="text-[10px] text-gray-400 font-medium line-through">₹{product.originalPrice}</span>
-                                )}
-                            </div>
-                            <button 
-                                onClick={(e) => addToCart(e, product)}
-                                className="w-9 h-9 md:w-10 md:h-10 bg-green-50 text-green-600 hover:bg-green-600 hover:text-white rounded-xl flex items-center justify-center transition-colors shadow-sm shrink-0"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                            </button>
-                        </div>
-                    </div>
+                <div key={`${product._id}-${Math.random()}`} className="h-full">
+                    <ProductCard 
+                        product={product} 
+                        variant={activePhase.toLowerCase()} 
+                        priority={true} 
+                    />
                 </div>
             ))}
         </div>
@@ -309,13 +237,14 @@ const Marketplace = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto">
-                            <div className="hidden md:flex items-center justify-center w-10 h-10 bg-green-100 rounded-xl text-green-700 font-black text-xl cursor-pointer" onClick={() => navigate('/user/marketplace')}>
-                                G
+                            <div className={`hidden md:flex items-center justify-center w-10 h-10 rounded-xl font-black text-xl cursor-pointer ${activePhase === 'QUICK' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`} onClick={() => navigate('/user/marketplace')}>
+                                {activePhase === 'QUICK' ? '⚡' : 'G'}
                             </div>
                             <button onClick={requestLocation} className="flex flex-col items-start hover:bg-gray-50 px-2 py-1 rounded-lg transition-colors flex-1">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                    <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
-                                    Deliver To
+                                <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${activePhase === 'QUICK' ? 'text-purple-600' : 'text-gray-400'}`}>
+                                    {activePhase === 'QUICK' && <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>}
+                                    {!activePhase === 'QUICK' && <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>}
+                                    {activePhase === 'QUICK' ? 'Delivering in 10-15m to' : 'Deliver To'}
                                 </span>
                                 <span className="text-sm font-bold text-gray-900 truncate w-[200px] text-left">{location.address}</span>
                             </button>
@@ -335,7 +264,7 @@ const Marketplace = () => {
                         <div className="flex-1 w-full max-w-2xl relative">
                             <input 
                                 type="text"
-                                placeholder={`Search ${metaData.categoryCounts['All'] || '1000+'} products...`}
+                                placeholder={activePhase === 'QUICK' ? "Search 10-15m essentials..." : `Search ${metaData.categoryCounts['All'] || '1000+'} products...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => setShowSuggestions(suggestions.length > 0)}
@@ -381,9 +310,15 @@ const Marketplace = () => {
                 <div className="border-t border-gray-100 bg-white shadow-sm">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex gap-2 md:gap-4 overflow-x-auto py-3 hide-scrollbar">
-                            <button onClick={() => setActivePhase('SHOPPING')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'SHOPPING' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🛍️ Shopping</button>
-                            <button onClick={() => setActivePhase('QUICK')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'QUICK' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>⚡ Quick <span className="font-normal text-xs">(10-15m)</span></button>
-                            <button onClick={() => setActivePhase('FRESH')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'FRESH' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🌱 Fresh <span className="font-normal text-xs">(Farmer)</span></button>
+                            <button onClick={() => setActivePhase('SHOPPING')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'SHOPPING' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {React.createElement(resolveIcon('shopping'), { className: "w-5 h-5" })} Shopping
+                            </button>
+                            <button onClick={() => setActivePhase('QUICK')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'QUICK' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {React.createElement(resolveIcon('quick'), { className: "w-5 h-5" })} Quick <span className="font-normal text-xs">(10-15m)</span>
+                            </button>
+                            <button onClick={() => setActivePhase('FRESH')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'FRESH' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                {React.createElement(resolveIcon('fresh'), { className: "w-5 h-5" })} Fresh <span className="font-normal text-xs">(Farmer)</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -428,6 +363,9 @@ const Marketplace = () => {
                                             onClick={() => handleCategoryClick(cat)}
                                             className={`flex-shrink-0 px-6 py-4 rounded-2xl flex flex-col items-start gap-1 min-w-[120px] transition-all duration-300 ${isActive ? 'bg-gray-900 text-white shadow-xl scale-105' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-900 shadow-sm'}`}
                                         >
+                                            <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-500 mb-1 group-hover:bg-white transition-colors">
+                                                {React.createElement(resolveCategoryIcon(cat), { className: "w-6 h-6" })}
+                                            </div>
                                             <span className="font-bold text-sm leading-tight text-left">{cat}</span>
                                             {count > 0 && <span className={`text-[10px] font-semibold ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>({count})</span>}
                                         </button>
@@ -441,10 +379,142 @@ const Marketplace = () => {
                             <div className="space-y-10 mb-12">
                                 {metaData.bestDeals?.length > 0 && (
                                     <div>
-                                        <h3 className="text-xl font-black text-gray-900 mb-4">Best Deals 🔥</h3>
+                                        <h3 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                                            {React.createElement(resolveCategoryIcon('personal care'), { className: "w-6 h-6 text-pink-500" })} 
+                                            GreenBond Picks
+                                        </h3>
                                         <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
                                             <div className="flex gap-4 min-w-max">
                                                 {renderProductCards(metaData.bestDeals)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {metaData.newArrivals?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                                            {React.createElement(resolveCategoryIcon('electronics'), { className: "w-6 h-6 text-blue-500" })} 
+                                            New Arrivals
+                                        </h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(metaData.newArrivals)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Unified Discovery UI - QUICK Phase */}
+                {activePhase === 'QUICK' && !searchQuery && (
+                    <div className="mb-8">
+                        {/* Quick Categories */}
+                        <div className="mb-10">
+                            <h3 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="text-purple-600">⚡</span> Quick Essentials
+                            </h3>
+                            <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
+                                {['All', 'Milk', 'Bread & Butter', 'Eggs', 'Snacks', 'Cold Drinks', 'Ice Cream'].map((cat, idx) => {
+                                    const isActive = activeCategory === cat;
+                                    return (
+                                        <button 
+                                            key={idx} 
+                                            onClick={() => handleCategoryClick(cat)}
+                                            className={`flex-shrink-0 px-6 py-4 rounded-2xl flex flex-col items-start gap-1 min-w-[120px] transition-all duration-300 ${isActive ? 'bg-purple-900 text-white shadow-xl scale-105' : 'bg-white border border-gray-200 text-gray-600 hover:border-purple-900 shadow-sm'}`}
+                                        >
+                                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-1 group-hover:bg-white transition-colors">
+                                                {React.createElement(resolveCategoryIcon(cat), { className: "w-6 h-6" })}
+                                            </div>
+                                            <span className="font-bold text-sm leading-tight text-left">{cat}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Nearby Shops Rail */}
+                        {activeCategory === 'All' && quickShops.length > 0 && (
+                            <div className="mb-10">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Nearby Shops Serving You</h3>
+                                <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                    {quickShops.map(shop => (
+                                        <div key={shop.id} className="flex-shrink-0 w-64 bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                            <img src={shop.image} alt={shop.name} className="w-16 h-16 rounded-xl object-cover" />
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 text-sm truncate">{shop.name}</h4>
+                                                <div className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-1">
+                                                    <svg className="w-3 h-3 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                                    {shop.eta} • {shop.distanceKm} km
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Product Rails */}
+                        {activeCategory === 'All' && quickMeta && (
+                            <div className="space-y-10 mb-12">
+                                {quickMeta.milk?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Milk</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.milk)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {quickMeta.breadAndButter?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Bread & Butter</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.breadAndButter)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {quickMeta.eggs?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Eggs</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.eggs)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {quickMeta.snacks?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Snacks</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.snacks)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {quickMeta.coldDrinks?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Cold Drinks</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.coldDrinks)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {quickMeta.iceCream?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-4">Ice Cream</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                                            <div className="flex gap-4 min-w-max">
+                                                {renderProductCards(quickMeta.iceCream)}
                                             </div>
                                         </div>
                                     </div>
