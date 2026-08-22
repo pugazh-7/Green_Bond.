@@ -1,7 +1,17 @@
 import mongoose from 'mongoose';
 
 const ProductSchema = new mongoose.Schema({
-    title: { type: String, required: true },
+    name: { type: String, required: true },
+    slug: { type: String }, // Deterministic media ID
+    sku: { type: String },
+    barcode: { type: String },
+    variants: [{
+        name: String,
+        price: Number,
+        sku: String,
+        stock: Number
+    }],
+    thumbnailUrl: { type: String },
     farmer: { type: String, required: false },
     farmerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Farmer', required: false },
     sellerId: { type: mongoose.Schema.Types.ObjectId, required: false }, // References either Shop or Farmer depending on sourceType
@@ -11,9 +21,14 @@ const ProductSchema = new mongoose.Schema({
     minOrder: { type: String, required: true },
     category: { type: String, required: true },
     contact: { type: String, required: true },
-    image: { type: String },
+    image: { type: String, required: false },
+    images: { type: [String], default: [] },
+    imageSource: { type: String, enum: ['seller', 'manufacturer', 'catalog', 'external', 'generated'] },
+    imageAlt: { type: String },
+    imageStatus: { type: String, enum: ['pending', 'resolved', 'failed'], default: 'pending' },
+    imageUpdatedAt: { type: Date },
     description: { type: String },
-    availableQuantity: { type: Number, required: true },
+    stock: { type: Number, required: true },
     unit: { type: String, required: true },
     orderType: { type: String, enum: ['retail', 'bulk'], default: 'retail' },
     
@@ -25,7 +40,7 @@ const ProductSchema = new mongoose.Schema({
     rating: { type: Number, default: 4.5 },
     reviewCount: { type: Number, default: 0 },
     searchKeywords: { type: [String], default: [] },
-    originalPrice: { type: String },
+    mrp: { type: String },
     discountPercentage: { type: Number },
     tags: { type: [String], default: [] },
     aliases: { type: [String], default: [] },
@@ -36,13 +51,13 @@ ProductSchema.index({ farmerId: 1 });
 ProductSchema.index({ sellerId: 1 });
 ProductSchema.index({ sourceType: 1 });
 ProductSchema.index({ category: 1 });
-ProductSchema.index({ availableQuantity: 1 });
+ProductSchema.index({ stock: 1 });
 ProductSchema.index({ marketplaceType: 1 });
 ProductSchema.index({ isActive: 1 });
 
 // Text Index for robust searching
 ProductSchema.index({
-    title: 'text',
+    name: 'text',
     brand: 'text',
     category: 'text',
     subcategory: 'text',
@@ -52,7 +67,7 @@ ProductSchema.index({
     tags: 'text'
 }, {
     weights: {
-        title: 10,
+        name: 10,
         aliases: 9,
         searchKeywords: 8,
         brand: 5,

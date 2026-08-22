@@ -21,6 +21,8 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
+import imageProviderRoutes from './routes/imageProviderRoutes.js';
+import bulkOrderRoutes from './routes/bulkOrderRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -99,6 +101,7 @@ io.on('connection', (socket) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/product-images', imageProviderRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -106,8 +109,11 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/bulk-orders', bulkOrderRoutes);
 
 // Static Files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/cdn', express.static(path.join(__dirname, 'storage/cdn')));
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Catch-all for SPA

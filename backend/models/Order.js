@@ -33,10 +33,12 @@ const orderSchema = new mongoose.Schema({
     status: { 
         type: String, 
         enum: [
-            'PLACED', 'PENDING', 'ACCEPTED', 'FARMER_ACCEPTED', 'SHOP_ACCEPTED', 'PACKED', 
-            'ReadyForPickup', 'READY_FOR_PICKUP', 'Assigned', 'DELIVERY_ASSIGNED', 
-            'OutForDelivery', 'OUT_FOR_DELIVERY', 'PICKED_UP', 'Delivered', 'DELIVERED', 
-            'Cancelled', 'CANCELLED'
+            // Canonical States
+            'PLACED', 'CONFIRMED', 'PACKING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED',
+            // Legacy States (preserved for transition)
+            'PENDING', 'ACCEPTED', 'FARMER_ACCEPTED', 'SHOP_ACCEPTED', 'PACKED', 
+            'ReadyForPickup', 'Assigned', 'DELIVERY_ASSIGNED', 
+            'OutForDelivery', 'PICKED_UP', 'Delivered', 'Cancelled'
         ],
         default: 'PLACED' 
     },

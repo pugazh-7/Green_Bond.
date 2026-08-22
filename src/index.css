@@ -1,1 +1,58 @@
-@import "tailwindcss"
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+
+  --color-greenbond-50: #f0fdf4;
+  --color-greenbond-100: #dcfce7;
+  --color-greenbond-500: #22c55e;
+  --color-greenbond-600: #16a34a;
+  --color-greenbond-700: #15803d;
+  --color-greenbond-900: #14532d;
+  
+  --color-quick-50: #fff7ed;
+  --color-quick-500: #f97316;
+  --color-quick-600: #ea580c;
+
+  --color-fresh-50: #f0fdfa;
+  --color-fresh-500: #14b8a6;
+  --color-fresh-600: #0d9488;
+}
+
+/* Base resets for mobile-first */
+@layer base {
+  html, body {
+    @apply antialiased text-gray-900 bg-gray-50;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Hide scrollbar for horizontal scrolling containers */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Micro-animations */
+@layer utilities {
+  .animate-spring {
+    animation: spring 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+}
+
+@keyframes spring {
+  0% { transform: scale(0.95); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}

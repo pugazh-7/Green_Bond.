@@ -29,7 +29,9 @@ router.post('/add', verifyToken, async (req, res) => {
             return res.status(404).json({ message: "Product not found" });
         }
 
-        if (product.availableQuantity < quantity) {
+        const currentStock = product.stock !== undefined ? product.stock : (product.availableQuantity || 0);
+
+        if (currentStock < quantity) {
             return res.status(400).json({ message: "Insufficient stock" });
         }
 

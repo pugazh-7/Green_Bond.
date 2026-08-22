@@ -1,446 +1,222 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLocationContext } from '../../context/LocationContext';
+import ProductCard from '../../components/cards/ProductCard';
+import QuickCard from '../../components/cards/QuickCard';
+import FreshCard from '../../components/cards/FreshCard';
 import toast from 'react-hot-toast';
-import { io } from 'socket.io-client';
-
-let DefaultIcon = L.icon({
-    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
-    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-const MapController = ({ position }) => {
-    const map = useMap();
-    useEffect(() => {
-        if (position) {
-            map.flyTo([position.lat, position.lng], 14);
-        }
-    }, [position, map]);
-    return null;
-};
 
 const UserDashboard = () => {
-    const [latestOrder, setLatestOrder] = useState(null);
-    const [previousOrders, setPreviousOrders] = useState([]);
+    const navigate = useNavigate();
+    const { location, requestLocation } = useLocationContext();
+    const [activeMarket, setActiveMarket] = useState('SHOPPING'); // SHOPPING | QUICK | FRESH
     const [isLoading, setIsLoading] = useState(true);
-    const pollTimerRef = useRef(null);
+    
+    // Data states
+    const [shoppingData, setShoppingData] = useState({ bestDeals: [], newArrivals: [], categoryProducts: {} });
+    const [quickProducts, setQuickProducts] = useState([]);
+    const [freshProducts, setFreshProducts] = useState([]);
+    const [availability, setAvailability] = useState({ shoppingAvailable: true, quickAvailable: false, freshAvailable: false });
 
-    const fetchOrders = async (isPolling = false) => {
+    useEffect(() => {
+        fetchDashboardData();
+    }, [location]);
+
+    const fetchDashboardData = async () => {
+        setIsLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setIsLoading(false);
-                return;
-            }
+            const lat = location?.lat;
+            const lng = location?.lng;
+            
+            // 1. Check Availability
+            const availRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/availability?lat=${lat}&lng=${lng}`);
+            if (availRes.ok) setAvailability(await availRes.json());
 
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/my-orders`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.length > 0) {
-                    setLatestOrder(data[0]);
-                    setPreviousOrders(data.slice(1));
-                } else {
-                    setLatestOrder(null);
-                    setPreviousOrders([]);
-                }
+            // 2. Fetch Shopping Meta
+            const shopRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/shopping-meta`);
+            if (shopRes.ok) setShoppingData(await shopRes.json());
+
+            // 3. Fetch Quick & Fresh if location exists
+            if (lat && lng) {
+                const [quickRes, freshRes] = await Promise.all([
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/quick?lat=${lat}&lng=${lng}&limit=10`),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/fresh?lat=${lat}&lng=${lng}&limit=10`)
+                ]);
+                if (quickRes.ok) setQuickProducts((await quickRes.json()).products || []);
+                if (freshRes.ok) setFreshProducts((await freshRes.json()).products || []);
             }
         } catch (error) {
-            if (!isPolling) console.error('Failed to fetch orders:', error);
+            console.error("Dashboard fetch error:", error);
         } finally {
-            if (!isPolling) setIsLoading(false);
+            setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchOrders();
-        
-        // Socket.IO for real-time updates
-        const token = localStorage.getItem('token');
-        let userId = null;
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                userId = payload.id;
-            } catch (e) {}
+    const handleAddToCart = (product) => {
+        const cart = JSON.parse(localStorage.getItem('user_cart') || '[]');
+        const existing = cart.find(item => item.id === product.id);
+        if (existing) {
+            existing.cartQuantity += 1;
+        } else {
+            cart.push({ ...product, cartQuantity: 1 });
         }
-        
-        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
-        if (userId) {
-            socket.emit('join', userId);
-            socket.on('order_update', () => {
-                fetchOrders(true);
-            });
-        }
-        
-        pollTimerRef.current = setInterval(() => {
-            fetchOrders(true);
-        }, 60000); // 60s fallback sync
-
-        return () => {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            socket.disconnect();
-        };
-    }, []);
-
-    // Stop polling if delivered or cancelled
-    useEffect(() => {
-        if (latestOrder && ['DELIVERED', 'CANCELLED'].includes(latestOrder.status)) {
-            if (pollTimerRef.current) {
-                clearInterval(pollTimerRef.current);
-                pollTimerRef.current = null;
-            }
-        }
-    }, [latestOrder]);
-
-    const [trackingLoc, setTrackingLoc] = useState(null);
-
-    useEffect(() => {
-        if (!latestOrder) return;
-        
-        // Dynamic map location based on order status for simulation since we don't have real live driver GPS
-        let lat = 13.0827, lng = 80.2707; 
-        const status = latestOrder.status;
-        if (['PLACED'].includes(status)) { lat = 13.1000; lng = 80.3000; } // Farm Location
-        else if (['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(status)) { lat = 13.0900; lng = 80.2800; } // Packing
-        else if (['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status)) { lat = 13.0850; lng = 80.2750; } // En route
-        else if (['DELIVERED'].includes(status)) { lat = 13.0827; lng = 80.2707; } // Destination
-        
-        setTrackingLoc({ lat, lng });
-    }, [latestOrder]);
-
-    const handleCancelOrder = () => {
-        toast((t) => (
-            <div className="flex flex-col gap-3 min-w-[250px]">
-                <p className="font-semibold text-gray-900">Cancel this order?</p>
-                <div className="flex gap-3 justify-end">
-                    <button
-                        onClick={() => toast.dismiss(t.id)}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                        No, keep it
-                    </button>
-                    <button
-                        onClick={() => {
-                            toast.dismiss(t.id);
-                            confirmCancelOrder();
-                        }}
-                        className="px-3 py-1.5 text-sm font-bold bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                    >
-                        Yes, cancel
-                    </button>
-                </div>
-            </div>
-        ), {
-            duration: 5000,
-            style: { borderRadius: '16px', padding: '16px', background: '#fff', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', border: '1px solid #f3f4f6' }
-        });
+        localStorage.setItem('user_cart', JSON.stringify(cart));
+        toast.success(`Added ${product.title} to cart`);
+        // Trigger a custom event for layout to update count immediately
+        window.dispatchEvent(new Event('storage'));
     };
 
-    const confirmCancelOrder = async () => {
-        if (!latestOrder) return;
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${latestOrder.id}/status`, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ status: 'CANCELLED' })
-            });
-            if (res.ok) {
-                setLatestOrder({ ...latestOrder, status: 'CANCELLED' });
-                toast.success("Order cancelled successfully.");
-            } else {
-                toast.error("Failed to cancel order.");
-            }
-        } catch (err) {
-            toast.error("Network error.");
-        }
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return null;
-        return new Date(dateString).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
-    };
-
-    const formatShortTime = (dateString) => {
-        if (!dateString) return null;
-        return new Date(dateString).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-    };
-
-    const calculateETA = (createdAt) => {
-        if (!createdAt) return "TBD";
-        const createdTime = new Date(createdAt);
-        createdTime.setHours(createdTime.getHours() + 4); // 4 hour delivery window
-        
-        const now = new Date();
-        const isToday = createdTime.getDate() === now.getDate() && createdTime.getMonth() === now.getMonth() && createdTime.getFullYear() === now.getFullYear();
-        const timeString = createdTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-        
-        if (isToday) return `Today, ${timeString}`;
-        
-        now.setDate(now.getDate() + 1);
-        const isTomorrow = createdTime.getDate() === now.getDate() && createdTime.getMonth() === now.getMonth() && createdTime.getFullYear() === now.getFullYear();
-        
-        if (isTomorrow) return `Tomorrow, ${timeString}`;
-        
-        return `${createdTime.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}, ${timeString}`;
-    };
-
-    if (isLoading) {
-        return (
-            <div className="space-y-6 max-w-4xl mx-auto text-center py-20 flex justify-center">
-                <svg className="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-            </div>
-        );
-    }
-
-    if (!latestOrder) {
-        return (
-            <div className="space-y-6 max-w-4xl mx-auto text-center py-20">
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-12">
-                    <div className="w-20 h-20 bg-gray-100 rounded-full mx-auto flex items-center justify-center mb-6">
-                        <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Orders</h2>
-                    <p className="text-gray-500 mb-8">You haven't placed any orders yet. Visit the marketplace to get fresh produce.</p>
-                    <a href="#/user/marketplace" className="inline-block px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg">
-                        Go to Marketplace
-                    </a>
-                </div>
-            </div>
-        );
-    }
-
-    const orderId = latestOrder.id;
-    const orderDate = formatDate(latestOrder.createdAt);
-    const eta = calculateETA(latestOrder.createdAt);
-    const etaShortTime = calculateETA(latestOrder.createdAt).split(', ').pop();
-    const items = latestOrder.items || [];
-    const s = latestOrder.status;
+    const renderSkeletons = () => (
+        <div className="flex space-x-4 overflow-x-auto no-scrollbar py-2">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="w-40 h-56 bg-gray-200 animate-pulse rounded-2xl shrink-0"></div>
+            ))}
+        </div>
+    );
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-            <header>
-                <h1 className="text-3xl font-bold text-gray-900">Track Your Order</h1>
-                <p className="text-gray-500 mt-1">Order {orderId} • Placed on {orderDate}</p>
-            </header>
-
-            {/* Main Tracking Card */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                {/* Map Section */}
-                <div className="h-80 w-full relative z-0">
-                    <MapContainer
-                        center={[13.0827, 80.2707]}
-                        zoom={13}
-                        scrollWheelZoom={true}
-                        style={{ height: "100%", width: "100%" }}
-                        className="z-0"
-                    >
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                        {trackingLoc && <MapController position={trackingLoc} />}
-                        <Marker position={[trackingLoc?.lat || 13.0827, trackingLoc?.lng || 80.2707]}>
-                            <Popup className="custom-popup">
-                                <div className="font-bold text-blue-700 underline mb-1">Live Delivery Partner</div>
-                                <div className="text-xs text-gray-600">Arriving at your location soon.</div>
-                            </Popup>
-                        </Marker>
-                    </MapContainer>
-                    <div className="absolute top-4 right-4 z-[400]">
-                        <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <span className="text-xs font-bold text-green-800">Live Tracking</span>
+        <div className="flex flex-col min-h-screen bg-gray-50 font-sans pb-6">
+            {/* 1. Location Bar & Search Header */}
+            <div className="bg-white px-4 pt-safe-top pb-4 shadow-sm sticky top-0 z-40">
+                <div className="flex items-center justify-between mb-3 pt-2">
+                    <div className="flex items-center space-x-2" onClick={() => requestLocation()}>
+                        <span className="text-xl">📍</span>
+                        <div className="flex flex-col cursor-pointer">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Deliver to</span>
+                            <span className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">
+                                {location ? location.address : 'Select Location'} ▾
+                            </span>
                         </div>
+                    </div>
+                    <div className="w-10 h-10 bg-greenbond-50 rounded-full flex items-center justify-center cursor-pointer" onClick={() => navigate('/user/profile')}>
+                        <span className="text-lg">👤</span>
                     </div>
                 </div>
-
-                <div className="p-8">
-                    {/* ETA Section */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                        <div>
-                            <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Estimated Delivery</p>
-                            <h2 className="text-4xl font-extrabold text-gray-900 mt-1">{eta}</h2>
-                            <p className="text-green-600 font-medium mt-1">
-                                {s === 'DELIVERED' ? 'Delivered successfully' : 'On Time'}
-                            </p>
-                        </div>
-                        <div className="flex -space-x-4">
-                            {items.map((item, i) => (
-                                <img key={i} className="w-12 h-12 rounded-full border-4 border-white shadow-sm object-cover" src={item.image} alt={item.title} title={item.title} />
-                            ))}
-                        </div>
-                    </div>
-
-                    {s === 'OUT_FOR_DELIVERY' && latestOrder.deliveryOtp && (
-                        <div className="mb-8 border border-green-200 bg-green-50 p-4 rounded-xl flex justify-between items-center">
-                            <div>
-                                <h4 className="font-bold text-green-800">Delivery Security PIN</h4>
-                                <p className="text-sm text-green-700">Provide this to the partner to receive your order.</p>
-                            </div>
-                            <div className="bg-white border border-green-300 px-4 py-2 rounded-lg font-mono text-3xl font-black text-green-700 tracking-[0.2em] shadow-inner">
-                                {latestOrder.deliveryOtp}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Timeline */}
-                    <div className="relative">
-                        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-100"></div>
-                        <div className="space-y-8 relative">
-                            {/* Step 1: Order Placed */}
-                            <div className="flex gap-6 relative">
-                                <div className={`z-10 w-8 h-8 rounded-full flex items-center justify-center border-4 border-white shadow-sm bg-green-100`}>
-                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-gray-900">Order Placed</h4>
-                                    <p className="text-sm text-gray-500">{orderDate}</p>
-                                </div>
-                            </div>
-
-                            {/* Step 2: Packed by Farmer (Accepted / Ready / Assigned) */}
-                            <div className="flex gap-6 relative">
-                                {['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                    </div>
-                                ) : ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) ? (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
-                                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                    </div>
-                                ) : (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white">
-                                        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className={`font-bold ${['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? 'text-blue-600' : ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) ? 'text-gray-900' : 'text-gray-400'}`}>
-                                        Packed by Farmer
-                                    </h4>
-                                    <p className={`text-sm ${['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED'].includes(s) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {['FARMER_ACCEPTED', 'READY_FOR_PICKUP', 'DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) && latestOrder.acceptedAt
-                                            ? `Packed at ${formatShortTime(latestOrder.acceptedAt)}`
-                                            : 'Pending'
-                                        }
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Step 3: Out for Delivery */}
-                            <div className="flex gap-6 relative">
-                                {['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center border-4 border-blue-100 shadow-xl ring-4 ring-blue-50">
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                    </div>
-                                ) : ['DELIVERED'].includes(s) ? (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center border-4 border-white shadow-sm">
-                                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                    </div>
-                                ) : (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white">
-                                        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className={`font-bold ${['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? 'text-blue-600' : ['DELIVERED'].includes(s) ? 'text-gray-900' : 'text-gray-400'}`}>
-                                        Out for Delivery
-                                    </h4>
-                                    <p className={`text-sm ${['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(s) ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>
-                                        {['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(s) && latestOrder.shippedAt
-                                            ? `Left at ${formatShortTime(latestOrder.shippedAt)}`
-                                            : 'Estimated'
-                                        }
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Step 4: Delivered */}
-                            <div className="flex gap-6 relative">
-                                {['DELIVERED'].includes(s) ? (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-green-600 flex items-center justify-center border-4 border-green-100 shadow-xl ring-4 ring-green-50">
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                    </div>
-                                ) : (
-                                    <div className="z-10 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white">
-                                        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className={`font-bold ${['DELIVERED'].includes(s) ? 'text-green-600' : 'text-gray-400'}`}>Delivered</h4>
-                                    <p className="text-sm text-gray-500">
-                                        {['DELIVERED'].includes(s) && latestOrder.deliveredAt 
-                                            ? formatDate(latestOrder.deliveredAt)
-                                            : `Expected by ${etaShortTime}`
-                                        }
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 flex justify-between items-center">
-                    <button className="text-gray-600 font-semibold hover:text-gray-900 text-sm">Need Help?</button>
-                    <div className="flex gap-4">
-                        {['PLACED'].includes(s) && (
-                            <button
-                                onClick={handleCancelOrder}
-                                className="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors shadow-sm"
-                            >
-                                Cancel Order
-                            </button>
-                        )}
-                        <button className="px-6 py-2 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-lg">
-                            Call Delivery Partner
-                        </button>
-                    </div>
+                
+                {/* Search Bar Trigger */}
+                <div 
+                    onClick={() => navigate('/user/search')}
+                    className="w-full bg-gray-100 p-3 rounded-xl flex items-center space-x-2 cursor-text active:scale-95 transition-transform"
+                >
+                    <span className="text-gray-400">🔍</span>
+                    <span className="text-gray-500 text-sm">Search products, brands & farmers</span>
                 </div>
             </div>
 
-            {/* Previous Orders History */}
-            {previousOrders.length > 0 && (
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Previous Orders</h2>
-                    <div className="space-y-4">
-                        {previousOrders.map((order) => (
-                            <div key={order.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <div>
-                                    <p className="font-bold text-gray-900">Order {order.id}</p>
-                                    <p className="text-sm text-gray-500">{formatDate(order.createdAt)} • {order.items.length} Items</p>
-                                </div>
-                                <div className="text-right flex flex-col items-end">
-                                    <span className={`inline-block px-3 py-1 text-xs font-bold uppercase rounded-full mb-1 ${
-                                        order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                                        order.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
-                                        'bg-blue-50 text-blue-700'
-                                    }`}>
-                                        {order.status.replace(/_/g, ' ')}
-                                    </span>
-                                    <p className="text-sm font-semibold text-gray-900">{order.total}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+            {/* 2. Premium Marketplace Switcher */}
+            <div className="px-4 py-4">
+                <div className="flex p-1 bg-gray-200/60 rounded-2xl">
+                    <button 
+                        onClick={() => setActiveMarket('SHOPPING')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all duration-300 ${activeMarket === 'SHOPPING' ? 'bg-white shadow-sm text-greenbond-700' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        🛍 Shopping
+                    </button>
+                    <button 
+                        onClick={() => setActiveMarket('QUICK')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all duration-300 ${activeMarket === 'QUICK' ? 'bg-gradient-to-r from-quick-500 to-quick-600 shadow-md text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        ⚡ Quick
+                    </button>
+                    <button 
+                        onClick={() => setActiveMarket('FRESH')}
+                        className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all duration-300 ${activeMarket === 'FRESH' ? 'bg-fresh-600 shadow-md text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        🥬 Fresh
+                    </button>
                 </div>
-            )}
+            </div>
+
+            {/* 3. Marketplace Content */}
+            <div className="px-4 space-y-8">
+                {activeMarket === 'SHOPPING' && (
+                    <>
+                        <section>
+                            <div className="flex justify-between items-end mb-3">
+                                <h2 className="text-lg font-bold font-display text-gray-900">Deals Near You</h2>
+                                <span className="text-xs font-semibold text-greenbond-600">See all →</span>
+                            </div>
+                            {isLoading ? renderSkeletons() : (
+                                <div className="flex space-x-4 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 snap-x">
+                                    {shoppingData.bestDeals.map(p => <ProductCard key={p.id} product={p} onAdd={handleAddToCart} />)}
+                                </div>
+                            )}
+                        </section>
+                        
+                        <section>
+                            <div className="flex justify-between items-end mb-3">
+                                <h2 className="text-lg font-bold font-display text-gray-900">Recommended For You</h2>
+                                <span className="text-xs font-semibold text-greenbond-600">See all →</span>
+                            </div>
+                            {isLoading ? renderSkeletons() : (
+                                <div className="flex space-x-4 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 snap-x">
+                                    {shoppingData.newArrivals.map(p => <ProductCard key={p.id} product={p} onAdd={handleAddToCart} />)}
+                                </div>
+                            )}
+                        </section>
+                        
+                        {Object.entries(shoppingData.categoryProducts || {}).map(([cat, prods]) => (
+                            <section key={cat}>
+                                <div className="flex justify-between items-end mb-3">
+                                    <h2 className="text-lg font-bold font-display text-gray-900">{cat}</h2>
+                                    <span className="text-xs font-semibold text-greenbond-600">See all →</span>
+                                </div>
+                                <div className="flex space-x-4 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 snap-x">
+                                    {prods.map(p => <ProductCard key={p.id} product={p} onAdd={handleAddToCart} />)}
+                                </div>
+                            </section>
+                        ))}
+                    </>
+                )}
+
+                {activeMarket === 'QUICK' && (
+                    <>
+                        {!availability.quickAvailable && !isLoading ? (
+                            <div className="bg-orange-50 border border-orange-200 p-6 rounded-2xl text-center mt-8">
+                                <span className="text-4xl block mb-2">🛵</span>
+                                <h3 className="font-bold text-orange-800 mb-1">Quick Delivery Unavailable</h3>
+                                <p className="text-sm text-orange-600">There are no quick-commerce registered shops near your current location.</p>
+                            </div>
+                        ) : (
+                            <section>
+                                <div className="flex justify-between items-end mb-3">
+                                    <h2 className="text-lg font-bold font-display text-gray-900">Nearby Essentials (10-15 min)</h2>
+                                    <span className="text-xs font-semibold text-quick-600">See all →</span>
+                                </div>
+                                {isLoading ? renderSkeletons() : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {quickProducts.map(p => <QuickCard key={p.id} product={p} onAdd={handleAddToCart} />)}
+                                    </div>
+                                )}
+                            </section>
+                        )}
+                    </>
+                )}
+
+                {activeMarket === 'FRESH' && (
+                    <>
+                        {!availability.freshAvailable && !isLoading ? (
+                            <div className="bg-teal-50 border border-teal-200 p-6 rounded-2xl text-center mt-8">
+                                <span className="text-4xl block mb-2">🌱</span>
+                                <h3 className="font-bold text-teal-800 mb-1">No Farmers Nearby</h3>
+                                <p className="text-sm text-teal-600">There are no verified farmers in your serviceable area right now.</p>
+                            </div>
+                        ) : (
+                            <section>
+                                <div className="flex justify-between items-end mb-3">
+                                    <h2 className="text-lg font-bold font-display text-gray-900">Fresh Today</h2>
+                                    <span className="text-xs font-semibold text-fresh-600">See all →</span>
+                                </div>
+                                {isLoading ? renderSkeletons() : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {freshProducts.map(p => <FreshCard key={p.id} product={p} onAdd={handleAddToCart} />)}
+                                    </div>
+                                )}
+                            </section>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 };

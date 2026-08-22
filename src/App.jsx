@@ -23,6 +23,11 @@ const Marketplace = React.lazy(() => import('./pages/user/Marketplace'));
 const Portfolio = React.lazy(() => import('./pages/user/Portfolio'));
 const Cart = React.lazy(() => import('./pages/user/Cart'));
 const BulkOrders = React.lazy(() => import('./pages/user/BulkOrders'));
+const Search = React.lazy(() => import('./pages/user/Search'));
+const Checkout = React.lazy(() => import('./pages/user/Checkout'));
+const UserTracking = React.lazy(() => import('./pages/user/UserTracking'));
+const ProductDetail = React.lazy(() => import('./pages/user/ProductDetail'));
+const Settings = React.lazy(() => import('./pages/user/Settings'));
 
 const ClientLayout = React.lazy(() => import('./pages/client/ClientLayout'));
 const ClientDashboard = React.lazy(() => import('./pages/client/ClientDashboard'));
@@ -89,9 +94,15 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<UserDashboard />} />
+            <Route path="search" element={<Search />} />
             <Route path="marketplace" element={<Marketplace />} />
-            <Route path="portfolio" element={<Portfolio />} />
+            <Route path="profile" element={<Portfolio />} />
+            <Route path="orders" element={<Portfolio />} />
             <Route path="cart" element={<Cart />} />
+            <Route path="checkout" element={<Checkout />} />
+            <Route path="product/:id" element={<ProductDetail />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="tracking/:id" element={<UserTracking />} />
             <Route path="bulk-orders" element={<BulkOrders />} />
           </Route>
 

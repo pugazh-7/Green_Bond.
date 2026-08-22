@@ -35,10 +35,12 @@ router.post('/register-user', async (req, res) => {
             return res.status(400).json({ message: 'Passwords do not match' });
         }
 
+        const cleanEmail = email.trim().toLowerCase();
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = new User({ name, email, mobile, password: hashedPassword, location }); // role automatically defaults to 'customer'
+        const newUser = new User({ name, email: cleanEmail, mobile, password: hashedPassword, location }); // role automatically defaults to 'customer'
         await newUser.save();
 
         res.status(201).json({ message: 'User registered successfully', user: { name: newUser.name, email: newUser.email, role: newUser.role } });

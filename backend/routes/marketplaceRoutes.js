@@ -38,30 +38,39 @@ const searchAliases = {
     'biscut': 'biscuit'
 };
 
-const getSearchRegex = (q) => {
+const normalizeSearchQuery = (q) => {
     let normalizedQ = q.toLowerCase();
     let words = normalizedQ.split(/\s+/).filter(w => w.length > 0);
     
+    let expandedWords = new Set();
     words.forEach(word => {
+        expandedWords.add(word);
         if (searchAliases[word]) {
-            words.push(searchAliases[word]);
+            expandedWords.add(searchAliases[word]);
         }
     });
 
+    return Array.from(expandedWords).join(' ');
+};
+
+const getSearchRegex = (q) => {
+    if (!q) return [];
+    const normalizedQ = normalizeSearchQuery(q);
+    const words = normalizedQ.split(/\s+/).filter(w => w.length > 0);
     return words.map(w => new RegExp(w, 'i'));
 };
 
 const calculateSearchScore = (product, queryRegexes, rawQuery) => {
     let score = 0;
-    const title = product.title.toLowerCase();
+    const name = product.name.toLowerCase();
     const rawQ = rawQuery.toLowerCase();
     
-    if (title === rawQ) score += 100;
-    else if (title.startsWith(rawQ)) score += 80;
-    else if (title.includes(rawQ)) score += 50;
+    if (name === rawQ) score += 100;
+    else if (name.startsWith(rawQ)) score += 80;
+    else if (name.includes(rawQ)) score += 50;
 
     queryRegexes.forEach(regex => {
-        if (regex.test(product.title)) score += 40;
+        if (regex.test(product.name)) score += 40;
         if (product.brand && regex.test(product.brand)) score += 60;
         if (regex.test(product.category)) score += 50;
         if (product.subcategory && regex.test(product.subcategory)) score += 40;
@@ -135,14 +144,14 @@ router.get('/shopping-meta', async (req, res) => {
         // Prepare the promises
         const promises = [
             Product.aggregate([
-                { $match: { marketplaceType: 'SHOPPING', isActive: true, availableQuantity: { $gt: 0 } } },
+                { $match: { marketplaceType: 'SHOPPING', isActive: true, stock: { $gt: 0 } } },
                 { $group: { _id: '$category', count: { $sum: 1 } } }
             ]),
-            Product.find({ marketplaceType: 'SHOPPING', isActive: true, discountPercentage: { $gt: 0 }, availableQuantity: { $gt: 0 } })
+            Product.find({ marketplaceType: 'SHOPPING', isActive: true, discountPercentage: { $gt: 0 }, stock: { $gt: 0 } })
                 .sort({ discountPercentage: -1 })
                 .limit(6)
                 .lean(),
-            Product.find({ marketplaceType: 'SHOPPING', isActive: true, availableQuantity: { $gt: 0 } })
+            Product.find({ marketplaceType: 'SHOPPING', isActive: true, stock: { $gt: 0 } })
                 .sort({ createdAt: -1 })
                 .limit(6)
                 .lean()
@@ -151,7 +160,7 @@ router.get('/shopping-meta', async (req, res) => {
         // Add a query for each core category to get top 6 products
         coreCategories.forEach(cat => {
             promises.push(
-                Product.find({ marketplaceType: 'SHOPPING', isActive: true, category: cat, availableQuantity: { $gt: 0 } })
+                Product.find({ marketplaceType: 'SHOPPING', isActive: true, category: cat, stock: { $gt: 0 } })
                     .sort({ createdAt: -1, rating: -1 }) // simple heuristic for 'top'
                     .limit(6)
                     .lean()
@@ -202,9 +211,9 @@ router.get('/suggestions', async (req, res) => {
         
         const regexes = getSearchRegex(q);
         const products = await Product.find({
-            availableQuantity: { $gt: 0 },
+            stock: { $gt: 0 },
             $or: [
-                { title: { $in: regexes } },
+                { name: { $in: regexes } },
                 { brand: { $in: regexes } },
                 { searchKeywords: { $in: regexes } },
                 { category: { $in: regexes } }
@@ -213,7 +222,7 @@ router.get('/suggestions', async (req, res) => {
 
         const suggestions = products.map(p => ({
             id: p._id,
-            title: p.title,
+            name: p.name,
             brand: p.brand,
             category: p.category
         }));
@@ -266,62 +275,42 @@ router.get('/products', async (req, res) => {
         }
 
         let baseQuery = {
-            availableQuantity: { $gt: 0 },
-            $or: [
-                { sellerType: 'ADMIN', marketplaceType: 'SHOPPING' }
-            ]
+            stock: { $gt: 0 },
+            marketplaceType: 'SHOPPING'
         };
 
         if (hasLocation) {
-            baseQuery.$or.push({ sellerId: { $in: shopIds }, sourceType: 'SHOP', marketplaceType: 'SHOPPING' });
-            baseQuery.$or.push({ sellerId: { $in: farmerIds }, sourceType: 'FARMER', marketplaceType: 'SHOPPING' });
+            baseQuery.$or = [
+                { sellerType: 'ADMIN' },
+                { sellerId: { $in: shopIds }, sourceType: 'SHOP' },
+                { sellerId: { $in: farmerIds }, sourceType: 'FARMER' }
+            ];
         }
 
         if (category && category !== 'All') {
             baseQuery.category = category;
         }
 
-        let regexes = [];
         if (q && q.trim() !== '') {
-            regexes = getSearchRegex(q);
-            baseQuery = {
-                ...baseQuery,
-                $or: [
-                    { title: { $in: regexes } },
-                    { brand: { $in: regexes } },
-                    { category: { $in: regexes } },
-                    { subcategory: { $in: regexes } },
-                    { searchKeywords: { $in: regexes } },
-                    { description: { $in: regexes } }
-                ]
-            };
-            if (hasLocation || baseQuery.$or) {
-                 baseQuery = {
-                    availableQuantity: { $gt: 0 },
-                    $and: [
-                        { $or: [
-                            { sellerType: 'ADMIN', marketplaceType: 'SHOPPING' },
-                            ...(hasLocation ? [
-                                { sellerId: { $in: shopIds }, sourceType: 'SHOP', marketplaceType: 'SHOPPING' },
-                                { sellerId: { $in: farmerIds }, sourceType: 'FARMER', marketplaceType: 'SHOPPING' }
-                            ] : [])
-                        ]},
-                        { $or: [
-                            { title: { $in: regexes } },
-                            { brand: { $in: regexes } },
-                            { category: { $in: regexes } },
-                            { subcategory: { $in: regexes } },
-                            { searchKeywords: { $in: regexes } },
-                            { description: { $in: regexes } }
-                        ]}
-                    ]
-                 };
-                 if (category && category !== 'All') {
-                     baseQuery.category = category;
-                 }
+            const normalizedQuery = normalizeSearchQuery(q);
+            
+            if (hasLocation) {
+                // If location is provided, $or is already being used for location.
+                // We must use $and to combine the location $or array with the $text search.
+                const locationOr = baseQuery.$or;
+                delete baseQuery.$or;
+                
+                baseQuery.$and = [
+                    { $or: locationOr },
+                    { $text: { $search: normalizedQuery } }
+                ];
+            } else {
+                baseQuery.$text = { $search: normalizedQuery };
             }
         }
 
+
+        const total = await Product.countDocuments(baseQuery);
         let products = await Product.find(baseQuery).lean();
 
         const userLat = hasLocation ? parseFloat(lat) : null;
@@ -353,11 +342,16 @@ router.get('/products', async (req, res) => {
                 distance = 0; 
             }
             
+            
             productObj.distanceKm = distance.toFixed(1);
             productObj.eta = p.sellerType === 'ADMIN' ? '1-2 Days' : calculateETA(distance, p.sourceType);
             
+            // Use the canonical image from DB
+            productObj.primaryImageUrl = productObj.image;
+            
             if (q && q.trim() !== '') {
-                productObj.searchScore = calculateSearchScore(p, regexes, q);
+                // MongoDB text search automatically sorts by textScore if projected
+                productObj.searchScore = 1; // Basic placeholder for existing sorting since Mongo handles it
             } else {
                 productObj.searchScore = 0;
             }
@@ -365,7 +359,8 @@ router.get('/products', async (req, res) => {
         });
 
         if (q && q.trim() !== '') {
-            mappedProducts = mappedProducts.filter(p => p.searchScore > 0).sort((a, b) => b.searchScore - a.searchScore);
+            // Mongo text search handles sorting naturally, but we can do a fallback filter if needed.
+            // Since we queried with $text, all mappedProducts are inherently relevant.
         }
 
         // Apply Pagination
@@ -374,14 +369,154 @@ router.get('/products', async (req, res) => {
         const paginatedProducts = mappedProducts.slice(startIndex, endIndex);
 
         res.json({
+            success: true,
             products: paginatedProducts,
-            totalPages: Math.ceil(mappedProducts.length / limit),
-            currentPage: page,
-            totalProducts: mappedProducts.length
+            pagination: {
+                page: page,
+                limit: limit,
+                total: mappedProducts.length,
+                totalPages: Math.ceil(mappedProducts.length / limit)
+            }
         });
 
     } catch (error) {
         console.error("Products error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// --- Quick Marketplace Metadata ---
+router.get('/quick-meta', async (req, res) => {
+    try {
+        let { lat, lng } = req.query;
+        let shopIds = [];
+        
+        if (lat && lng && lat !== 'undefined' && lng !== 'undefined') {
+            const userLat = parseFloat(lat);
+            const userLng = parseFloat(lng);
+            let shops = await Shop.find({
+                locationGeo: {
+                    $near: {
+                        $geometry: { type: "Point", coordinates: [userLng, userLat] },
+                        $maxDistance: 5000
+                    }
+                },
+                isActive: true
+            }).lean();
+            
+            if (shops.length === 0) {
+                const mockShop = await Shop.findOne({ email: "quickmart@greenbond.com" }).lean();
+                if (mockShop) shops = [mockShop];
+            }
+            
+            shopIds = shops.map(s => s._id);
+        }
+
+        const coreCategories = ['Daily Essentials', 'Milk & Dairy', 'Bakery', 'Snacks', 'Drinks', 'Grocery', 'Personal Care', 'Household', 'Mobile Accessories', 'Electronics', 'Gifts', 'Mobiles', 'Fashion Essentials'];
+        let baseMatch = { marketplaceType: 'QUICK', isActive: true, stock: { $gt: 0 } };
+        if (shopIds.length > 0) {
+            baseMatch.sellerId = { $in: shopIds };
+        }
+
+        const promises = [
+            Product.aggregate([
+                { $match: baseMatch },
+                { $group: { _id: '$category', count: { $sum: 1 } } }
+            ])
+        ];
+
+        // Fetch top 10 products for the key rails
+        coreCategories.forEach(cat => {
+            promises.push(
+                Product.find({ ...baseMatch, category: cat })
+                    .sort({ rating: -1, createdAt: -1 })
+                    .limit(10)
+                    .lean()
+            );
+        });
+
+        const results = await Promise.all(promises);
+        const counts = results[0];
+
+        let formattedCounts = {};
+        let totalQuick = 0;
+        counts.forEach(c => {
+            if (c._id) {
+                formattedCounts[c._id] = c.count;
+                totalQuick += c.count;
+            }
+        });
+        formattedCounts['All'] = totalQuick;
+
+        let categoryProducts = {};
+        for (let i = 0; i < coreCategories.length; i++) {
+            const cat = coreCategories[i];
+            const products = results[1 + i];
+            if (products && products.length > 0) {
+                categoryProducts[cat] = products.map(p => ({ ...p, id: p._id }));
+            }
+        }
+
+        res.json({
+            categoryCounts: formattedCounts,
+            categoryProducts: categoryProducts
+        });
+
+    } catch (error) {
+        console.error("Quick Meta error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// --- Quick Nearby Shops ---
+router.get('/quick-shops', async (req, res) => {
+    try {
+        let { lat, lng } = req.query;
+        if (!lat || !lng || lat === 'undefined' || lng === 'undefined') {
+            return res.json([]);
+        }
+
+        const userLat = parseFloat(lat);
+        const userLng = parseFloat(lng);
+
+        let shops = await Shop.find({
+            locationGeo: {
+                $near: {
+                    $geometry: { type: "Point", coordinates: [userLng, userLat] },
+                    $maxDistance: 5000 // 5km service radius
+                }
+            },
+            isActive: true
+        }).lean();
+
+        if (shops.length === 0) {
+            const mockShop = await Shop.findOne({ email: "quickmart@greenbond.com" }).lean();
+            if (mockShop) {
+                mockShop.isFallback = true;
+                shops = [mockShop];
+            }
+        }
+
+        const shopResults = shops.map(shop => {
+            let distanceKm = shop.isFallback ? 1.5 : calculateDistance(userLat, userLng, shop.locationGeo.coordinates[1], shop.locationGeo.coordinates[0]);
+            // Preparation Time (e.g. 5 mins) + Travel time (e.g. 2 mins per km)
+            const prepTime = 5;
+            const travelTime = Math.ceil(distanceKm * 2);
+            const minETA = prepTime + travelTime;
+            const maxETA = minETA + 5;
+            
+            return {
+                id: shop._id,
+                name: shop.name,
+                image: shop.image || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=200&auto=format&fit=crop', // default shop image
+                distanceKm: distanceKm.toFixed(1),
+                eta: `${minETA}-${maxETA} min`
+            };
+        });
+
+        res.json(shopResults);
+    } catch (error) {
+        console.error("Quick Shops error:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
@@ -400,7 +535,7 @@ router.get('/quick', async (req, res) => {
         const userLat = parseFloat(lat);
         const userLng = parseFloat(lng);
 
-        const shops = await Shop.find({
+        let shops = await Shop.find({
             locationGeo: {
                 $near: {
                     $geometry: { type: "Point", coordinates: [userLng, userLat] },
@@ -410,11 +545,19 @@ router.get('/quick', async (req, res) => {
             isActive: true
         }).lean();
         
+        if (shops.length === 0) {
+            const mockShop = await Shop.findOne({ email: "quickmart@greenbond.com" }).lean();
+            if (mockShop) {
+                mockShop.isFallback = true;
+                shops = [mockShop];
+            }
+        }
+        
         if (shops.length === 0) return res.json([]);
         const shopIds = shops.map(s => s._id);
 
         let baseQuery = {
-            availableQuantity: { $gt: 0 },
+            stock: { $gt: 0 },
             sellerId: { $in: shopIds },
             marketplaceType: 'QUICK'
         };
@@ -429,9 +572,9 @@ router.get('/quick', async (req, res) => {
             baseQuery = {
                 ...baseQuery,
                 $and: [
-                    { sellerId: { $in: shopIds }, marketplaceType: 'QUICK', availableQuantity: { $gt: 0 } },
+                    { sellerId: { $in: shopIds }, marketplaceType: 'QUICK', stock: { $gt: 0 } },
                     { $or: [
-                        { title: { $in: regexes } },
+                        { name: { $in: regexes } },
                         { brand: { $in: regexes } },
                         { category: { $in: regexes } },
                         { subcategory: { $in: regexes } },
@@ -453,7 +596,7 @@ router.get('/quick', async (req, res) => {
             const shop = shops.find(s => s._id.toString() === p.sellerId?.toString());
             let distance = 0;
             if (shop) {
-                distance = calculateDistance(userLat, userLng, shop.locationGeo.coordinates[1], shop.locationGeo.coordinates[0]);
+                distance = shop.isFallback ? 1.5 : calculateDistance(userLat, userLng, shop.locationGeo.coordinates[1], shop.locationGeo.coordinates[0]);
                 productObj.sourceName = shop.name;
                 productObj.isQuickEligible = true;
             }
@@ -478,10 +621,14 @@ router.get('/quick', async (req, res) => {
         const paginatedProducts = mappedProducts.slice(startIndex, endIndex);
 
         res.json({
+            success: true,
             products: paginatedProducts,
-            totalPages: Math.ceil(mappedProducts.length / limit),
-            currentPage: page,
-            totalProducts: mappedProducts.length
+            pagination: {
+                page: page,
+                limit: limit,
+                total: mappedProducts.length,
+                totalPages: Math.ceil(mappedProducts.length / limit)
+            }
         });
     } catch (error) {
         console.error("Quick API error:", error);
@@ -517,27 +664,32 @@ router.get('/fresh', async (req, res) => {
         const farmerIds = farmers.map(f => f._id);
 
         let baseQuery = {
-            availableQuantity: { $gt: 0 },
             $or: [
-                { sellerId: { $in: farmerIds } },
-                { farmerId: { $in: farmerIds } }
+                { stock: { $gt: 0 } },
+                { availableQuantity: { $gt: 0 } }
             ],
-            marketplaceType: 'FRESH'
+            $and: [
+                { $or: [{ sellerId: { $in: farmerIds } }, { farmerId: { $in: farmerIds } }] },
+                { marketplaceType: 'FRESH' }
+            ]
         };
 
         if (category && category !== 'All') {
             baseQuery.category = category;
         }
 
-        let regexes = [];
         if (q && q.trim() !== '') {
             regexes = getSearchRegex(q);
             baseQuery = {
-                ...baseQuery,
                 $and: [
-                    { $or: [{ sellerId: { $in: farmerIds } }, { farmerId: { $in: farmerIds } }] },
-                    { marketplaceType: 'FRESH', availableQuantity: { $gt: 0 } },
                     { $or: [
+                        { stock: { $gt: 0 } },
+                        { availableQuantity: { $gt: 0 } }
+                    ] },
+                    { $or: [{ sellerId: { $in: farmerIds } }, { farmerId: { $in: farmerIds } }] },
+                    { marketplaceType: 'FRESH' },
+                    { $or: [
+                        { name: { $in: regexes } },
                         { title: { $in: regexes } },
                         { brand: { $in: regexes } },
                         { category: { $in: regexes } },
@@ -554,6 +706,10 @@ router.get('/fresh', async (req, res) => {
 
         let mappedProducts = products.map(p => {
             let productObj = { ...p, id: p._id };
+            // Normalize schema differences
+            productObj.name = p.name || p.title;
+            productObj.stock = p.stock !== undefined ? p.stock : (p.availableQuantity || 0);
+
             let farmer = farmers.find(f => f._id.toString() === p.sellerId?.toString() || f._id.toString() === p.farmerId?.toString());
             let distance = 0;
             if (farmer) {
@@ -583,10 +739,14 @@ router.get('/fresh', async (req, res) => {
         const paginatedProducts = mappedProducts.slice(startIndex, endIndex);
 
         res.json({
+            success: true,
             products: paginatedProducts,
-            totalPages: Math.ceil(mappedProducts.length / limit),
-            currentPage: page,
-            totalProducts: mappedProducts.length
+            pagination: {
+                page: page,
+                limit: limit,
+                total: mappedProducts.length,
+                totalPages: Math.ceil(mappedProducts.length / limit)
+            }
         });
     } catch (error) {
         console.error("Fresh API error:", error);

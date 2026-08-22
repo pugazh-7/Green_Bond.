@@ -66,33 +66,48 @@ router.post('/', verifyToken, async (req, res) => {
              orderData.pickupLocation = { lat: pickupLat, lng: pickupLng };
         }
 
-        // Pre-check inventory to prevent negative stock
+        let totalProductAmount = 0;
+        
+        // Pre-check inventory to prevent negative stock and enforce DB price
         for (const item of orderData.items) {
             if (item.productId) {
                 const product = await Product.findById(item.productId);
-                if (!product || product.availableQuantity < item.quantity) {
-                    return res.status(400).json({ message: `Insufficient stock for product: ${item.title}. Available: ${product ? product.availableQuantity : 0}` });
+                const currentStock = product && (product.stock !== undefined ? product.stock : (product.availableQuantity || 0));
+                
+                if (!product || currentStock < item.quantity) {
+                    return res.status(400).json({ message: `Insufficient stock for product: ${item.title || item.name}. Available: ${currentStock}` });
                 }
+                
+                // Enforce price from backend
+                const rawPrice = product.price;
+                const dbPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+                item.price = dbPrice;
+                totalProductAmount += (dbPrice * item.quantity);
             }
         }
 
         // Inventory Deduction (Atomic)
         for (const item of orderData.items) {
             if (item.productId) {
+                // Safely decrement either stock or availableQuantity
                 await Product.findOneAndUpdate(
-                    { _id: item.productId, availableQuantity: { $gte: item.quantity } },
-                    { $inc: { availableQuantity: -item.quantity } },
+                    { 
+                        _id: item.productId, 
+                        $or: [
+                            { stock: { $gte: item.quantity } },
+                            { availableQuantity: { $gte: item.quantity } }
+                        ]
+                    },
+                    { 
+                        $inc: { 
+                            stock: -item.quantity, 
+                            availableQuantity: -item.quantity 
+                        } 
+                    },
                     { new: true }
                 );
             }
         }
-
-        // COD Tracking & Commission Splits
-        let totalProductAmount = 0;
-        orderData.items.forEach(item => {
-            const price = typeof item.price === 'string' ? parseFloat(item.price.replace(/[^0-9.]/g, '')) : item.price;
-            totalProductAmount += (price * item.quantity);
-        });
         
         orderData.productAmount = totalProductAmount;
         orderData.greenBondCommission = totalProductAmount * 0.10; // 10%
@@ -253,15 +268,15 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         }
         // ------------------------
 
-        // Strict transition validations
+        // Strict transition validations (Canonical 8 States)
         const validTransitions = {
-            'PLACED': ['FARMER_ACCEPTED', 'SHOP_ACCEPTED', 'CANCELLED'],
-            'FARMER_ACCEPTED': ['READY_FOR_PICKUP', 'CANCELLED'],
-            'SHOP_ACCEPTED': ['READY_FOR_PICKUP', 'CANCELLED'],
-            'READY_FOR_PICKUP': ['DELIVERY_ASSIGNED'], // Can't go to PICKED_UP without OTP
-            'DELIVERY_ASSIGNED': ['PICKED_UP'],
-            'PICKED_UP': ['OUT_FOR_DELIVERY'],
-            'OUT_FOR_DELIVERY': ['DELIVERED']
+            'PLACED': ['CONFIRMED', 'CANCELLED'],
+            'CONFIRMED': ['PACKING', 'CANCELLED'],
+            'PACKING': ['READY_FOR_PICKUP', 'CANCELLED'],
+            'READY_FOR_PICKUP': ['OUT_FOR_DELIVERY'], 
+            'OUT_FOR_DELIVERY': ['DELIVERED', 'CANCELLED'],
+            'DELIVERED': ['REFUNDED'],
+            'CANCELLED': ['REFUNDED']
         };
 
         const currentStatus = currentOrder.status.toUpperCase();
@@ -275,7 +290,8 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         const updateData = { status: nextStatus };
         const now = new Date();
         
-        if (nextStatus === 'FARMER_ACCEPTED' || nextStatus === 'SHOP_ACCEPTED') updateData.acceptedAt = now;
+        if (nextStatus === 'CONFIRMED') updateData.acceptedAt = now;
+        if (nextStatus === 'PACKING') updateData.packedAt = now;
         if (nextStatus === 'READY_FOR_PICKUP') {
             updateData.readyAt = now;
             const pOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -334,17 +350,13 @@ router.put('/:id/status', verifyToken, async (req, res) => {
 
             if (nearestPartner) {
                 updateData.deliveryBoyId = nearestPartner._id;
-                updateData.status = 'DELIVERY_ASSIGNED'; // auto-advance
+                // Don't auto-advance status here in the new state machine, just assign the partner
                 updateData.assignedAt = now;
             }
         }
 
-        if (nextStatus === 'DELIVERY_ASSIGNED') {
-            updateData.assignedAt = now;
-        }
-
-        // Only backend can advance to PICKED_UP, OUT_FOR_DELIVERY, and DELIVERED via OTP routes
-        if (['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(nextStatus)) {
+        // Only backend can advance to OUT_FOR_DELIVERY and DELIVERED via OTP routes
+        if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(nextStatus)) {
             return res.status(403).json({ message: `Cannot manually update status to ${nextStatus}. Use OTP verification.` });
         }
         
@@ -419,34 +431,18 @@ router.post('/:id/verify-pickup-otp', verifyToken, isDelivery, async (req, res) 
 
         const now = new Date();
         order.pickupOtpVerified = true;
-        order.status = 'PICKED_UP'; 
+        order.status = 'OUT_FOR_DELIVERY'; // Transition straight to OUT_FOR_DELIVERY in canonical states
         order.shippedAt = now;
         await order.save();
 
-        let notifMsg = getNotificationMessage('PICKED_UP', order.id);
+        let notifMsg = getNotificationMessage('OUT_FOR_DELIVERY', order.id);
         if (req.io && order.userId) {
             req.io.to(order.userId.toString()).emit('order_update', order);
             const notif = await Notification.create({ userId: order.userId, type: 'Order Update', message: notifMsg, orderId: order.id });
             req.io.to(order.userId.toString()).emit('notification', notif);
         }
 
-        // Advance to OUT_FOR_DELIVERY immediately (simulated real-time tracking)
-        setTimeout(async () => {
-            try {
-                order.status = 'OUT_FOR_DELIVERY';
-                await order.save();
-                const outNotifMsg = getNotificationMessage('OUT_FOR_DELIVERY', order.id);
-                if (req.io && order.userId) {
-                    req.io.to(order.userId.toString()).emit('order_update', order);
-                    const notif2 = await Notification.create({ userId: order.userId, type: 'Order Update', message: outNotifMsg, orderId: order.id });
-                    req.io.to(order.userId.toString()).emit('notification', notif2);
-                }
-            } catch (err) {
-                console.error("Error auto-advancing to OUT_FOR_DELIVERY:", err);
-            }
-        }, 2000);
-
-        res.status(200).json({ message: 'Pickup OTP verified successfully', order });
+        res.status(200).json({ message: 'Pickup OTP verified successfully, order is OUT_FOR_DELIVERY', order });
     } catch (error) {
         console.error("Verify pickup OTP error:", error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -520,6 +516,14 @@ router.post('/:id/verify-delivery-otp', verifyToken, isDelivery, async (req, res
 
 function getNotificationMessage(status, orderId) {
     switch(status) {
+        case 'CONFIRMED': return `Your order ${orderId} has been confirmed.`;
+        case 'PACKING': return `Your order ${orderId} is being packed.`;
+        case 'READY_FOR_PICKUP': return `Your order ${orderId} is packed and ready for pickup.`;
+        case 'OUT_FOR_DELIVERY': return `Your order ${orderId} is out for delivery.`;
+        case 'DELIVERED': return `Your order ${orderId} has been delivered successfully.`;
+        case 'CANCELLED': return `Your order ${orderId} has been cancelled.`;
+        case 'REFUNDED': return `Your order ${orderId} has been refunded.`;
+        // Legacy fallbacks
         case 'Accepted':
         case 'ACCEPTED': 
         case 'FARMER_ACCEPTED': 
@@ -529,12 +533,9 @@ function getNotificationMessage(status, orderId) {
         case 'Assigned': 
         case 'DELIVERY_ASSIGNED': return `A delivery partner has been assigned to your order ${orderId}.`;
         case 'PICKED_UP': return `Your order ${orderId} has been picked up.`;
-        case 'OutForDelivery':
-        case 'OUT_FOR_DELIVERY': return `Your order ${orderId} is out for delivery.`;
-        case 'Delivered':
-        case 'DELIVERED': return `Your order ${orderId} has been delivered successfully.`;
-        case 'Cancelled':
-        case 'CANCELLED': return `Your order ${orderId} has been cancelled.`;
+        case 'OutForDelivery': return `Your order ${orderId} is out for delivery.`;
+        case 'Delivered': return `Your order ${orderId} has been delivered successfully.`;
+        case 'Cancelled': return `Your order ${orderId} has been cancelled.`;
         default: return null;
     }
 }

@@ -48,7 +48,7 @@ const DeliveryDashboard = () => {
             } catch (e) {}
         }
 
-        const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+        const socket = io(import.meta.env.VITE_API_URL || '');
         if (deliveryId) {
             socket.emit('join', deliveryId);
             socket.on('order_update', () => {

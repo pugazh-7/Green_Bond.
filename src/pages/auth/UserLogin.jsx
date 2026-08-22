@@ -25,7 +25,7 @@ const UserLogin = () => {
         // Auto-redirect if already logged in
         const userRole = localStorage.getItem('userRole');
         if (userRole === 'user' || userRole === 'admin') {
-            navigate(userRole === 'admin' ? '/admin/dashboard' : '/user/marketplace');
+            navigate(userRole === 'admin' ? '/admin/dashboard' : '/user');
         }
     }, [navigate]);
 
@@ -52,18 +52,26 @@ const UserLogin = () => {
         const cleanEmailInput = email.trim().toLowerCase();
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login-user`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ email: cleanEmailInput, password }),
-                signal: controller.signal
+                signal: controller.signal,
+                credentials: 'include'
             });
 
             clearTimeout(timeoutId);
             clearTimeout(delayTimeoutId);
-            const data = await response.json();
+
+            const contentType = response.headers.get("content-type");
+            let data = {};
+            if (contentType && contentType.includes("application/json")) {
+                data = await response.json();
+            } else {
+                throw new Error("Invalid response format from server");
+            }
 
             if (response.ok) {
                 const user = data.user;
@@ -81,7 +89,7 @@ const UserLogin = () => {
                 if (user.role === 'admin') {
                     navigate('/admin/dashboard');
                 } else {
-                    navigate('/user/marketplace');
+                    navigate('/user');
                 }
             } else {
                 toast.error(data.message || 'Invalid Email or Password. Please try again.');
@@ -92,6 +100,8 @@ const UserLogin = () => {
             console.error('Login error:', error);
             if (error.name === 'AbortError') {
                 toast.error('Request timed out. Please try again.');
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                toast.error('Unable to connect to GreenBond. Please check your internet connection.');
             } else {
                 toast.error('Server error. Please try again later.');
             }
