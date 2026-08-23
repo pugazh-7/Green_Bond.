@@ -4,9 +4,11 @@ import toast from 'react-hot-toast';
 import LocationPicker from '../../components/LocationPicker';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
+import { useAuth } from '../../context/AuthContext';
 
 const UserSignup = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -84,8 +86,28 @@ const UserSignup = () => {
             const data = await response.json();
 
             if (response.ok) {
-                toast.success('Registration successful! Please login.');
-                navigate('/login/user');
+                // Auto-login after successful registration
+                try {
+                    const loginRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: newUser.email, password: newUser.password }),
+                        credentials: 'include'
+                    });
+                    if (loginRes.ok) {
+                        const loginData = await loginRes.json();
+                        login(loginData.user, loginData.token);
+                        toast.success('Registration successful! Welcome to GreenBond.');
+                        // Navigate will be handled by App.js protected route re-evaluation, but we can explicitly trigger it:
+                        navigate('/user');
+                    } else {
+                        toast.success('Registration successful! Please login.');
+                        navigate('/login/user');
+                    }
+                } catch (err) {
+                    toast.success('Registration successful! Please login.');
+                    navigate('/login/user');
+                }
             } else {
                 toast.error(data.message || 'Registration failed. Please try again.');
             }

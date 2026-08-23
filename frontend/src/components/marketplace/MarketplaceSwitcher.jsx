@@ -13,8 +13,8 @@ const MarketplaceSwitcher = ({ activePhase, onSwitch }) => {
                             ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-indigo-200 shadow-md shadow-indigo-100' 
                             : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white">
-                        <img src={resolveIcon('shopping')} alt="Shopping" className="w-full h-full object-cover" />
+                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white flex items-center justify-center bg-gray-50 text-indigo-500">
+                        {React.createElement(resolveIcon('shopping'), { className: "w-6 h-6" })}
                     </div>
                     <h3 className={`font-black text-lg ${activePhase === 'SHOPPING' ? 'text-indigo-900' : 'text-gray-800'}`}>Shopping</h3>
                     <p className="text-xs text-gray-500 font-medium mt-1">Everything you need</p>
@@ -28,8 +28,8 @@ const MarketplaceSwitcher = ({ activePhase, onSwitch }) => {
                             ? 'bg-gradient-to-br from-purple-50 to-fuchsia-50 border-2 border-purple-200 shadow-md shadow-purple-100' 
                             : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white">
-                        <img src={resolveIcon('quick')} alt="Quick" className="w-full h-full object-cover" />
+                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white flex items-center justify-center bg-gray-50 text-purple-500">
+                        {React.createElement(resolveIcon('quick'), { className: "w-6 h-6" })}
                     </div>
                     <h3 className={`font-black text-lg ${activePhase === 'QUICK' ? 'text-purple-900' : 'text-gray-800'}`}>Quick</h3>
                     <p className="text-xs text-gray-500 font-medium mt-1">Delivered in 10-15 min</p>
@@ -43,8 +43,8 @@ const MarketplaceSwitcher = ({ activePhase, onSwitch }) => {
                             ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 shadow-md shadow-green-100' 
                             : 'bg-white border border-gray-100 opacity-70 scale-95'}`}
                 >
-                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white">
-                        <img src={resolveIcon('fresh')} alt="Fresh" className="w-full h-full object-cover" />
+                    <div className="mb-2 w-10 h-10 rounded-full overflow-hidden shadow-sm border border-white flex items-center justify-center bg-gray-50 text-green-500">
+                        {React.createElement(resolveIcon('fresh'), { className: "w-6 h-6" })}
                     </div>
                     <h3 className={`font-black text-lg ${activePhase === 'FRESH' ? 'text-green-900' : 'text-gray-800'}`}>Fresh</h3>
                     <p className="text-xs text-gray-500 font-medium mt-1">Direct from nearby farmers</p>

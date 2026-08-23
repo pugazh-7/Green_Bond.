@@ -6,6 +6,7 @@ import MarketplaceSwitcher from '../../components/marketplace/MarketplaceSwitche
 import ShoppingView from './views/ShoppingView';
 import QuickView from './views/QuickView';
 import FreshView from './views/FreshView';
+import UnifiedSearchView from './views/UnifiedSearchView';
 import toast from 'react-hot-toast';
 
 const MainMarketplace = () => {
@@ -43,8 +44,8 @@ const MainMarketplace = () => {
             {/* Unified Headers */}
             <div className="pt-2">
                 <SmartSearch onSearch={handleSearch} isSearching={isSearching} />
+                <MarketplaceSwitcher activePhase={activePhase} onSwitch={handleSwitch} />
             </div>
-            <MarketplaceSwitcher activePhase={activePhase} onSwitch={handleSwitch} />
 
             {/* Content Views */}
             <div className="mt-4">
@@ -58,29 +59,34 @@ const MainMarketplace = () => {
                             Finding the best products and fastest delivery for your area.
                         </p>
                     </div>
+                ) : searchQuery ? (
+                    <UnifiedSearchView 
+                        location={location}
+                        searchQuery={searchQuery}
+                    />
                 ) : (
                     <>
-                {activePhase === 'SHOPPING' && (
-                    <ShoppingView 
-                        location={location} 
-                        searchQuery={searchQuery} 
-                        setIsSearching={setIsSearching} 
-                    />
-                )}
-                {activePhase === 'QUICK' && (
-                    <QuickView 
-                        location={location} 
-                        searchQuery={searchQuery} 
-                        setIsSearching={setIsSearching} 
-                    />
-                )}
-                {activePhase === 'FRESH' && (
-                    <FreshView 
-                        location={location} 
-                        searchQuery={searchQuery} 
-                        setIsSearching={setIsSearching} 
-                    />
-                )}
+                        {activePhase === 'SHOPPING' && (
+                            <ShoppingView 
+                                location={location} 
+                                searchQuery="" 
+                                setIsSearching={setIsSearching} 
+                            />
+                        )}
+                        {activePhase === 'QUICK' && (
+                            <QuickView 
+                                location={location} 
+                                searchQuery="" 
+                                setIsSearching={setIsSearching} 
+                            />
+                        )}
+                        {activePhase === 'FRESH' && (
+                            <FreshView 
+                                location={location} 
+                                searchQuery="" 
+                                setIsSearching={setIsSearching} 
+                            />
+                        )}
                     </>
                 )}
             </div>

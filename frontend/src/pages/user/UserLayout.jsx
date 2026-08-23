@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../assets/logo.jpeg';
 import LocationHeader from '../../components/marketplace/LocationHeader';
 import LocationSelectorModal from '../../components/marketplace/LocationSelectorModal';
+import { ShoppingBagIcon, ZapIcon, LeafIcon } from '../../utils/Icons';
 
 const UserLayout = () => {
     const navigate = useNavigate();
@@ -174,51 +175,52 @@ const UserLayout = () => {
                 )}
                 
                 {/* Mobile Bottom Navigation */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl border-t border-gray-100 z-50 flex items-center justify-around px-2 pt-2 pb-safe shadow-[0_-8px_30px_-1px_rgba(0,0,0,0.05)]">
-                    <Link to="/user" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/user' ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
-                        <div className={`p-1.5 rounded-xl ${location.pathname === '/user' ? 'bg-green-50' : ''}`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname === '/user' ? "2.5" : "2"} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl border-t border-gray-100 z-50 flex items-center justify-between px-1.5 pt-2 pb-safe shadow-[0_-8px_30px_-1px_rgba(0,0,0,0.05)]">
+                    <Link to="/user" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.pathname === '/user' && !location.search ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <div className={`p-1.5 rounded-xl ${location.pathname === '/user' && !location.search ? 'bg-green-50' : ''}`}>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname === '/user' && !location.search ? "2.5" : "2"} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                         </div>
-                        <span className="text-[10px] font-bold">Home</span>
+                        <span className="text-[9px] font-bold">Home</span>
                     </Link>
 
-                    {/* Search is handled directly in UI usually, but linking to it if we create a search page or focus search */}
-                    <button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className={`flex flex-col items-center gap-1 transition-all text-gray-400 hover:text-gray-600`}>
-                        <div className={`p-1.5 rounded-xl`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <Link to="/user?phase=SHOPPING" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.search.includes('SHOPPING') ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <div className={`p-1.5 rounded-xl ${location.search.includes('SHOPPING') ? 'bg-green-50' : ''}`}>
+                            <ShoppingBagIcon className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-bold">Search</span>
-                    </button>
+                        <span className="text-[9px] font-bold">Shopping</span>
+                    </Link>
                     
-                    <Link to="/user/orders" className={`flex flex-col items-center gap-1 transition-all ${location.pathname.startsWith('/user/orders') ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <Link to="/user?phase=QUICK" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.search.includes('QUICK') ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <div className={`p-1.5 rounded-xl ${location.search.includes('QUICK') ? 'bg-green-50' : ''}`}>
+                            <ZapIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[9px] font-bold">Quick</span>
+                    </Link>
+
+                    <Link to="/user?phase=FRESH" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.search.includes('FRESH') ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                        <div className={`p-1.5 rounded-xl ${location.search.includes('FRESH') ? 'bg-green-50' : ''}`}>
+                            <LeafIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[9px] font-bold">Fresh</span>
+                    </Link>
+
+                    <Link to="/user/orders" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.pathname.startsWith('/user/orders') ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
                         <div className={`p-1.5 rounded-xl relative ${location.pathname.startsWith('/user/orders') ? 'bg-green-50' : ''}`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname.startsWith('/user/orders') ? "2.5" : "2"} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname.startsWith('/user/orders') ? "2.5" : "2"} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                             {orderCount > 0 && (
                                 <span className="absolute top-0 right-0 bg-blue-500 text-white text-[8px] font-bold h-3.5 w-3.5 rounded-full flex items-center justify-center ring-2 ring-white">
                                     {orderCount}
                                 </span>
                             )}
                         </div>
-                        <span className="text-[10px] font-bold">Orders</span>
+                        <span className="text-[9px] font-bold">Orders</span>
                     </Link>
 
-                    <Link to="/user/cart" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/user/cart' ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
-                        <div className={`p-1.5 rounded-xl relative ${location.pathname === '/user/cart' ? 'bg-green-50' : ''}`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname === '/user/cart' ? "2.5" : "2"} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                            {cartCount > 0 && (
-                                <span className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center ring-2 ring-white animate-scale-in shadow-sm">
-                                    {cartCount}
-                                </span>
-                            )}
-                        </div>
-                        <span className="text-[10px] font-bold">Cart</span>
-                    </Link>
-
-                    <Link to="/user/profile" className={`flex flex-col items-center gap-1 transition-all ${location.pathname === '/user/profile' ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                    <Link to="/user/profile" className={`flex flex-col items-center gap-1 transition-all flex-1 ${location.pathname === '/user/profile' ? 'text-green-700 scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
                         <div className={`p-1.5 rounded-xl ${location.pathname === '/user/profile' ? 'bg-green-50' : ''}`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname === '/user/profile' ? "2.5" : "2"} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={location.pathname === '/user/profile' ? "2.5" : "2"} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         </div>
-                        <span className="text-[10px] font-bold">Profile</span>
+                        <span className="text-[9px] font-bold">Profile</span>
                     </Link>
                 </div>
             </div>

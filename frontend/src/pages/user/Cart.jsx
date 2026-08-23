@@ -58,24 +58,27 @@ const Cart = () => {
         localStorage.setItem('user_cart', JSON.stringify(updatedCart));
     };
 
-    const calculateTotal = () => {
-        return cartItems.reduce((total, item) => {
-            const price = parseInt(item.price.replace(/[^\d]/g, ''));
+    const calculateTotal = (items = cartItems) => {
+        return items.reduce((total, item) => {
+            const price = parseInt(String(item.price).replace(/[^\d]/g, ''));
             return total + (price * item.quantity);
         }, 0);
     };
+
+    const [itemsToCheckout, setItemsToCheckout] = useState([]);
 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('ONLINE'); // 'ONLINE' or 'COD'
     const [isProcessing, setIsProcessing] = useState(false);
     
-    const handleCheckoutClick = () => {
-        if (cartItems.length === 0) return;
+    const handleCheckoutClick = (items) => {
+        if (!items || items.length === 0) return;
         if (!location || !location.lat || !location.lng) {
             toast.error("Please provide a valid delivery location.");
             setShowLocationModal(true);
             return;
         }
+        setItemsToCheckout(items);
         setShowPaymentModal(true);
     };
 
@@ -117,7 +120,7 @@ const Cart = () => {
             const orderData = {
                 customerEmail: currentUser.email,
                 customerName: currentUser.name || "Guest User",
-                items: cartItems.map(i => ({
+                items: itemsToCheckout.map(i => ({
                     cartId: i.cartId,
                     productId: i.productId,
                     title: i.title,
@@ -128,15 +131,15 @@ const Cart = () => {
                     image: i.image,
                     quantity: i.quantity
                 })),
-                qty: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-                total: `₹${calculateTotal().toLocaleString()}`,
-                totalAmount: calculateTotal(),
+                qty: itemsToCheckout.reduce((sum, item) => sum + item.quantity, 0),
+                total: `₹${calculateTotal(itemsToCheckout).toLocaleString()}`,
+                totalAmount: calculateTotal(itemsToCheckout),
                 paymentMethod: paymentMethod,
                 paymentStatus: 'Pending',
                 deliveryAddress: location.address || "Location Provided",
                 deliveryLocation: { lat: location.lat, lng: location.lng },
-                pickupAddress: cartItems[0].location || "Multiple Locations",
-                pickupLocation: cartItems[0].farmerLocationGeo ? { lat: cartItems[0].farmerLocationGeo.coordinates[1], lng: cartItems[0].farmerLocationGeo.coordinates[0] } : undefined
+                pickupAddress: itemsToCheckout[0].location || "Multiple Locations",
+                pickupLocation: itemsToCheckout[0].farmerLocationGeo ? { lat: itemsToCheckout[0].farmerLocationGeo.coordinates[1], lng: itemsToCheckout[0].farmerLocationGeo.coordinates[0] } : undefined
             };
 
             const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders`, {
@@ -234,14 +237,17 @@ const Cart = () => {
     };
 
     const handleSuccess = () => {
-        localStorage.removeItem('user_cart');
-        setCartItems([]);
+        const remainingItems = cartItems.filter(item => !itemsToCheckout.find(i => i.cartId === item.cartId));
+        localStorage.setItem('user_cart', JSON.stringify(remainingItems));
+        setCartItems(remainingItems);
         setIsProcessing(false);
         setOrderSuccess(true);
         setTimeout(() => {
             setOrderSuccess(false);
             setShowPaymentModal(false);
-            navigate('/user');
+            if (remainingItems.length === 0) {
+                navigate('/user');
+            }
         }, 3000);
     };
 
@@ -296,36 +302,63 @@ const Cart = () => {
                         {quickItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-8 h-8 rounded-full overflow-hidden">
-                                        <img src={resolveIcon('quick')} alt="Quick" className="w-full h-full object-cover" />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-50 text-purple-500">
+                                        {React.createElement(resolveIcon('quick'), { className: "w-5 h-5" })}
                                     </div>
                                     <h2 className="text-lg font-black font-heading text-purple-900">Quick Delivery <span className="text-sm font-medium text-purple-600">(10-15 mins)</span></h2>
                                 </div>
                                 {quickItems.map(renderItem)}
+                                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-500 font-bold uppercase">Quick Total</span>
+                                        <span className="font-black text-purple-900 text-lg">₹{calculateTotal(quickItems).toLocaleString()}</span>
+                                    </div>
+                                    <button onClick={() => handleCheckoutClick(quickItems)} className="px-6 py-2 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-sm">
+                                        Checkout Quick
+                                    </button>
+                                </div>
                             </div>
                         )}
                         
                         {freshItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-8 h-8 rounded-full overflow-hidden">
-                                        <img src={resolveIcon('fresh')} alt="Fresh" className="w-full h-full object-cover" />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-50 text-green-500">
+                                        {React.createElement(resolveIcon('fresh'), { className: "w-5 h-5" })}
                                     </div>
                                     <h2 className="text-lg font-black font-heading text-green-900">Farm Direct <span className="text-sm font-medium text-green-600">(Sourced directly)</span></h2>
                                 </div>
                                 {freshItems.map(renderItem)}
+                                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-500 font-bold uppercase">Fresh Total</span>
+                                        <span className="font-black text-green-900 text-lg">₹{calculateTotal(freshItems).toLocaleString()}</span>
+                                    </div>
+                                    <button onClick={() => handleCheckoutClick(freshItems)} className="px-6 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-sm">
+                                        Checkout Fresh
+                                    </button>
+                                </div>
                             </div>
                         )}
                         
                         {shoppingItems.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-8 h-8 rounded-full overflow-hidden">
-                                        <img src={resolveIcon('shopping')} alt="Shopping" className="w-full h-full object-cover" />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-50 text-gray-500">
+                                        {React.createElement(resolveIcon('shopping'), { className: "w-5 h-5" })}
                                     </div>
                                     <h2 className="text-lg font-black font-heading text-gray-900">Shopping <span className="text-sm font-medium text-gray-500">(Standard Delivery)</span></h2>
                                 </div>
                                 {shoppingItems.map(renderItem)}
+                                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-500 font-bold uppercase">Shopping Total</span>
+                                        <span className="font-black text-gray-900 text-lg">₹{calculateTotal(shoppingItems).toLocaleString()}</span>
+                                    </div>
+                                    <button onClick={() => handleCheckoutClick(shoppingItems)} className="px-6 py-2 bg-gray-900 text-white font-bold rounded-xl hover:bg-black shadow-sm">
+                                        Checkout Shopping
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -373,37 +406,14 @@ const Cart = () => {
                                     <span>₹{calculateTotal().toLocaleString()}</span>
                                 </div>
                             </div>
-                            {/* Desktop Checkout Button */}
-                            <button
-                                onClick={handleCheckoutClick}
-                                className="hidden md:block w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg active:scale-95"
-                            >
-                                Checkout
-                            </button>
+                            {/* Desktop Checkout Button removed to enforce per-group checkout */}
                         </div>
                     </div>
                 </div>
             );
             })()}
-            
-            {/* Sticky Mobile Checkout Bar */}
-            {cartItems.length > 0 && (
-                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 pb-safe z-40 shadow-[0_-8px_30px_-1px_rgba(0,0,0,0.1)]">
-                    <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total</span>
-                            <span className="text-xl font-black font-heading text-gray-900">₹{calculateTotal().toLocaleString()}</span>
-                        </div>
-                        <button
-                            onClick={handleCheckoutClick}
-                            className="bg-green-600 text-white font-bold py-3.5 px-8 rounded-2xl shadow-lg shadow-green-600/30 active-press flex items-center gap-2"
-                        >
-                            Place Order
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Sticky Mobile Checkout Bar (Removed in favor of per-group checkout buttons) */}
+
             
             {/* Payment Modal */}
             {showPaymentModal && (
@@ -448,7 +458,7 @@ const Cart = () => {
                                         disabled={isProcessing}
                                         className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-70 flex justify-center items-center"
                                     >
-                                        {isProcessing ? 'Processing...' : `Pay ₹${calculateTotal().toLocaleString()}`}
+                                        {isProcessing ? 'Processing...' : `Pay ₹${calculateTotal(itemsToCheckout).toLocaleString()}`}
                                     </button>
                                 </div>
                             </>

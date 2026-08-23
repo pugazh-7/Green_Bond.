@@ -26,6 +26,7 @@ const Portfolio = React.lazy(() => import('./pages/user/Portfolio'));
 const Cart = React.lazy(() => import('./pages/user/Cart'));
 const BulkOrders = React.lazy(() => import('./pages/user/BulkOrders'));
 const ProductDetails = React.lazy(() => import('./pages/user/ProductDetails'));
+const Profile = React.lazy(() => import('./pages/user/Profile'));
 
 const ClientLayout = React.lazy(() => import('./pages/client/ClientLayout'));
 const ClientDashboard = React.lazy(() => import('./pages/client/ClientDashboard'));
@@ -50,25 +51,32 @@ const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard'));
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-[#F4F9F4]">
     <div className="flex flex-col items-center">
-      <svg className="animate-spin h-10 w-10 text-green-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
+      <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mb-4"></div>
       <p className="text-green-700 font-medium">Loading component...</p>
     </div>
   </div>
 );
 
+const SplashScreen = () => (
+  <div className="fixed inset-0 bg-green-600 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-300">
+    <div className="w-24 h-24 bg-white rounded-3xl shadow-2xl flex items-center justify-center mb-6 animate-pulse">
+        <span className="text-4xl">🌱</span>
+    </div>
+    <h1 className="text-3xl font-black text-white font-heading tracking-tight mb-2">GreenBond</h1>
+    <p className="text-green-100 text-sm font-medium animate-pulse">Establishing secure connection...</p>
+  </div>
+);
+
 function App() {
-  const { user, loading } = useAuth();
+  const { user, authStatus } = useAuth();
   const location = useLocation();
 
-  if (loading) {
-    return <LoadingFallback />;
+  if (authStatus === 'INITIALIZING') {
+    return <SplashScreen />;
   }
 
   const isAuthRoute = location.pathname.startsWith('/login') || location.pathname.startsWith('/signup');
-  if (user && (location.pathname === '/' || isAuthRoute)) {
+  if (authStatus === 'AUTHENTICATED' && user && (location.pathname === '/' || isAuthRoute)) {
       if (user.role === 'user' || user.role === 'customer') return <Navigate to="/user" replace />;
       if (user.role === 'client' || user.role === 'farmer') return <Navigate to="/client" replace />;
       if (user.role === 'shop') return <Navigate to="/shop" replace />;
@@ -95,7 +103,7 @@ function App() {
             <Route path="orders" element={<UserOrders />} />
             <Route path="cart" element={<Cart />} />
             <Route path="product/:id" element={<ProductDetails />} />
-            <Route path="profile" element={<div className="p-8 text-center"><h1 className="text-2xl font-bold">Profile</h1><p className="text-gray-500">Coming soon</p></div>} />
+            <Route path="profile" element={<Profile />} />
           </Route>
 
           {/* Client / Kyle / Farmer Routes - Only for 'client' role */}

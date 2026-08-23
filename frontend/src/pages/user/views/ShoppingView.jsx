@@ -3,6 +3,7 @@ import ProductCard from '../../../components/product/ProductCard';
 import toast from 'react-hot-toast';
 import { resolveCategoryIcon } from '../../../utils/iconRegistry';
 import CategorySection from '../../../components/marketplace/CategorySection';
+import CategoryNav from '../../../components/marketplace/CategoryNav';
 
 const CATEGORIES = [
     'All', 'Electronics', 'Fashion', 'Grocery', 'Snacks', 
@@ -186,20 +187,11 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
     return (
         <div className="animate-slide-up">
             {/* Horizontal Category Rail */}
-            <div className="px-4 md:px-8 mb-6 overflow-x-auto no-scrollbar">
-                <div className="flex gap-3 pb-2">
-                    {CATEGORIES.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => handleCategoryNavClick(cat)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-gray-900 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
-                        >
-                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <CategoryNav 
+                categories={CATEGORIES} 
+                activeCategory={activeCategory} 
+                onSelectCategory={handleCategoryNavClick} 
+            />
 
             {/* Banners Area */}
             {activeCategory === 'All' && !debouncedSearch && (

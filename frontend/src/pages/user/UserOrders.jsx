@@ -33,6 +33,7 @@ const UserOrders = () => {
     const [latestOrder, setLatestOrder] = useState(null);
     const [previousOrders, setPreviousOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('ALL');
     const pollTimerRef = useRef(null);
 
     const fetchOrders = async (isPolling = false) => {
@@ -423,12 +424,31 @@ const UserOrders = () => {
             {/* Previous Orders History */}
             {previousOrders.length > 0 && (
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Previous Orders</h2>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h2 className="text-xl font-bold text-gray-900">Previous Orders</h2>
+                        <div className="flex bg-gray-50 rounded-xl p-1 overflow-x-auto hide-scrollbar w-full sm:w-auto">
+                            {['ALL', 'SHOPPING', 'QUICK', 'FRESH'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="space-y-4">
-                        {previousOrders.map((order) => (
+                        {previousOrders.filter(order => activeTab === 'ALL' || order.orderType === activeTab).map((order) => (
                             <div key={order.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <div>
-                                    <p className="font-bold text-gray-900">Order {order.id}</p>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-bold text-gray-400 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                                            {order.orderType || 'GENERAL'}
+                                        </span>
+                                        <p className="font-bold text-gray-900">Order {order.id}</p>
+                                    </div>
                                     <p className="text-sm text-gray-500">{formatDate(order.createdAt)} • {order.items.length} Items</p>
                                 </div>
                                 <div className="text-right flex flex-col items-end">
@@ -443,6 +463,11 @@ const UserOrders = () => {
                                 </div>
                             </div>
                         ))}
+                        {previousOrders.filter(order => activeTab === 'ALL' || order.orderType === activeTab).length === 0 && (
+                            <div className="text-center py-8 text-gray-500 text-sm">
+                                No {activeTab !== 'ALL' ? activeTab.toLowerCase() : ''} orders found.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

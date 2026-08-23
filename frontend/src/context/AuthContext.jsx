@@ -6,7 +6,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [authStatus, setAuthStatus] = useState('INITIALIZING');
     const [accessToken, setAccessToken] = useState(null);
 
     const checkToken = async () => {
@@ -23,19 +23,20 @@ export const AuthProvider = ({ children }) => {
                 setAccessToken(data.token);
                 localStorage.setItem('userRole', data.user.role);
                 localStorage.setItem('green_bond_current_user', JSON.stringify(data.user));
+                setAuthStatus('AUTHENTICATED');
             } else {
                 // Refresh token invalid or missing
                 setUser(null);
                 setAccessToken(null);
                 localStorage.removeItem('userRole');
                 localStorage.removeItem('green_bond_current_user');
+                setAuthStatus('UNAUTHENTICATED');
             }
         } catch (error) {
             console.error('Error refreshing token:', error);
             setUser(null);
             setAccessToken(null);
-        } finally {
-            setLoading(false);
+            setAuthStatus('UNAUTHENTICATED');
         }
     };
 
@@ -49,6 +50,7 @@ export const AuthProvider = ({ children }) => {
     const login = (userData, token) => {
         setAccessToken(token);
         setUser(userData);
+        setAuthStatus('AUTHENTICATED');
         try {
             localStorage.setItem('userRole', userData.role);
             localStorage.setItem('green_bond_current_user', JSON.stringify(userData));
@@ -79,10 +81,12 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('green_bond_projects');
         localStorage.removeItem('green_bond_users');
         localStorage.removeItem('green_bond_farmers');
+        
+        setAuthStatus('UNAUTHENTICATED');
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, checkToken, accessToken }}>
+        <AuthContext.Provider value={{ user, authStatus, login, logout, checkToken, accessToken }}>
             {children}
         </AuthContext.Provider>
     );

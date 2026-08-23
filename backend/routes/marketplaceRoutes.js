@@ -62,7 +62,8 @@ const getSearchRegex = (q) => {
 
 const calculateSearchScore = (product, queryRegexes, rawQuery) => {
     let score = 0;
-    const name = product.name.toLowerCase();
+    const productName = product.name || product.title || '';
+    const name = productName.toLowerCase();
     const rawQ = rawQuery.toLowerCase();
     
     if (name === rawQ) score += 100;
@@ -678,6 +679,7 @@ router.get('/fresh', async (req, res) => {
             baseQuery.category = category;
         }
 
+        let regexes = [];
         if (q && q.trim() !== '') {
             regexes = getSearchRegex(q);
             baseQuery = {

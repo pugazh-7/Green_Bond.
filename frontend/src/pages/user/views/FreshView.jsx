@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
 import ProductCard from '../../../components/product/ProductCard';
+import CategoryNav from '../../../components/marketplace/CategoryNav';
+import CategorySection from '../../../components/marketplace/CategorySection';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = [
@@ -117,8 +119,8 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
             <div className="px-4 md:px-8 mb-6">
                 <div className="bg-green-100 border border-green-200 rounded-3xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden">
                     <div className="flex items-center gap-3 relative z-10">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden">
-                            <img src={resolveIcon('fresh')} alt="Fresh" className="w-full h-full object-cover" />
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden text-green-500">
+                            {React.createElement(resolveIcon('fresh'), { className: "w-8 h-8" })}
                         </div>
                         <div>
                             <h3 className="font-bold text-green-900 leading-tight">Farm Direct Produce</h3>
@@ -131,22 +133,13 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
             </div>
 
             {/* Horizontal Category Rail */}
-            <div className="px-4 md:px-8 mb-6 overflow-x-auto no-scrollbar">
-                <div className="flex gap-3 pb-2">
-                    {CATEGORIES.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-green-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
-                        >
-                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <CategoryNav 
+                categories={CATEGORIES} 
+                activeCategory={activeCategory} 
+                onSelectCategory={setActiveCategory} 
+            />
 
-            {/* Products Grid */}
+            {/* Products Area */}
             <div className="px-4 md:px-8 pb-12">
                 {isLoading && page === 1 ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
@@ -167,16 +160,38 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                     </div>
                 ) : products.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
-                            {products.map(product => (
-                                <ProductCard 
-                                    key={product._id} 
-                                    product={product} 
-                                    variant="fresh" 
-                                    onAddToCart={addToCart} 
-                                />
-                            ))}
-                        </div>
+                        {activeCategory === 'All' && !debouncedSearch ? (
+                            <>
+                                {Object.entries(products.reduce((acc, p) => {
+                                    if (!acc[p.category]) acc[p.category] = [];
+                                    acc[p.category].push(p);
+                                    return acc;
+                                }, {})).map(([cat, catProducts]) => (
+                                    <CategorySection 
+                                        key={cat}
+                                        id={`section-${cat}`}
+                                        category={cat}
+                                        subtitle="Direct from local farmers"
+                                        products={catProducts}
+                                        count={catProducts.length}
+                                        onSeeAll={(c) => { setActiveCategory(c); window.scrollTo(0,0); }}
+                                        onAddToCart={addToCart}
+                                        isPriority={cat === 'Fresh Today' || cat === 'Vegetables'}
+                                    />
+                                ))}
+                            </>
+                        ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6 mt-4">
+                                {products.map(product => (
+                                    <ProductCard 
+                                        key={product._id} 
+                                        product={product} 
+                                        variant="fresh" 
+                                        onAddToCart={addToCart} 
+                                    />
+                                ))}
+                            </div>
+                        )}
                         {hasMore && (
                             <div ref={lastProductElementRef} className="h-20 mt-6 flex items-center justify-center">
                                 {isLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>}

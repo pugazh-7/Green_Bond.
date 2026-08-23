@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
 
 import CategorySection from '../../../components/marketplace/CategorySection';
+import CategoryNav from '../../../components/marketplace/CategoryNav';
 
 const CATEGORIES = [
     'All', 'Daily Essentials', 'Milk & Dairy', 'Bakery', 'Snacks', 
@@ -168,8 +169,8 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
             <div className="px-4 md:px-8 mb-6">
                 <div className="bg-purple-100 border border-purple-200 rounded-3xl p-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden">
-                            <img src={resolveIcon('quick')} alt="Quick" className="w-full h-full object-cover" />
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm overflow-hidden text-purple-500">
+                            {React.createElement(resolveIcon('quick'), { className: "w-8 h-8" })}
                         </div>
                         <div>
                             <h3 className="font-bold text-purple-900 leading-tight">Delivery in 10-15 mins</h3>
@@ -180,20 +181,11 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
             </div>
 
             {/* Horizontal Category Rail */}
-            <div className="px-4 md:px-8 mb-6 overflow-x-auto no-scrollbar">
-                <div className="flex gap-3 pb-2">
-                    {CATEGORIES.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => handleCategoryNavClick(cat)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl whitespace-nowrap text-sm font-bold transition-all ${activeCategory === cat ? 'bg-purple-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
-                        >
-                            <img src={resolveCategoryIcon(cat)} className="w-5 h-5 rounded-md object-cover" alt={cat} />
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <CategoryNav 
+                categories={CATEGORIES} 
+                activeCategory={activeCategory} 
+                onSelectCategory={handleCategoryNavClick} 
+            />
 
             {/* Banners & Rails Area */}
             {activeCategory === 'All' && !debouncedSearch && (

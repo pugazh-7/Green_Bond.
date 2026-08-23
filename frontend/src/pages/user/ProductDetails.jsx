@@ -178,17 +178,17 @@ const ProductDetails = () => {
                         <div className="mb-4 flex flex-wrap gap-2">
                             {cartType === 'QUICK' && (
                                 <span className="inline-flex items-center gap-1.5 bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <img src={resolveIcon('quick')} className="w-4 h-4 rounded-full" alt="Quick" /> Delivery in 10-15 mins
+                                    {React.createElement(resolveIcon('quick'), { className: "w-4 h-4 rounded-full" })} Delivery in 10-15 mins
                                 </span>
                             )}
                             {cartType === 'FRESH' && (
                                 <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-800 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <img src={resolveIcon('fresh')} className="w-4 h-4 rounded-full" alt="Fresh" /> Farm Direct Produce
+                                    {React.createElement(resolveIcon('fresh'), { className: "w-4 h-4 rounded-full" })} Farm Direct Produce
                                 </span>
                             )}
                             {cartType === 'SHOPPING' && (
                                 <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                                    <img src={resolveIcon('shopping')} className="w-4 h-4 rounded-full" alt="Shopping" /> Standard Delivery
+                                    {React.createElement(resolveIcon('shopping'), { className: "w-4 h-4 rounded-full" })} Standard Delivery
                                 </span>
                             )}
                         </div>

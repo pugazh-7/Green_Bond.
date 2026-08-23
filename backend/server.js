@@ -44,9 +44,10 @@ app.use(cors({
     origin: [
         'http://localhost:5173',
         'http://192.168.29.210:5173',
+        'https://green-bond-eight.vercel.app',
         process.env.FRONTEND_URL
     ].filter(Boolean),
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true
 }));
 app.use(cookieParser());

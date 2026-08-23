@@ -4,7 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-    const { accessToken, loading, user } = useAuth();
+    const { accessToken, authStatus, user } = useAuth();
     const location = useLocation();
 
     // Rely strictly on AuthContext after loading has resolved
@@ -12,17 +12,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const token = accessToken;
 
     useEffect(() => {
-        if (!loading) {
-            if (!userRole || !token) {
-                console.error("[ProtectedRoute DEBUG] Kicking user! userRole:", userRole, "token:", token, "loading:", loading, "user:", user);
-                toast.error('Please login to access this page.', { id: 'login-error' });
-            } else if (allowedRoles && !allowedRoles.includes(userRole)) {
-                toast.error('You are not authorized to access this page.', { id: 'unauthorized-error' });
-            }
+        if (authStatus === 'UNAUTHENTICATED') {
+            console.error("[ProtectedRoute DEBUG] Kicking user! userRole:", userRole, "token:", token, "authStatus:", authStatus, "user:", user);
+            toast.error('Please login to access this page.', { id: 'login-error' });
+        } else if (authStatus === 'AUTHENTICATED' && allowedRoles && !allowedRoles.includes(userRole)) {
+            toast.error('You are not authorized to access this page.', { id: 'unauthorized-error' });
         }
-    }, [loading, userRole, token, allowedRoles ? allowedRoles.join(',') : '']);
+    }, [authStatus, userRole, token, allowedRoles ? allowedRoles.join(',') : '']);
 
-    if (loading) {
+    if (authStatus === 'INITIALIZING') {
         return (
             <div className="flex h-screen items-center justify-center bg-gray-50">
                 <div className="flex flex-col items-center gap-4">
@@ -33,7 +31,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         );
     }
 
-    if (!userRole || !token) {
+    if (authStatus === 'UNAUTHENTICATED' || !userRole || !token) {
         // Redirect to login (assuming Landing Page handles the login modal)
         return <Navigate to="/" state={{ from: location }} replace />;
     }

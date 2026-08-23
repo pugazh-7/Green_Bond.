@@ -52,8 +52,8 @@ const CategorySection = ({ id, category, subtitle, products = [], count = 0, onS
                             {badge.text}
                         </span>
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm">
-                                <img src={resolveCategoryIcon(category)} alt={category} className="w-full h-full object-cover" />
+                            <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm flex items-center justify-center bg-gray-50 text-gray-500">
+                                {React.createElement(resolveCategoryIcon(category), { className: "w-5 h-5" })}
                             </div>
                             <h2 className="text-2xl md:text-3xl font-black font-heading text-gray-900 tracking-tight">
                                 {category}

@@ -69,46 +69,6 @@ const SmartSearch = ({ onSearch, isSearching }) => {
                 )}
             </div>
             
-            {/* Search Overlay (Shows when typing) */}
-            {isFocused && query.length > 0 && (
-                <div className="absolute top-full left-4 right-4 md:left-8 md:right-8 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-40 overflow-hidden animate-slide-up">
-                    <div className="p-4">
-                        {isSearching ? (
-                            <div className="flex items-center justify-center py-8">
-                                <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="ml-3 text-gray-500 font-medium text-sm">Searching...</span>
-                            </div>
-                        ) : suggestions.length > 0 ? (
-                            <div className="py-2">
-                                {suggestions.map(sugg => (
-                                    <div 
-                                        key={sugg.id} 
-                                        className="py-2 px-3 hover:bg-gray-50 rounded-xl cursor-pointer flex items-center justify-between"
-                                        onClick={() => {
-                                            setQuery(sugg.title);
-                                            onSearch(sugg.title);
-                                            setIsFocused(false);
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-gray-400">🔍</span>
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-800">{sugg.title}</p>
-                                                <p className="text-[10px] text-gray-500">{sugg.category} • {sugg.brand}</p>
-                                            </div>
-                                        </div>
-                                        <span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">View</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="py-4 text-center">
-                                <p className="text-gray-500 text-sm">Hit enter or see results below</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

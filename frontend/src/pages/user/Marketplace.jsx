@@ -6,12 +6,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ProductCard from '../../components/product/ProductCard';
 import { resolveIcon, resolveCategoryIcon } from '../../utils/iconRegistry';
 
-const CATEGORIES = [
-    'All', 'Grocery', 'Fruits & Vegetables', 'Milk & Dairy', 'Snacks', 
-    'Drinks', 'Electronics', 'Fashion', 'Beauty & Personal Care', 'Household', 
-    'Home & Kitchen', 'Baby Care', 'Books & Stationery', 'Sports & Fitness', 
-    'Travel', 'Pet Care'
-];
+const MARKETPLACE_CATEGORIES = {
+    SHOPPING: ['All', 'Beauty', 'Electronics', 'Fashion', 'Grocery', 'Home', 'Mobiles', 'Gifts', 'Sports', 'Toys'],
+    QUICK: ['All', 'Milk', 'Bread & Bakery', 'Eggs', 'Snacks', 'Cold Drinks', 'Ice Cream', 'Grocery', 'Personal Care', 'Household', 'Electronics', 'Gifts'],
+    FRESH: ['All', 'Vegetables', 'Fruits', 'Leafy Greens', 'Dairy', 'Eggs', 'Grains', 'Farm Products', 'Organic']
+};
 
 const TRENDING_SEARCHES = ['Milk', 'Rice', 'Chips', 'Biscuits', 'Phone', 'Shampoo', 'Shirt', 'Headphones'];
 
@@ -306,25 +305,56 @@ const Marketplace = () => {
                     </div>
                 </div>
 
-                <div className="border-t border-gray-100 bg-white shadow-sm">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex gap-2 md:gap-4 overflow-x-auto py-3 hide-scrollbar">
-                            <button onClick={() => setActivePhase('SHOPPING')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'SHOPPING' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                                {React.createElement(resolveIcon('shopping'), { className: "w-5 h-5" })} Shopping
-                            </button>
-                            <button onClick={() => setActivePhase('QUICK')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'QUICK' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                                {React.createElement(resolveIcon('quick'), { className: "w-5 h-5" })} Quick <span className="font-normal text-xs">(10-15m)</span>
-                            </button>
-                            <button onClick={() => setActivePhase('FRESH')} className={`flex-shrink-0 px-6 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 ${activePhase === 'FRESH' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                                {React.createElement(resolveIcon('fresh'), { className: "w-5 h-5" })} Fresh <span className="font-normal text-xs">(Farmer)</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 
+                {/* Primary Marketplace Navigation */}
+                <div className="mb-8">
+                    <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x px-1">
+                        
+                        <button 
+                            onClick={() => setActivePhase('SHOPPING')}
+                            className={`flex-shrink-0 snap-start flex items-center gap-4 p-4 rounded-2xl border-2 transition-all min-w-[280px] md:min-w-[300px] md:flex-1 ${activePhase === 'SHOPPING' ? 'border-green-600 bg-green-50 shadow-md' : 'border-gray-200 bg-white hover:border-green-300'}`}
+                        >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${activePhase === 'SHOPPING' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                {React.createElement(resolveIcon('shopping'), { className: "w-6 h-6" })}
+                            </div>
+                            <div className="text-left flex-1">
+                                <h3 className={`font-black text-lg ${activePhase === 'SHOPPING' ? 'text-green-900' : 'text-gray-900'}`}>Shopping</h3>
+                                <p className={`text-sm font-medium ${activePhase === 'SHOPPING' ? 'text-green-700' : 'text-gray-500'}`}>Everyday products</p>
+                            </div>
+                        </button>
+
+                        <button 
+                            onClick={() => setActivePhase('QUICK')}
+                            className={`flex-shrink-0 snap-start flex items-center gap-4 p-4 rounded-2xl border-2 transition-all min-w-[280px] md:min-w-[300px] md:flex-1 ${activePhase === 'QUICK' ? 'border-purple-600 bg-purple-50 shadow-md' : 'border-gray-200 bg-white hover:border-purple-300'}`}
+                        >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${activePhase === 'QUICK' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                {React.createElement(resolveIcon('quick'), { className: "w-6 h-6" })}
+                            </div>
+                            <div className="text-left flex-1">
+                                <h3 className={`font-black text-lg ${activePhase === 'QUICK' ? 'text-purple-900' : 'text-gray-900'}`}>Quick</h3>
+                                <p className={`text-sm font-medium ${activePhase === 'QUICK' ? 'text-purple-700' : 'text-gray-500'}`}>Delivery in 10-15 mins</p>
+                            </div>
+                        </button>
+
+                        <button 
+                            onClick={() => setActivePhase('FRESH')}
+                            className={`flex-shrink-0 snap-start flex items-center gap-4 p-4 rounded-2xl border-2 transition-all min-w-[280px] md:min-w-[300px] md:flex-1 ${activePhase === 'FRESH' ? 'border-green-600 bg-green-50 shadow-md' : 'border-gray-200 bg-white hover:border-green-300'}`}
+                        >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${activePhase === 'FRESH' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                {React.createElement(resolveIcon('fresh'), { className: "w-6 h-6" })}
+                            </div>
+                            <div className="text-left flex-1">
+                                <h3 className={`font-black text-lg ${activePhase === 'FRESH' ? 'text-green-900' : 'text-gray-900'}`}>Fresh</h3>
+                                <p className={`text-sm font-medium ${activePhase === 'FRESH' ? 'text-green-700' : 'text-gray-500'}`}>Fresh from farmers</p>
+                            </div>
+                        </button>
+
+                    </div>
+                </div>
+
                 {/* Unified Discovery UI - Only shown in SHOPPING phase */}
                 {activePhase === 'SHOPPING' && (
                     <div className="mb-8">
@@ -349,7 +379,7 @@ const Marketplace = () => {
                         <div className="mb-10">
                             <h3 className="text-xl font-black text-gray-900 mb-4">Categories</h3>
                             <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
-                                {CATEGORIES.map((cat, idx) => {
+                                {MARKETPLACE_CATEGORIES.SHOPPING.map((cat, idx) => {
                                     const count = metaData.categoryCounts[cat] || (cat === 'All' ? metaData.categoryCounts['All'] : 0);
                                     const isActive = activeCategory === cat;
                                     
@@ -416,7 +446,7 @@ const Marketplace = () => {
                                 <span className="text-purple-600">⚡</span> Quick Essentials
                             </h3>
                             <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
-                                {['All', 'Milk', 'Bread & Butter', 'Eggs', 'Snacks', 'Cold Drinks', 'Ice Cream'].map((cat, idx) => {
+                                {MARKETPLACE_CATEGORIES.QUICK.map((cat, idx) => {
                                     const isActive = activeCategory === cat;
                                     return (
                                         <button 
@@ -520,6 +550,35 @@ const Marketplace = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Unified Discovery UI - FRESH Phase */}
+                {activePhase === 'FRESH' && !searchQuery && (
+                    <div className="mb-8">
+                        {/* Fresh Categories */}
+                        <div className="mb-10">
+                            <h3 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="text-green-600">🌿</span> Fresh from Farm
+                            </h3>
+                            <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
+                                {MARKETPLACE_CATEGORIES.FRESH.map((cat, idx) => {
+                                    const isActive = activeCategory === cat;
+                                    return (
+                                        <button 
+                                            key={idx} 
+                                            onClick={() => handleCategoryClick(cat)}
+                                            className={`flex-shrink-0 px-6 py-4 rounded-2xl flex flex-col items-start gap-1 min-w-[120px] transition-all duration-300 ${isActive ? 'bg-green-900 text-white shadow-xl scale-105' : 'bg-white border border-gray-200 text-gray-600 hover:border-green-900 shadow-sm'}`}
+                                        >
+                                            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600 mb-1 group-hover:bg-white transition-colors">
+                                                {React.createElement(resolveCategoryIcon(cat), { className: "w-6 h-6" })}
+                                            </div>
+                                            <span className="font-bold text-sm leading-tight text-left">{cat}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
                 )}
 
