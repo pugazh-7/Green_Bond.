@@ -19,8 +19,8 @@ const generateTokens = (payload) => {
 const setRefreshCookie = (res, refreshToken) => {
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: true, // Always true for cross-origin Vercel/Render
+        sameSite: 'none', // Always 'none' for cross-origin
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 };
@@ -172,7 +172,11 @@ router.post('/login-user', async (req, res) => {
         res.status(200).json({ message: 'Login successful', user: userData, token: accessToken });
     } catch (error) {
         console.error("User login error:", error);
-        res.status(500).json({ message: 'Server error during login', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Authentication service temporarily unavailable', 
+            code: 'AUTH_SERVICE_ERROR' 
+        });
     }
 });
 
@@ -219,7 +223,11 @@ router.post('/login-farmer', async (req, res) => {
         res.status(200).json({ message: 'Login successful', farmer: farmerData, token: accessToken });
     } catch (error) {
         console.error("Farmer login error:", error);
-        res.status(500).json({ message: 'Server error during login', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Authentication service temporarily unavailable', 
+            code: 'AUTH_SERVICE_ERROR' 
+        });
     }
 });
 
@@ -261,7 +269,11 @@ router.post('/login-delivery', async (req, res) => {
         res.status(200).json({ message: 'Login successful', partner: partnerData, token: accessToken });
     } catch (error) {
         console.error("Delivery login error:", error);
-        res.status(500).json({ message: 'Server error during login', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Authentication service temporarily unavailable', 
+            code: 'AUTH_SERVICE_ERROR' 
+        });
     }
 });
 
@@ -325,7 +337,11 @@ router.post('/login-shop', async (req, res) => {
         res.status(200).json({ message: 'Login successful', shop: shopData, token: accessToken });
     } catch (error) {
         console.error("Shop login error:", error);
-        res.status(500).json({ message: 'Server error during login', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Authentication service temporarily unavailable', 
+            code: 'AUTH_SERVICE_ERROR' 
+        });
     }
 });
 
