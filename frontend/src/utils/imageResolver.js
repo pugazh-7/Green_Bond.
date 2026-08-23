@@ -1,13 +1,16 @@
 import { productImageRegistry } from './imageRegistry';
 
-// Dynamically get backend URL to support both laptop and mobile device testing
-// We use the current host's IP instead of hardcoded 127.0.0.1 if on mobile dev
 const getBackendUrl = () => {
     if (import.meta.env.VITE_IMAGE_CDN_BASE_URL) {
         return import.meta.env.VITE_IMAGE_CDN_BASE_URL.replace(/\/cdn$/, '');
     }
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
     const host = window.location.hostname;
-    // If not localhost or IP, fallback to 127.0.0.1 or standard API endpoint
+    if (import.meta.env.MODE === 'production') {
+        return 'https://green-bond.onrender.com';
+    }
     return `http://${host}:5000`;
 };
 
