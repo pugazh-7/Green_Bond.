@@ -34,7 +34,7 @@ const UserLogin = () => {
 
         setIsLoading(true);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased timeout to outlast backend DB timeout
         const cleanEmailInput = email.trim().toLowerCase();
 
         try {
@@ -86,13 +86,13 @@ const UserLogin = () => {
             } else {
                 // Differentiate HTTP error statuses as requested
                 if (response.status === 400 || response.status === 401) {
-                    toast.error(data.message || 'Incorrect email/phone or password.');
-                } else if (response.status === 404) {
-                    toast.error('Account not found.');
+                    toast.error('Incorrect email or password');
                 } else if (response.status === 403) {
-                    toast.error('Access denied.');
+                    toast.error('Your account does not have access.');
+                } else if (response.status === 429) {
+                    toast.error('Too many login attempts. Please try again.');
                 } else if (response.status >= 500) {
-                    toast.error('GreenBond is temporarily unavailable. Please try again.');
+                    toast.error('Unable to sign in right now. Please try again.');
                 } else {
                     toast.error(data.message || 'Login failed.');
                 }
@@ -100,13 +100,11 @@ const UserLogin = () => {
         } catch (error) {
             clearTimeout(timeoutId);
             console.error('GreenBond API error:', error);
-            console.error('Request URL:', `${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`);
-            console.error('Error message:', error.message);
             
             if (error.name === 'AbortError') {
-                toast.error('Request timed out.');
+                toast.error('Unable to connect to GreenBond. Check your internet connection.');
             } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                toast.error('Unable to connect to GreenBond. Please check your internet connection.');
+                toast.error('Unable to connect to GreenBond. Check your internet connection.');
             } else {
                 // Do not expose backend stack traces, but don't call it a network error either
                 toast.error('An unexpected error occurred during login.');
