@@ -30,6 +30,22 @@ const orderSchema = new mongoose.Schema({
     farmerAmount: { type: Number, default: 0 },
     greenBondCommission: { type: Number, default: 0 },
     deliveryFee: { type: Number, default: 0 },
+    subtotal: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    taxableAmount: { type: Number, default: 0 },
+    gstAmount: { type: Number, default: 0 },
+    gstBreakdown: [{
+        productId: { type: mongoose.Schema.Types.ObjectId },
+        rate: Number,
+        taxableValue: Number,
+        cgst: Number,
+        sgst: Number,
+        igst: Number,
+        totalGst: Number
+    }],
+    deliveryBoyPayout: { type: Number, default: 0 },
+    sellerAmount: { type: Number, default: 0 },
+    settlementStatus: { type: String, enum: ['PENDING', 'SETTLED'], default: 'PENDING' },
     status: { 
         type: String, 
         enum: [

@@ -120,7 +120,23 @@ router.get('/availability', async (req, res) => {
             return dist <= 5;
         });
 
-        const hasShoppingProducts = await Product.exists({ marketplaceType: 'SHOPPING', sellerType: 'ADMIN', availableQuantity: { $gt: 0 } });
+        const SHOPPING_CATEGORIES = [
+            'Fruits & Vegetables', 'Grocery', 'Dairy & Breakfast', 'Snacks', 
+            'Drinks', 'Personal Care', 'Household', 'Electronics', 
+            'Fashion', 'Beauty', 'Home & Kitchen', 'Mobiles', 'Laptops', 'Men', 'Women', 'Kids', 'Footwear', 'Accessories', 'Gifts'
+        ];
+        
+        let shoppingCriteria = {
+            $or: [
+                { marketplaceType: 'SHOPPING' },
+                { category: { $in: SHOPPING_CATEGORIES }, marketplaceType: { $ne: 'QUICK' } }
+            ]
+        };
+
+        const hasShoppingProducts = await Product.exists({ 
+            ...shoppingCriteria, 
+            stock: { $gt: 0 } 
+        });
 
         res.json({
             shoppingAvailable: nearbyShops.length > 0 || nearbyFarmers.length > 0 || !!hasShoppingProducts,
@@ -137,22 +153,36 @@ router.get('/availability', async (req, res) => {
 router.get('/shopping-meta', async (req, res) => {
     try {
         const coreCategories = [
-            'Fruits & Vegetables', 'Grocery', 'Dairy & Breakfast', 'Snacks', 
-            'Drinks', 'Personal Care', 'Household', 'Electronics', 
-            'Fashion', 'Beauty', 'Home & Kitchen'
+            'Fashion', 'Grocery', 'Snacks', 'Drinks', 'Beauty', 'Personal Care', 'Household'
         ];
+
+        const SHOPPING_CATEGORIES = [
+            'Fashion', 'Men', 'Women', 'Kids', 'Footwear', 'Grocery', 'Snacks', 'Drinks', 'Beauty', 'Personal Care', 'Household'
+        ];
+
+        let shoppingCriteria = {
+            $and: [
+                {
+                    $or: [
+                        { marketplaceType: 'SHOPPING' },
+                        { category: { $in: SHOPPING_CATEGORIES }, marketplaceType: { $ne: 'QUICK' } }
+                    ]
+                },
+                { category: { $nin: ['Electronics', 'Furniture', 'Gifts', 'Mobiles', 'Laptops', 'Medicines'] } }
+            ]
+        };
 
         // Prepare the promises
         const promises = [
             Product.aggregate([
-                { $match: { marketplaceType: 'SHOPPING', isActive: true, stock: { $gt: 0 } } },
+                { $match: { ...shoppingCriteria, isActive: true, stock: { $gt: 0 } } },
                 { $group: { _id: '$category', count: { $sum: 1 } } }
             ]),
-            Product.find({ marketplaceType: 'SHOPPING', isActive: true, discountPercentage: { $gt: 0 }, stock: { $gt: 0 } })
+            Product.find({ ...shoppingCriteria, isActive: true, discountPercentage: { $gt: 0 }, stock: { $gt: 0 } })
                 .sort({ discountPercentage: -1 })
                 .limit(6)
                 .lean(),
-            Product.find({ marketplaceType: 'SHOPPING', isActive: true, stock: { $gt: 0 } })
+            Product.find({ ...shoppingCriteria, isActive: true, stock: { $gt: 0 } })
                 .sort({ createdAt: -1 })
                 .limit(6)
                 .lean()
@@ -161,7 +191,7 @@ router.get('/shopping-meta', async (req, res) => {
         // Add a query for each core category to get top 6 products
         coreCategories.forEach(cat => {
             promises.push(
-                Product.find({ marketplaceType: 'SHOPPING', isActive: true, category: cat, stock: { $gt: 0 } })
+                Product.find({ ...shoppingCriteria, isActive: true, category: cat, stock: { $gt: 0 } })
                     .sort({ createdAt: -1, rating: -1 }) // simple heuristic for 'top'
                     .limit(6)
                     .lean()
@@ -275,17 +305,36 @@ router.get('/products', async (req, res) => {
             farmerIds = eligibleFarmers.map(f => f._id);
         }
 
-        let baseQuery = {
-            stock: { $gt: 0 },
-            marketplaceType: 'SHOPPING'
+        let baseQuery = { stock: { $gt: 0 } };
+
+        const SHOPPING_CATEGORIES = ['Fashion', 'Men', 'Women', 'Kids', 'Footwear', 'Grocery', 'Snacks', 'Drinks', 'Beauty', 'Personal Care', 'Household'];
+        
+        let shoppingCriteria = {
+            $and: [
+                {
+                    $or: [
+                        { marketplaceType: 'SHOPPING' },
+                        { category: { $in: SHOPPING_CATEGORIES }, marketplaceType: { $ne: 'QUICK' } }
+                    ]
+                },
+                { category: { $nin: ['Electronics', 'Furniture', 'Gifts', 'Mobiles', 'Laptops', 'Medicines'] } }
+            ]
         };
 
         if (hasLocation) {
-            baseQuery.$or = [
-                { sellerType: 'ADMIN' },
-                { sellerId: { $in: shopIds }, sourceType: 'SHOP' },
-                { sellerId: { $in: farmerIds }, sourceType: 'FARMER' }
+            baseQuery.$and = [
+                shoppingCriteria,
+                {
+                    $or: [
+                        { sellerType: 'ADMIN' },
+                        { sellerId: { $in: shopIds }, sourceType: 'SHOP' },
+                        { sellerId: { $in: farmerIds }, sourceType: 'FARMER' },
+                        { category: { $in: SHOPPING_CATEGORIES } } // Legacy products might lack correct seller mapping
+                    ]
+                }
             ];
+        } else {
+            baseQuery.$and = [shoppingCriteria];
         }
 
         if (category && category !== 'All') {
@@ -321,7 +370,12 @@ router.get('/products', async (req, res) => {
             let productObj = { ...p, id: p._id };
             let distance = 0;
             
-            if (p.sourceType === 'SHOP' && hasLocation) {
+            if (p.sellerType === 'ADMIN') {
+                productObj.sourceName = 'GreenBond Hub';
+                productObj.isVerifiedFarmer = false;
+                productObj.isQuickEligible = false;
+                distance = 0; 
+            } else if (p.sourceType === 'SHOP' && hasLocation) {
                 const shop = shops.find(s => s._id.toString() === p.sellerId?.toString());
                 if (shop) {
                     distance = calculateDistance(userLat, userLng, shop.locationGeo.coordinates[1], shop.locationGeo.coordinates[0]);
@@ -336,11 +390,6 @@ router.get('/products', async (req, res) => {
                     productObj.isVerifiedFarmer = farmer.verificationStatus === 'APPROVED';
                     productObj.isQuickEligible = false;
                 }
-            } else if (p.sellerType === 'ADMIN') {
-                productObj.sourceName = 'GreenBond Hub';
-                productObj.isVerifiedFarmer = false;
-                productObj.isQuickEligible = false;
-                distance = 0; 
             }
             
             
@@ -413,7 +462,7 @@ router.get('/quick-meta', async (req, res) => {
             shopIds = shops.map(s => s._id);
         }
 
-        const coreCategories = ['Daily Essentials', 'Milk & Dairy', 'Bakery', 'Snacks', 'Drinks', 'Grocery', 'Personal Care', 'Household', 'Mobile Accessories', 'Electronics', 'Gifts', 'Mobiles', 'Fashion Essentials'];
+        const coreCategories = ['Electronics', 'Gifts', 'Furniture', 'Medicines'];
         let baseMatch = { marketplaceType: 'QUICK', isActive: true, stock: { $gt: 0 } };
         if (shopIds.length > 0) {
             baseMatch.sellerId = { $in: shopIds };
@@ -637,6 +686,71 @@ router.get('/quick', async (req, res) => {
     }
 });
 
+// --- Single Product Lookup API (Unified for Shopping, Quick, Fresh) ---
+router.get('/product/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { lat, lng } = req.query;
+
+        const product = await Product.findById(id).lean();
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        const userLat = lat && lat !== 'undefined' ? parseFloat(lat) : null;
+        const userLng = lng && lng !== 'undefined' ? parseFloat(lng) : null;
+
+        let distance = 0;
+        let sourceName = 'GreenBond Marketplace';
+        let isVerified = false;
+        let eta = '1-2 Days';
+
+        if (product.sourceType === 'FARMER' || product.sellerType === 'FARMER' || product.marketplaceType === 'FRESH') {
+            const farmer = await Farmer.findById(product.sellerId || product.farmerId).lean();
+            if (farmer) {
+                sourceName = farmer.name;
+                isVerified = farmer.verificationStatus === 'APPROVED';
+                if (userLat && userLng && farmer.farmLocationGeo?.coordinates) {
+                    distance = calculateDistance(userLat, userLng, farmer.farmLocationGeo.coordinates[1], farmer.farmLocationGeo.coordinates[0]);
+                }
+                eta = calculateETA(distance, 'FARMER');
+            } else if (product.farmer) {
+                sourceName = product.farmer;
+                isVerified = true;
+                eta = 'Same day harvest';
+            }
+        } else if (product.sourceType === 'SHOP' || product.marketplaceType === 'QUICK') {
+            const shop = await Shop.findById(product.sellerId).lean();
+            if (shop) {
+                sourceName = shop.name;
+                isVerified = true;
+                if (userLat && userLng && shop.locationGeo?.coordinates) {
+                    distance = calculateDistance(userLat, userLng, shop.locationGeo.coordinates[1], shop.locationGeo.coordinates[0]);
+                }
+                eta = distance <= 5 ? '10-15 min' : 'Within 1 hour';
+            }
+        }
+
+        const formattedProduct = {
+            ...product,
+            id: product._id,
+            name: product.name || product.title,
+            stock: product.stock !== undefined ? product.stock : (product.availableQuantity || 0),
+            sourceName,
+            farmerName: product.farmer || sourceName,
+            isVerifiedFarmer: isVerified,
+            distanceKm: distance ? distance.toFixed(1) : '1.5',
+            eta,
+            primaryImageUrl: product.image
+        };
+
+        res.json({ success: true, product: formattedProduct });
+    } catch (error) {
+        console.error("Single product error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
 // --- Fresh Marketplace API ---
 router.get('/fresh', async (req, res) => {
     try {
@@ -644,83 +758,78 @@ router.get('/fresh', async (req, res) => {
         page = parseInt(page);
         limit = parseInt(limit);
         
-        if (!lat || !lng || lat === 'undefined' || lng === 'undefined') {
-            return res.json([]);
+        const hasCoords = lat && lng && lat !== 'undefined' && lng !== 'undefined';
+        const userLat = hasCoords ? parseFloat(lat) : null;
+        const userLng = hasCoords ? parseFloat(lng) : null;
+
+        // Fetch approved farmers
+        let farmers = [];
+        if (hasCoords) {
+            farmers = await Farmer.find({
+                farmLocationGeo: {
+                    $near: {
+                        $geometry: { type: "Point", coordinates: [userLng, userLat] },
+                        $maxDistance: 50000 // 50km local radius
+                    }
+                },
+                verificationStatus: 'APPROVED'
+            }).lean();
         }
 
-        const userLat = parseFloat(lat);
-        const userLng = parseFloat(lng);
+        // If no nearby farmers or no coords, load all approved farmers
+        if (farmers.length === 0) {
+            farmers = await Farmer.find({ verificationStatus: 'APPROVED' }).lean();
+        }
 
-        const farmers = await Farmer.find({
-            farmLocationGeo: {
-                $near: {
-                    $geometry: { type: "Point", coordinates: [userLng, userLat] },
-                    $maxDistance: 15000 
-                }
-            },
-            verificationStatus: 'APPROVED'
-        }).lean();
-        
-        if (farmers.length === 0) return res.json([]);
         const farmerIds = farmers.map(f => f._id);
 
         let baseQuery = {
             $or: [
-                { stock: { $gt: 0 } },
-                { availableQuantity: { $gt: 0 } }
-            ],
-            $and: [
-                { $or: [{ sellerId: { $in: farmerIds } }, { farmerId: { $in: farmerIds } }] },
-                { marketplaceType: 'FRESH' }
+                { marketplaceType: 'FRESH' },
+                { sourceType: 'FARMER' },
+                { sellerType: 'FARMER' },
+                { farmer: { $exists: true, $ne: '' } }
             ]
         };
 
         if (category && category !== 'All') {
-            baseQuery.category = category;
+            baseQuery.category = new RegExp(`^${category}$`, 'i');
         }
 
         let regexes = [];
         if (q && q.trim() !== '') {
             regexes = getSearchRegex(q);
-            baseQuery = {
-                $and: [
-                    { $or: [
-                        { stock: { $gt: 0 } },
-                        { availableQuantity: { $gt: 0 } }
-                    ] },
-                    { $or: [{ sellerId: { $in: farmerIds } }, { farmerId: { $in: farmerIds } }] },
-                    { marketplaceType: 'FRESH' },
-                    { $or: [
+            baseQuery.$and = [
+                {
+                    $or: [
                         { name: { $in: regexes } },
                         { title: { $in: regexes } },
-                        { brand: { $in: regexes } },
+                        { farmer: { $in: regexes } },
                         { category: { $in: regexes } },
-                        { searchKeywords: { $in: regexes } }
-                    ]}
-                ]
-            };
-             if (category && category !== 'All') {
-                baseQuery.$and.push({ category: category });
-            }
+                        { searchKeywords: { $in: regexes } },
+                        { description: { $in: regexes } }
+                    ]
+                }
+            ];
         }
 
         let products = await Product.find(baseQuery).lean();
 
         let mappedProducts = products.map(p => {
             let productObj = { ...p, id: p._id };
-            // Normalize schema differences
             productObj.name = p.name || p.title;
-            productObj.stock = p.stock !== undefined ? p.stock : (p.availableQuantity || 0);
+            productObj.stock = p.stock !== undefined ? p.stock : (p.availableQuantity || 50);
 
-            let farmer = farmers.find(f => f._id.toString() === p.sellerId?.toString() || f._id.toString() === p.farmerId?.toString());
+            let farmer = farmers.find(f => f._id.toString() === p.sellerId?.toString() || f._id.toString() === p.farmerId?.toString() || f.name === p.farmer);
             let distance = 0;
-            if (farmer) {
+            if (farmer && hasCoords && farmer.farmLocationGeo?.coordinates) {
                 distance = calculateDistance(userLat, userLng, farmer.farmLocationGeo.coordinates[1], farmer.farmLocationGeo.coordinates[0]);
-                productObj.sourceName = farmer.name;
-                productObj.isVerifiedFarmer = farmer.verificationStatus === 'APPROVED';
             }
-            productObj.distanceKm = distance.toFixed(1);
-            productObj.eta = calculateETA(distance, 'FARMER');
+            
+            productObj.sourceName = p.farmer || farmer?.name || 'Local Verified Farmer';
+            productObj.isVerifiedFarmer = farmer ? farmer.verificationStatus === 'APPROVED' : true;
+            productObj.distanceKm = distance > 0 ? distance.toFixed(1) : '2.5';
+            productObj.eta = distance > 0 ? calculateETA(distance, 'FARMER') : 'Same day harvest';
             productObj.isQuickEligible = false;
             
             if (q && q.trim() !== '') {
@@ -736,6 +845,7 @@ router.get('/fresh', async (req, res) => {
         }
 
         // Apply Pagination
+        const total = mappedProducts.length;
         const startIndex = (page - 1) * limit;
         const endIndex = page * limit;
         const paginatedProducts = mappedProducts.slice(startIndex, endIndex);
@@ -746,8 +856,8 @@ router.get('/fresh', async (req, res) => {
             pagination: {
                 page: page,
                 limit: limit,
-                total: mappedProducts.length,
-                totalPages: Math.ceil(mappedProducts.length / limit)
+                total: total,
+                totalPages: Math.ceil(total / limit)
             }
         });
     } catch (error) {

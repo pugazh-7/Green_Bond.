@@ -9,6 +9,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import ServiceZone from '../models/ServiceZone.js';
 import OTP from '../models/OTP.js';
+import Config from '../models/Config.js';
 import { verifyToken, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -217,6 +218,70 @@ router.get('/audit', verifyToken, isAdmin, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error during audit', error: error.message });
+    }
+});
+
+// Get Admin Config
+router.get('/config', verifyToken, isAdmin, async (req, res) => {
+    try {
+        let config = await Config.findOne({ key: 'admin_settings' });
+        if (!config) {
+            config = new Config({ key: 'admin_settings' });
+            await config.save();
+        }
+        res.status(200).json(config);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error fetching config', error: error.message });
+    }
+});
+
+// Update Admin Config
+router.put('/config', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const updateData = req.body;
+        let config = await Config.findOneAndUpdate(
+            { key: 'admin_settings' },
+            { $set: updateData },
+            { new: true, upsert: true }
+        );
+        res.status(200).json(config);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error updating config', error: error.message });
+    }
+});
+
+// Get Revenue and Settlement Aggregation
+router.get('/revenue', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const pipeline = [
+            {
+                $group: {
+                    _id: null,
+                    totalGrossValue: { $sum: '$totalAmount' },
+                    totalGstCollected: { $sum: '$gstAmount' },
+                    totalDeliveryRevenue: { $sum: '$deliveryFee' },
+                    totalDeliveryPayouts: { $sum: '$deliveryBoyPayout' },
+                    totalSellerSettlements: { $sum: '$sellerAmount' },
+                    totalGreenBondCommission: { $sum: '$greenBondCommission' }
+                }
+            }
+        ];
+        
+        const result = await Order.aggregate(pipeline);
+        const revenue = result.length > 0 ? result[0] : {
+            totalGrossValue: 0,
+            totalGstCollected: 0,
+            totalDeliveryRevenue: 0,
+            totalDeliveryPayouts: 0,
+            totalSellerSettlements: 0,
+            totalGreenBondCommission: 0
+        };
+        
+        revenue.netPlatformRevenue = revenue.totalGreenBondCommission + (revenue.totalDeliveryRevenue - revenue.totalDeliveryPayouts);
+
+        res.status(200).json(revenue);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error calculating revenue', error: error.message });
     }
 });
 

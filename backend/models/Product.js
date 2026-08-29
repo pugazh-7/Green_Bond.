@@ -23,9 +23,11 @@ const ProductSchema = new mongoose.Schema({
     contact: { type: String, required: true },
     image: { type: String, required: false },
     images: { type: [String], default: [] },
+    imageKey: { type: String, required: false },
+    imageVersion: { type: Number, default: 1 },
     imageSource: { type: String, enum: ['seller', 'manufacturer', 'catalog', 'external', 'generated'] },
     imageAlt: { type: String },
-    imageStatus: { type: String, enum: ['pending', 'resolved', 'failed'], default: 'pending' },
+    imageStatus: { type: String, enum: ['pending', 'resolved', 'failed', 'READY', 'MISSING', 'PROCESSING'], default: 'pending' },
     imageUpdatedAt: { type: Date },
     description: { type: String },
     stock: { type: Number, required: true },
@@ -44,7 +46,11 @@ const ProductSchema = new mongoose.Schema({
     discountPercentage: { type: Number },
     tags: { type: [String], default: [] },
     aliases: { type: [String], default: [] },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    isReturnable: { type: Boolean, default: false },
+    returnPolicy: { type: String, default: 'Non-Returnable' },
+    gstRate: { type: Number, default: 0 },
+    hsnSac: { type: String }
 }, { timestamps: true });
 
 ProductSchema.index({ farmerId: 1 });

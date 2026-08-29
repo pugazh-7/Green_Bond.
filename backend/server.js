@@ -22,6 +22,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import imageProviderRoutes from './routes/imageProviderRoutes.js';
+import imageRoutes from './routes/imageRoutes.js';
 import bulkOrderRoutes from './routes/bulkOrderRoutes.js';
 
 const app = express();
@@ -39,14 +40,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Security Middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: false,
+}));
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://192.168.29.210:5173',
-        'https://green-bond-eight.vercel.app',
-        process.env.FRONTEND_URL
-    ].filter(Boolean),
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl) or any localhost / LAN IP
+        if (!origin || 
+            origin.includes('localhost') || 
+            origin.includes('127.0.0.1') || 
+            origin.includes('192.168.') || 
+            origin.includes('10.') || 
+            origin.includes('172.') || 
+            origin === 'https://green-bond-eight.vercel.app' || 
+            origin === process.env.FRONTEND_URL) {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true
 }));
@@ -103,6 +115,7 @@ io.on('connection', (socket) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/product-images', imageProviderRoutes);
+app.use('/api/images', imageRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/notifications', notificationRoutes);

@@ -8,6 +8,7 @@ import Product from '../models/Product.js';
 import OTP from '../models/OTP.js';
 import ServiceZone from '../models/ServiceZone.js';
 import { isWithinServiceArea, calculateDistance } from '../utils/locationUtils.js';
+import Config from '../models/Config.js';
 
 const router = express.Router();
 
@@ -66,9 +67,18 @@ router.post('/', verifyToken, async (req, res) => {
              orderData.pickupLocation = { lat: pickupLat, lng: pickupLng };
         }
 
+        // Fetch config for commission / delivery fee defaults
+        let config = await Config.findOne({ key: 'admin_settings' });
+        if (!config) {
+            config = { deliveryFee: 0, greenBondCommissionPercentage: 10, deliveryBoyPayoutPercentage: 100 };
+        }
+
+        let subtotal = 0;
+        let totalGstAmount = 0;
+        let gstBreakdown = [];
         let totalProductAmount = 0;
         
-        // Pre-check inventory to prevent negative stock and enforce DB price
+        // Pre-check inventory to prevent negative stock and enforce DB price & GST
         for (const item of orderData.items) {
             if (item.productId) {
                 const product = await Product.findById(item.productId);
@@ -81,15 +91,39 @@ router.post('/', verifyToken, async (req, res) => {
                 // Enforce price from backend
                 const rawPrice = product.price;
                 const dbPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+                
+                // Calculate item GST
+                const itemQuantity = item.quantity;
+                const itemTotal = dbPrice * itemQuantity;
+                const itemGstRate = product.gstRate || 0; // fallback to 0%
+                
+                // Formula: Taxable Amount = (Total / (100 + GST Rate)) * 100
+                const taxableValue = (itemTotal / (100 + itemGstRate)) * 100;
+                const itemGstAmount = itemTotal - taxableValue;
+                
                 item.price = dbPrice;
-                totalProductAmount += (dbPrice * item.quantity);
+                
+                // Save breakdown
+                if (itemGstRate > 0) {
+                    gstBreakdown.push({
+                        productId: product._id,
+                        rate: itemGstRate,
+                        taxableValue: Number(taxableValue.toFixed(2)),
+                        cgst: Number((itemGstAmount / 2).toFixed(2)),
+                        sgst: Number((itemGstAmount / 2).toFixed(2)),
+                        igst: 0,
+                        totalGst: Number(itemGstAmount.toFixed(2))
+                    });
+                }
+                
+                subtotal += itemTotal; // Subtotal includes tax in this model (Grand Total of items)
+                totalGstAmount += itemGstAmount;
             }
         }
 
         // Inventory Deduction (Atomic)
         for (const item of orderData.items) {
             if (item.productId) {
-                // Safely decrement either stock or availableQuantity
                 await Product.findOneAndUpdate(
                     { 
                         _id: item.productId, 
@@ -103,17 +137,33 @@ router.post('/', verifyToken, async (req, res) => {
                             stock: -item.quantity, 
                             availableQuantity: -item.quantity 
                         } 
-                    },
-                    { new: true }
+                    }
                 );
             }
         }
         
-        orderData.productAmount = totalProductAmount;
-        orderData.greenBondCommission = totalProductAmount * 0.10; // 10%
-        orderData.farmerAmount = totalProductAmount - orderData.greenBondCommission;
-        orderData.deliveryFee = orderData.deliveryFee || 0;
-        orderData.totalAmount = totalProductAmount + orderData.deliveryFee;
+        // Finalize snapshots
+        orderData.subtotal = Number((subtotal - totalGstAmount).toFixed(2));
+        orderData.taxableAmount = orderData.subtotal;
+        orderData.gstAmount = Number(totalGstAmount.toFixed(2));
+        orderData.gstBreakdown = gstBreakdown;
+        orderData.discount = 0; // Hook for future coupons
+        
+        // Delivery fee processing
+        orderData.deliveryFee = orderData.deliveryFee !== undefined ? orderData.deliveryFee : config.deliveryFee;
+        orderData.deliveryBoyPayout = Number((orderData.deliveryFee * (config.deliveryBoyPayoutPercentage / 100)).toFixed(2));
+        
+        orderData.totalAmount = subtotal + orderData.deliveryFee - orderData.discount;
+        orderData.productAmount = subtotal; // Backwards compatibility
+        
+        // Settlement calculations
+        orderData.greenBondCommission = Number(((orderData.taxableAmount) * (config.greenBondCommissionPercentage / 100)).toFixed(2));
+        
+        // Seller gets: TaxableAmount - Commission + GST (since seller has to remit GST)
+        orderData.sellerAmount = Number((orderData.taxableAmount - orderData.greenBondCommission + orderData.gstAmount).toFixed(2));
+        
+        // Ensure farmerAmount is set for backward compatibility
+        orderData.farmerAmount = orderData.sellerAmount;
 
         const newOrder = new Order(orderData);
         await newOrder.save();
@@ -141,6 +191,38 @@ router.post('/', verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Order creation error:", error);
         res.status(500).json({ message: 'Server error during order creation', error: error.message });
+    }
+});
+
+// Fetch invoice details for an order
+router.get('/:id/invoice', verifyToken, async (req, res) => {
+    try {
+        const order = await Order.findOne({ id: req.params.id, userId: req.user.id })
+            .populate('items.productId')
+            .lean();
+            
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+        
+        let config = await Config.findOne({ key: 'admin_settings' }).lean();
+        if (!config) {
+            config = {
+                gstin: 'PENDING-GSTIN',
+                legalName: 'GreenBond Technologies',
+                registeredAddress: 'Thiruvannamalai, TN, India',
+                invoicePrefix: 'GB-'
+            };
+        }
+        
+        res.json({
+            order,
+            config,
+            invoiceNumber: `${config.invoicePrefix}${order.id.replace('#ORD-', '')}`
+        });
+    } catch (error) {
+        console.error("Invoice fetch error:", error);
+        res.status(500).json({ message: 'Server error retrieving invoice' });
     }
 });
 
