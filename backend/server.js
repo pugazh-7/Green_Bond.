@@ -44,22 +44,9 @@ app.use(helmet({
     crossOriginResourcePolicy: false,
 }));
 app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl) or any localhost / LAN IP
-        if (!origin || 
-            origin.includes('localhost') || 
-            origin.includes('127.0.0.1') || 
-            origin.includes('192.168.') || 
-            origin.includes('10.') || 
-            origin.includes('172.') || 
-            origin === 'https://green-bond-eight.vercel.app' || 
-            origin === process.env.FRONTEND_URL) {
-            callback(null, true);
-        } else {
-            callback(null, true);
-        }
-    },
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With'],
     credentials: true
 }));
 app.use(cookieParser());
