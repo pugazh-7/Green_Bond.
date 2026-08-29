@@ -17,10 +17,11 @@ const generateTokens = (payload) => {
 };
 
 const setRefreshCookie = (res, refreshToken) => {
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: true, // Always true for cross-origin Vercel/Render
-        sameSite: 'none', // Always 'none' for cross-origin
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 };
