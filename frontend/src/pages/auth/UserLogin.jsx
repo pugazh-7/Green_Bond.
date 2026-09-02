@@ -88,17 +88,20 @@ const UserLogin = () => {
                 toast.success(`Welcome back, ${user.name}!`);
                 navigate('/user', { replace: true });
             } else {
-                // Differentiate HTTP error statuses as requested
-                if (data.message) {
+                if (data && data.message) {
                     toast.error(data.message);
                 } else if (response.status === 400 || response.status === 401) {
                     toast.error('Incorrect email or password');
                 } else if (response.status === 403) {
-                    toast.error('Your account does not have access.');
+                    toast.error('Access denied. Your account does not have access.');
+                } else if (response.status === 404) {
+                    toast.error('Login endpoint not found (404).');
                 } else if (response.status === 429) {
                     toast.error('Too many login attempts. Please try again later.');
+                } else if (response.status === 503) {
+                    toast.error('Database service is temporarily unavailable. Please try again.');
                 } else if (response.status >= 500) {
-                    toast.error('Server error. Please ensure backend server is running.');
+                    toast.error('Server error during login. Please try again.');
                 } else {
                     toast.error('Login failed.');
                 }
@@ -108,12 +111,11 @@ const UserLogin = () => {
             console.error('GreenBond API error:', error);
             
             if (error.name === 'AbortError') {
-                toast.error('Unable to connect to GreenBond. Check your internet connection.');
+                toast.error('Connection timed out. The server took too long to respond.');
             } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                toast.error('Unable to connect to GreenBond. Check your internet connection.');
+                toast.error('Unable to reach GreenBond server. Please ensure the backend is running.');
             } else {
-                // Do not expose backend stack traces, but don't call it a network error either
-                toast.error('An unexpected error occurred during login.');
+                toast.error(error.message || 'An unexpected error occurred during login.');
             }
         } finally {
             setIsLoading(false);

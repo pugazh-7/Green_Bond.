@@ -74,13 +74,28 @@ const DeliveryLogin = () => {
                 toast.success(`Welcome back, ${user.name}!`);
                 navigate('/delivery', { replace: true });
             } else {
-                toast.error(data.message || 'Invalid Email or Password.');
+                if (data && data.message) {
+                    toast.error(data.message);
+                } else if (response.status === 400 || response.status === 401) {
+                    toast.error('Invalid Email or Password.');
+                } else if (response.status === 404) {
+                    toast.error('Delivery login endpoint not found (404).');
+                } else if (response.status >= 500) {
+                    toast.error('Server error during delivery login. Please try again.');
+                } else {
+                    toast.error('Login failed.');
+                }
             }
         } catch (error) {
             clearTimeout(timeoutId);
             console.error('Login error:', error);
-            if (error.name === 'AbortError') toast.error('Request timed out.');
-            else toast.error('Unable to connect to GreenBond.');
+            if (error.name === 'AbortError') {
+                toast.error('Connection timed out. Please try again.');
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                toast.error('Unable to reach GreenBond server. Please ensure the backend is running.');
+            } else {
+                toast.error(error.message || 'Login failed.');
+            }
         } finally {
             setIsLoading(false);
         }

@@ -74,12 +74,27 @@ const ShopLogin = () => {
 
                 login(shopUser, token);
                 toast.success('Login successful!', { id: loadingToast });
-                navigate('/shop', { replace: true });
             } else {
-                toast.error(data.message || 'Login failed. Please check your credentials.', { id: loadingToast });
+                if (data && data.message) {
+                    toast.error(data.message, { id: loadingToast });
+                } else if (response.status === 400 || response.status === 401) {
+                    toast.error('Invalid mobile or password.', { id: loadingToast });
+                } else if (response.status === 404) {
+                    toast.error('Shop login endpoint not found (404).', { id: loadingToast });
+                } else if (response.status >= 500) {
+                    toast.error('Server error during shop login. Please try again.', { id: loadingToast });
+                } else {
+                    toast.error('Login failed.', { id: loadingToast });
+                }
             }
         } catch (error) {
-            toast.error('Unable to connect to GreenBond. Please try again.', { id: loadingToast });
+            if (error.name === 'AbortError') {
+                toast.error('Connection timed out. Please try again.', { id: loadingToast });
+            } else if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+                toast.error('Unable to reach GreenBond server. Please ensure backend is running.', { id: loadingToast });
+            } else {
+                toast.error(error.message || 'Login failed.', { id: loadingToast });
+            }
             console.error('Shop login error:', error);
         } finally {
             setLoading(false);

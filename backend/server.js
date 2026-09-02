@@ -103,6 +103,18 @@ io.on('connection', (socket) => {
     });
 });
 
+// Health Check Route
+app.get('/api/health', (req, res) => {
+    const isDbConnected = mongoose.connection.readyState === 1;
+    res.status(isDbConnected ? 200 : 503).json({
+        success: isDbConnected,
+        status: isDbConnected ? 'healthy' : 'degraded',
+        database: isDbConnected ? 'connected' : 'disconnected',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -117,6 +129,11 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
 
+// Return JSON 404 for unhandled API requests (prevents returning SPA HTML on missing API routes)
+app.all('/api/*', (req, res) => {
+    res.status(404).json({ success: false, message: `API route ${req.method} ${req.originalUrl} not found` });
+});
+
 // Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/cdn', express.static(path.join(__dirname, 'storage/cdn')));
@@ -124,7 +141,12 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Catch-all for SPA
 app.use((req, res) => {
-    res.sendFile(path.resolve(__dirname, '../frontend/dist/index.html'));
+    const indexPath = path.resolve(__dirname, '../frontend/dist/index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            res.status(404).send('GreenBond frontend build not found. Please build the frontend.');
+        }
+    });
 });
 
 // Database Connection
@@ -133,15 +155,17 @@ const connectDB = async () => {
         return;
     }
     
+    const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond';
     try {
-        await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond', {
+        console.log(`Connecting to MongoDB...`);
+        await mongoose.connect(mongoUri, {
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
             maxPoolSize: 10
         });
-        console.log('MongoDB connected successfully');
+        console.log('✓ MongoDB connected successfully');
     } catch (err) {
-        console.error('MongoDB connection error:', err);
+        console.error('✗ MongoDB connection error:', err.message);
     }
 };
 
