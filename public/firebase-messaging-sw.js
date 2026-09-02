@@ -4,15 +4,15 @@
 importScripts('https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging-compat.js');
 
-// Parse configuration from search params or use fallback
+// Parse configuration from search params or use project defaults
 const urlParams = new URL(location).searchParams;
 const firebaseConfig = {
-    apiKey: urlParams.get('apiKey') || '',
-    authDomain: urlParams.get('authDomain') || '',
-    projectId: urlParams.get('projectId') || '',
-    storageBucket: urlParams.get('storageBucket') || '',
-    messagingSenderId: urlParams.get('messagingSenderId') || '',
-    appId: urlParams.get('appId') || ''
+    apiKey: urlParams.get('apiKey') || "AIzaSyDU_5_ckKUmJKYQb4AD8M3EmD3arayp0kc",
+    authDomain: urlParams.get('authDomain') || "greenbond-54d07.firebaseapp.com",
+    projectId: urlParams.get('projectId') || "greenbond-54d07",
+    storageBucket: urlParams.get('storageBucket') || "greenbond-54d07.firebasestorage.app",
+    messagingSenderId: urlParams.get('messagingSenderId') || "566733428818",
+    appId: urlParams.get('appId') || "1:566733428818:web:a8e082bd457cb7a43aa78b"
 };
 
 // Initialize Firebase compat app if projectId is provided
