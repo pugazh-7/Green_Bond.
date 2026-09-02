@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import Payment from '../models/Payment.js';
 import Order from '../models/Order.js';
 import { verifyToken } from '../middleware/auth.js';
+import { dispatchOrderNotification, NOTIFICATION_EVENTS } from '../services/orderNotificationService.js';
 
 const router = express.Router();
 
@@ -83,10 +84,15 @@ router.post('/webhook', async (req, res) => {
                     await payment.save();
 
                     // Update corresponding Order
-                    await Order.findOneAndUpdate(
+                    const updatedOrder = await Order.findOneAndUpdate(
                         { id: payment.orderId },
-                        { paymentStatus: 'Paid' }
+                        { paymentStatus: 'Paid' },
+                        { new: true }
                     );
+
+                    if (updatedOrder) {
+                        dispatchOrderNotification(NOTIFICATION_EVENTS.PAYMENT_SUCCESS, updatedOrder);
+                    }
                 }
             }
             
@@ -100,6 +106,11 @@ router.post('/webhook', async (req, res) => {
                     payment.status = 'FAILED';
                     payment.failureReason = paymentEntity.error_description || 'Payment Failed';
                     await payment.save();
+
+                    const failedOrder = await Order.findOne({ id: payment.orderId });
+                    if (failedOrder) {
+                        dispatchOrderNotification(NOTIFICATION_EVENTS.PAYMENT_FAILED, failedOrder);
+                    }
                 }
             }
 
@@ -134,10 +145,15 @@ router.post('/verify', verifyToken, async (req, res) => {
                 payment.paidAt = new Date();
                 await payment.save();
 
-                await Order.findOneAndUpdate(
+                const updatedOrder = await Order.findOneAndUpdate(
                     { id: payment.orderId },
-                    { paymentStatus: 'Paid' }
+                    { paymentStatus: 'Paid' },
+                    { new: true }
                 );
+
+                if (updatedOrder) {
+                    dispatchOrderNotification(NOTIFICATION_EVENTS.PAYMENT_SUCCESS, updatedOrder);
+                }
             }
             return res.status(200).json({ message: 'Payment verified successfully' });
         } else {

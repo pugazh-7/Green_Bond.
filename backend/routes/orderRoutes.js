@@ -9,6 +9,7 @@ import OTP from '../models/OTP.js';
 import ServiceZone from '../models/ServiceZone.js';
 import { isWithinServiceArea, calculateDistance } from '../utils/locationUtils.js';
 import Config from '../models/Config.js';
+import { dispatchOrderNotification, NOTIFICATION_EVENTS } from '../services/orderNotificationService.js';
 
 const router = express.Router();
 
@@ -175,17 +176,8 @@ router.post('/', verifyToken, async (req, res) => {
              await Cart.findOneAndUpdate({ userId: req.user.id }, { $set: { items: [], totalAmount: 0, deliveryFee: 0, grandTotal: 0 } });
         }
 
-        // Send Notification to user
-        const notif = await Notification.create({
-            userId: req.user.id,
-            type: 'Order Update',
-            message: `Your order ${newOrder.id} has been placed successfully.`,
-            orderId: newOrder.id
-        });
-
-        if (req.io) {
-            req.io.to(req.user.id).emit('notification', notif);
-        }
+        // Trigger ORDER_PLACED FCM + In-App notification with duplicate protection
+        dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_PLACED, newOrder, req.io);
         
         res.status(201).json({ message: 'Order created successfully', order: newOrder });
     } catch (error) {
@@ -448,19 +440,18 @@ router.put('/:id/status', verifyToken, async (req, res) => {
             { new: true }
         );
 
-        // Send real-time notification to the customer
-        const notifMsg = getNotificationMessage(status, updatedOrder.id);
-        if (notifMsg && updatedOrder.userId) {
-            const notif = await Notification.create({
-                userId: updatedOrder.userId,
-                type: 'Order Update',
-                message: notifMsg,
-                orderId: updatedOrder.id
-            });
-
-            if (req.io) {
-                req.io.to(updatedOrder.userId.toString()).emit('notification', notif);
-                req.io.to(updatedOrder.userId.toString()).emit('order_update', updatedOrder);
+        // Dispatch appropriate FCM lifecycle event
+        if (nextStatus === 'CONFIRMED') {
+            dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_CONFIRMED, updatedOrder, req.io);
+        } else if (nextStatus === 'PACKING' || nextStatus === 'READY_FOR_PICKUP') {
+            dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_PREPARING, updatedOrder, req.io);
+        } else if (nextStatus === 'CANCELLED') {
+            dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_CANCELLED, updatedOrder, req.io);
+        } else {
+            // Fallback for other status transitions
+            const notifMsg = getNotificationMessage(status, updatedOrder.id);
+            if (notifMsg && updatedOrder.userId) {
+                dispatchOrderNotification(status, updatedOrder, req.io);
             }
         }
         
@@ -517,12 +508,8 @@ router.post('/:id/verify-pickup-otp', verifyToken, isDelivery, async (req, res) 
         order.shippedAt = now;
         await order.save();
 
-        let notifMsg = getNotificationMessage('OUT_FOR_DELIVERY', order.id);
-        if (req.io && order.userId) {
-            req.io.to(order.userId.toString()).emit('order_update', order);
-            const notif = await Notification.create({ userId: order.userId, type: 'Order Update', message: notifMsg, orderId: order.id });
-            req.io.to(order.userId.toString()).emit('notification', notif);
-        }
+        // Trigger OUT_FOR_DELIVERY notification to customer
+        dispatchOrderNotification(NOTIFICATION_EVENTS.OUT_FOR_DELIVERY, order, req.io);
 
         res.status(200).json({ message: 'Pickup OTP verified successfully, order is OUT_FOR_DELIVERY', order });
     } catch (error) {
@@ -582,12 +569,8 @@ router.post('/:id/verify-delivery-otp', verifyToken, isDelivery, async (req, res
 
         await order.save();
 
-        const notifMsg = getNotificationMessage('DELIVERED', order.id);
-        if (req.io && order.userId) {
-            req.io.to(order.userId.toString()).emit('order_update', order);
-            const notif = await Notification.create({ userId: order.userId, type: 'Order Update', message: notifMsg, orderId: order.id });
-            req.io.to(order.userId.toString()).emit('notification', notif);
-        }
+        // Trigger ORDER_DELIVERED notification to customer
+        dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_DELIVERED, order, req.io);
 
         res.status(200).json({ message: 'Delivery OTP verified successfully', order });
     } catch (error) {

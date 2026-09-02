@@ -9,7 +9,8 @@ const notificationSchema = new mongoose.Schema({
     },
     message: { type: String, required: true },
     isRead: { type: Boolean, default: false },
-    orderId: { type: String } // Optional context
+    orderId: { type: String, index: true },
+    eventTag: { type: String, index: true }
 }, { timestamps: true });
 
 // Auto-delete notifications older than 30 days to save DB space
