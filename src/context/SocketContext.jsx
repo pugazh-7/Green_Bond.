@@ -27,7 +27,7 @@ export const SocketProvider = ({ children }) => {
             else if (deliveryStr) idToJoin = JSON.parse(deliveryStr)._id || JSON.parse(deliveryStr).id;
         }
 
-        const newSocket = io(import.meta.env.VITE_API_URL || '');
+        const newSocket = io(import.meta.env.VITE_API_URL || 'https://green-bond.onrender.com');
         
         newSocket.on('connect', () => {
             console.log('Connected to socket server');

@@ -48,7 +48,7 @@ const DeliveryDashboard = () => {
             } catch (e) {}
         }
 
-        const socket = io(import.meta.env.VITE_API_URL || '');
+        const socket = io(import.meta.env.VITE_API_URL || 'https://green-bond.onrender.com');
         if (deliveryId) {
             socket.emit('join', deliveryId);
             socket.on('order_update', () => {

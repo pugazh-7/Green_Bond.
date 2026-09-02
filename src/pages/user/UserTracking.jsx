@@ -29,7 +29,7 @@ const UserTracking = () => {
         fetchOrder();
 
         // Setup Socket.IO for live updates
-        const socket = io(import.meta.env.VITE_API_URL || '');
+        const socket = io(import.meta.env.VITE_API_URL || 'https://green-bond.onrender.com');
         socket.on('order_update', (data) => {
             if (data.orderId === id) {
                 setStatus(data.status);

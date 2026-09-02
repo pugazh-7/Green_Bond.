@@ -11,8 +11,8 @@ import Shop from '../models/Shop.js';
 import { isWithinServiceArea } from '../utils/locationUtils.js';
 
 const generateTokens = (payload) => {
-    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
-    const refreshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    const refreshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
     return { accessToken, refreshToken };
 };
 
@@ -22,7 +22,7 @@ const setRefreshCookie = (res, refreshToken) => {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
 };
 
@@ -132,33 +132,50 @@ router.post('/register-delivery', async (req, res) => {
     }
 });
 
+// Safe verification helper that never throws on legacy strings or null values
+const verifySecret = async (input, storedHashOrPlain) => {
+    if (!input || !storedHashOrPlain || typeof input !== 'string') return false;
+    try {
+        const isMatch = await bcrypt.compare(input, storedHashOrPlain);
+        if (isMatch) return true;
+    } catch {
+        // Not a standard bcrypt hash, fallback to direct comparison
+    }
+    return String(input).trim() === String(storedHashOrPlain).trim();
+};
+
 // Login User
 router.post('/login-user', async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const cleanEmail = email.trim().toLowerCase();
-
-        const user = await User.findOne({ email: cleanEmail });
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+        const { email, password } = req.body || {};
+        if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ success: false, message: 'Please provide email and password' });
         }
 
-        // Check password (with fallback for legacy plaintext)
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch && user.password !== password) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+        const cleanEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user || !user.password) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
+
+        const isMatch = await verifySecret(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
         
-        // Auto-upgrade legacy password
+        // Auto-upgrade legacy plaintext password if applicable
         if (user.password === password) {
-             const salt = await bcrypt.genSalt(10);
-             user.password = await bcrypt.hash(password, salt);
-             await user.save();
+             try {
+                 const salt = await bcrypt.genSalt(10);
+                 const hashedPassword = await bcrypt.hash(password, salt);
+                 await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword } });
+             } catch (upgradeErr) {
+                 console.warn("User password upgrade notice:", upgradeErr.message);
+             }
         }
 
         const canonicalRole = user.role === 'customer' ? 'user' : user.role;
 
-        // Return the actual user data, omitting the password
         const userData = {
             id: user._id,
             name: user.name,
@@ -170,12 +187,12 @@ router.post('/login-user', async (req, res) => {
         const { accessToken, refreshToken } = generateTokens({ id: user._id, role: canonicalRole });
         setRefreshCookie(res, refreshToken);
 
-        res.status(200).json({ message: 'Login successful', user: userData, token: accessToken });
+        return res.status(200).json({ success: true, message: 'Login successful', user: userData, token: accessToken });
     } catch (error) {
         console.error("User login error:", error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             success: false, 
-            message: 'Authentication service temporarily unavailable', 
+            message: 'Unable to connect to login service. Please try again.', 
             code: 'AUTH_SERVICE_ERROR' 
         });
     }
@@ -184,33 +201,41 @@ router.post('/login-user', async (req, res) => {
 // Login Farmer
 router.post('/login-farmer', async (req, res) => {
     try {
-        const { name, mobile, pin } = req.body;
+        const { name, mobile, pin } = req.body || {};
+        if (!mobile || !pin) {
+            return res.status(400).json({ success: false, message: 'Please provide Mobile Number and PIN' });
+        }
 
-        const farmer = await Farmer.findOne({ 
-            mobile, 
-            name: { $regex: new RegExp(`^${name}$`, 'i') }
-        });
+        const cleanMobile = String(mobile).trim();
+        const query = { mobile: cleanMobile };
+        if (name && typeof name === 'string' && name.trim()) {
+            query.name = { $regex: new RegExp(`^${name.trim()}$`, 'i') };
+        }
 
-        if (!farmer) {
-            return res.status(401).json({ message: 'Invalid Name, Mobile Number or PIN' });
+        const farmer = await Farmer.findOne(query);
+        if (!farmer || !farmer.pin) {
+            return res.status(401).json({ success: false, message: 'Invalid Name, Mobile Number or PIN' });
         }
         
-        const isMatch = await bcrypt.compare(pin, farmer.pin);
-        if (!isMatch && farmer.pin !== pin) {
-             return res.status(401).json({ message: 'Invalid Name, Mobile Number or PIN' });
+        const isMatch = await verifySecret(String(pin), farmer.pin);
+        if (!isMatch) {
+             return res.status(401).json({ success: false, message: 'Invalid Name, Mobile Number or PIN' });
         }
         
-        // Auto-upgrade legacy pin
+        // Auto-upgrade legacy plaintext pin
         if (farmer.pin === pin) {
-             const salt = await bcrypt.genSalt(10);
-             farmer.pin = await bcrypt.hash(pin, salt);
-             await farmer.save();
+             try {
+                 const salt = await bcrypt.genSalt(10);
+                 const hashedPin = await bcrypt.hash(String(pin), salt);
+                 await Farmer.updateOne({ _id: farmer._id }, { $set: { pin: hashedPin } });
+             } catch (upgradeErr) {
+                 console.warn("Farmer PIN upgrade notice:", upgradeErr.message);
+             }
         }
 
         const { accessToken, refreshToken } = generateTokens({ id: farmer._id, role: 'client' });
         setRefreshCookie(res, refreshToken);
 
-        // Include verificationStatus in login response, but omit sensitive info
         const farmerData = {
             id: farmer._id,
             name: farmer.name,
@@ -221,12 +246,12 @@ router.post('/login-farmer', async (req, res) => {
             role: 'client'
         };
 
-        res.status(200).json({ message: 'Login successful', farmer: farmerData, token: accessToken });
+        return res.status(200).json({ success: true, message: 'Login successful', user: farmerData, farmer: farmerData, token: accessToken });
     } catch (error) {
         console.error("Farmer login error:", error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             success: false, 
-            message: 'Authentication service temporarily unavailable', 
+            message: 'Unable to connect to login service. Please try again.', 
             code: 'AUTH_SERVICE_ERROR' 
         });
     }
@@ -235,24 +260,31 @@ router.post('/login-farmer', async (req, res) => {
 // Login Delivery Partner
 router.post('/login-delivery', async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const cleanEmail = email.trim().toLowerCase();
+        const { email, password } = req.body || {};
+        if (!email || !password || typeof email !== 'string') {
+            return res.status(400).json({ success: false, message: 'Please provide Email and Password' });
+        }
 
+        const cleanEmail = email.trim().toLowerCase();
         const partner = await DeliveryPartner.findOne({ email: cleanEmail });
-        if (!partner) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+        if (!partner || !partner.password) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
         
-        const isMatch = await bcrypt.compare(password, partner.password);
-        if (!isMatch && partner.password !== password) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+        const isMatch = await verifySecret(password, partner.password);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
 
-        // Auto-upgrade legacy password
+        // Auto-upgrade legacy plaintext password
         if (partner.password === password) {
-             const salt = await bcrypt.genSalt(10);
-             partner.password = await bcrypt.hash(password, salt);
-             await partner.save();
+             try {
+                 const salt = await bcrypt.genSalt(10);
+                 const hashedPassword = await bcrypt.hash(password, salt);
+                 await DeliveryPartner.updateOne({ _id: partner._id }, { $set: { password: hashedPassword } });
+             } catch (upgradeErr) {
+                 console.warn("Delivery partner password upgrade notice:", upgradeErr.message);
+             }
         }
 
         const { accessToken, refreshToken } = generateTokens({ id: partner._id, role: 'delivery' });
@@ -267,12 +299,12 @@ router.post('/login-delivery', async (req, res) => {
             role: partner.role
         };
 
-        res.status(200).json({ message: 'Login successful', partner: partnerData, token: accessToken });
+        return res.status(200).json({ success: true, message: 'Login successful', user: partnerData, partner: partnerData, token: accessToken });
     } catch (error) {
         console.error("Delivery login error:", error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             success: false, 
-            message: 'Authentication service temporarily unavailable', 
+            message: 'Unable to connect to login service. Please try again.', 
             code: 'AUTH_SERVICE_ERROR' 
         });
     }
@@ -281,10 +313,10 @@ router.post('/login-delivery', async (req, res) => {
 // Register Shop
 router.post('/register-shop', async (req, res) => {
     try {
-        const { name, ownerName, email, mobile, password, confirmPassword, location } = req.body;
+        const { name, ownerName, email, mobile, password, confirmPassword, location } = req.body || {};
         
         if (password !== confirmPassword) {
-            return res.status(400).json({ message: 'Passwords do not match' });
+            return res.status(400).json({ success: false, message: 'Passwords do not match' });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -299,28 +331,44 @@ router.post('/register-shop', async (req, res) => {
         });
         await newShop.save();
 
-        res.status(201).json({ message: 'Shop registered successfully', shop: { name: newShop.name, email: newShop.email, role: 'shop' } });
+        return res.status(201).json({ success: true, message: 'Shop registered successfully', shop: { name: newShop.name, email: newShop.email, role: 'shop' } });
     } catch (error) {
         console.error("Shop registration error:", error);
         if (error.code === 11000) {
-            return res.status(400).json({ message: 'Email or Mobile already registered' });
+            return res.status(400).json({ success: false, message: 'Email or Mobile already registered' });
         }
-        res.status(500).json({ message: 'Server error during registration', error: error.message });
+        return res.status(500).json({ success: false, message: 'Server error during registration', error: error.message });
     }
 });
 
 // Login Shop
 router.post('/login-shop', async (req, res) => {
     try {
-        const { mobile, password } = req.body;
-        const shop = await Shop.findOne({ mobile });
-        if (!shop) {
-            return res.status(401).json({ message: 'Invalid mobile or password' });
+        const { mobile, password } = req.body || {};
+        if (!mobile || !password) {
+            return res.status(400).json({ success: false, message: 'Please provide Mobile Number and Password' });
+        }
+
+        const cleanMobile = String(mobile).trim();
+        const shop = await Shop.findOne({ mobile: cleanMobile });
+        if (!shop || !shop.password) {
+            return res.status(401).json({ success: false, message: 'Invalid mobile or password' });
         }
         
-        const isMatch = await bcrypt.compare(password, shop.password);
+        const isMatch = await verifySecret(password, shop.password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid mobile or password' });
+            return res.status(401).json({ success: false, message: 'Invalid mobile or password' });
+        }
+
+        // Auto-upgrade legacy plaintext password
+        if (shop.password === password) {
+             try {
+                 const salt = await bcrypt.genSalt(10);
+                 const hashedPassword = await bcrypt.hash(password, salt);
+                 await Shop.updateOne({ _id: shop._id }, { $set: { password: hashedPassword } });
+             } catch (upgradeErr) {
+                 console.warn("Shop password upgrade notice:", upgradeErr.message);
+             }
         }
 
         const { accessToken, refreshToken } = generateTokens({ id: shop._id, role: 'shop' });
@@ -335,12 +383,12 @@ router.post('/login-shop', async (req, res) => {
             isActive: shop.isActive
         };
 
-        res.status(200).json({ message: 'Login successful', shop: shopData, token: accessToken });
+        return res.status(200).json({ success: true, message: 'Login successful', user: shopData, shop: shopData, token: accessToken });
     } catch (error) {
         console.error("Shop login error:", error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             success: false, 
-            message: 'Authentication service temporarily unavailable', 
+            message: 'Unable to connect to login service. Please try again.', 
             code: 'AUTH_SERVICE_ERROR' 
         });
     }
@@ -384,17 +432,17 @@ router.get('/refresh-token', async (req, res) => {
         const { accessToken, refreshToken: newRefreshToken } = generateTokens({ id, role });
         setRefreshCookie(res, newRefreshToken); // Rotate refresh token (optional but good practice)
 
-        res.status(200).json({ user: userData, token: accessToken });
+        res.status(200).json({ success: true, user: userData, token: accessToken });
     } catch (error) {
         res.clearCookie('refreshToken');
-        return res.status(401).json({ message: 'Invalid or expired refresh token' });
+        return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
 });
 
 // Logout
 router.post('/logout', (req, res) => {
     res.clearCookie('refreshToken');
-    res.status(200).json({ message: 'Logged out successfully' });
+    res.status(200).json({ success: true, message: 'Logged out successfully' });
 });
 
 import { verifyToken, isDelivery } from '../middleware/auth.js';
@@ -423,12 +471,12 @@ router.get('/validate-token', verifyToken, async (req, res) => {
         }
 
         if (!userData) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        res.status(200).json({ user: userData });
+        res.status(200).json({ success: true, user: userData });
     } catch (error) {
-        res.status(500).json({ message: 'Server error validating token' });
+        res.status(500).json({ success: false, message: 'Server error validating token' });
     }
 });
 
