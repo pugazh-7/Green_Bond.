@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getCategoryFallback } from '../../services/productImageResolver';
+import { getProductImage, getCategoryFallback } from '../../services/productImageResolver';
 
 const ProductImage = ({ product, alt, className = "w-full h-full object-cover rounded-xl" }) => {
     const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
@@ -7,8 +7,9 @@ const ProductImage = ({ product, alt, className = "w-full h-full object-cover ro
     // Safety check
     if (!product) return null;
     
+    // Always use the deterministic API image URL
+    const resolvedSrc = getProductImage(product);
     const fallbackSrc = getCategoryFallback(product);
-    const resolvedSrc = product.image || fallbackSrc;
 
     return (
         <div className="w-full h-full relative flex items-center justify-center bg-gray-50 overflow-hidden rounded-xl">

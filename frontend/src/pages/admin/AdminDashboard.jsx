@@ -28,6 +28,8 @@ const AdminDashboard = () => {
     const [products, setProducts] = useState([]);
     const [stats, setStats] = useState([]);
     const [auditData, setAuditData] = useState({});
+    const [revenueData, setRevenueData] = useState(null);
+    const [configData, setConfigData] = useState(null);
 
     // Get current user from localStorage
     const currentUser = JSON.parse(localStorage.getItem('green_bond_current_user') || '{}');
@@ -47,13 +49,15 @@ const AdminDashboard = () => {
                 const token = accessToken;
                 const headers = { 'Authorization': `Bearer ${token}` };
 
-                const [usersRes, farmersRes, partnersRes, ordersRes, productsRes, auditRes] = await Promise.all([
+                const [usersRes, farmersRes, partnersRes, ordersRes, productsRes, auditRes, revenueRes, configRes] = await Promise.all([
                     fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/users`, { headers }),
                     fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/farmers`, { headers }),
                     fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/delivery-partners`, { headers }),
                     fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/admin/all`, { headers }),
                     fetch(`${import.meta.env.VITE_API_URL || ''}/api/products`),
-                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/audit`, { headers })
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/audit`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/revenue`, { headers }),
+                    fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/config`, { headers })
                 ]);
 
                 if (usersRes.ok) setUsers(await usersRes.json());
@@ -62,6 +66,8 @@ const AdminDashboard = () => {
                 if (ordersRes.ok) setOrders(await ordersRes.json());
                 if (productsRes.ok) setProducts(await productsRes.json());
                 if (auditRes.ok) setAuditData(await auditRes.json());
+                if (revenueRes.ok) setRevenueData(await revenueRes.json());
+                if (configRes.ok) setConfigData(await configRes.json());
 
             } catch (error) {
                 console.error("Error fetching admin data:", error);
@@ -559,30 +565,81 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 );
+            case 'revenue':
+                return (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
+                            <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+                                <span className="p-2 bg-slate-100 rounded-lg">💰</span>
+                                Revenue & Settlement Aggregation
+                            </h3>
+                            {revenueData ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                                        <p className="text-sm font-bold text-slate-500 uppercase">Gross Platform Value</p>
+                                        <p className="text-3xl font-black text-slate-900 mt-2">₹{revenueData.totalGrossValue?.toFixed(2) || 0}</p>
+                                    </div>
+                                    <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100">
+                                        <p className="text-sm font-bold text-rose-600 uppercase">GST Collected (Liability)</p>
+                                        <p className="text-3xl font-black text-rose-900 mt-2">₹{revenueData.totalGstCollected?.toFixed(2) || 0}</p>
+                                    </div>
+                                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                                        <p className="text-sm font-bold text-blue-600 uppercase">Seller Settlements</p>
+                                        <p className="text-3xl font-black text-blue-900 mt-2">₹{revenueData.totalSellerSettlements?.toFixed(2) || 0}</p>
+                                    </div>
+                                    <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                                        <p className="text-sm font-bold text-amber-600 uppercase">Delivery Payouts</p>
+                                        <p className="text-3xl font-black text-amber-900 mt-2">₹{revenueData.totalDeliveryPayouts?.toFixed(2) || 0}</p>
+                                    </div>
+                                    <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 md:col-span-2 lg:col-span-2">
+                                        <p className="text-sm font-bold text-emerald-600 uppercase">Net Platform Revenue</p>
+                                        <p className="text-3xl font-black text-emerald-900 mt-2">₹{revenueData.netPlatformRevenue?.toFixed(2) || 0}</p>
+                                        <p className="text-xs text-emerald-700 mt-2">Commissions + (Delivery Revenue - Payouts)</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-slate-500">Loading revenue data...</p>
+                            )}
+                        </div>
+                    </div>
+                );
             case 'settings':
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
                             <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
-                                <span className="p-2 bg-slate-100 rounded-lg">🛡️</span>
-                                Global Controller
+                                <span className="p-2 bg-slate-100 rounded-lg">⚙️</span>
+                                GST & System Settings
                             </h3>
-                            <div className="space-y-4">
-                                {[
-                                    { label: 'Real-Time Sync', desc: 'Sync data across all portals in milliseconds', enabled: true },
-                                    { label: 'Maintenance Window', desc: 'Auto-publish maintenance schedules', enabled: false },
-                                ].map((s, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                            {configData ? (
+                                <div className="space-y-6 max-w-2xl">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <p className="font-bold text-slate-700">{s.label}</p>
-                                            <p className="text-xs text-slate-400">{s.desc}</p>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Legal Name</label>
+                                            <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900" defaultValue={configData.legalName} readOnly />
                                         </div>
-                                        <div className={`w-12 h-6 rounded-full p-1 transition-colors ${s.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${s.enabled ? 'translate-x-6' : ''}`} />
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">GSTIN</label>
+                                            <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900" defaultValue={configData.gstin} readOnly />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Registered Address</label>
+                                            <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900" defaultValue={configData.registeredAddress} readOnly />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Platform Commission (%)</label>
+                                            <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900" defaultValue={configData.greenBondCommissionPercentage} readOnly />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Delivery Fee (₹)</label>
+                                            <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900" defaultValue={configData.deliveryFee} readOnly />
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <p className="text-xs text-slate-500 mt-4">Note: Settings are currently read-only in this demo view.</p>
+                                </div>
+                            ) : (
+                                <p className="text-slate-500">Loading config...</p>
+                            )}
                         </div>
                     </div>
                 );
@@ -619,23 +676,33 @@ const AdminDashboard = () => {
                 </div>
                 
                 <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
-                    {navItems.map((item) => (
-                        <button
-                            key={item.id}
-                            onClick={() => {
-                                setActiveTab(item.id);
-                                setIsSidebarOpen(false);
-                            }}
-                            className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 ${
-                                activeTab === item.id 
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 translate-x-1' 
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                            }`}
-                        >
-                            <span className="text-xl">{item.icon}</span>
-                            <span className="font-medium">{item.name}</span>
-                        </button>
-                    ))}
+                    <div className="space-y-1">
+                        {[
+                            { id: 'overview', icon: '📊', label: 'Overview' },
+                            { id: 'revenue', icon: '💰', label: 'Revenue & Settlement' },
+                            { id: 'audit', icon: '🛡️', label: 'Launch Readiness' },
+                            { id: 'locations', icon: '🗺️', label: 'Service Areas' },
+                            { id: 'orders', icon: '📦', label: 'All Orders' },
+                            { id: 'users', icon: '👥', label: 'Customers' },
+                            { id: 'farmers', icon: '👨‍🌾', label: 'Farmers' },
+                            { id: 'partners', icon: '🚚', label: 'Delivery' },
+                            { id: 'products', icon: '🥦', label: 'Products' },
+                            { id: 'settings', icon: '⚙️', label: 'GST Settings' },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                    activeTab === tab.id 
+                                    ? 'bg-emerald-50 text-emerald-700 font-bold' 
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                }`}
+                            >
+                                <span className="text-xl">{tab.icon}</span>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </nav>
 
                 <div className="p-6 border-t border-slate-800">

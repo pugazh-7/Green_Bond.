@@ -14,6 +14,7 @@ const UserLayout = () => {
 
     const [cartCount, setCartCount] = React.useState(0);
     const [orderCount, setOrderCount] = React.useState(0);
+    const [wishlistCount, setWishlistCount] = React.useState(0);
 
     React.useEffect(() => {
         const checkUpdates = () => {
@@ -32,6 +33,14 @@ const UserLayout = () => {
                 setOrderCount(activeOrders.length);
             } catch(e) {
                 setOrderCount(0);
+            }
+
+            try {
+                const wishData = JSON.parse(localStorage.getItem('green_bond_wishlist') || '[]');
+                const wish = Array.isArray(wishData) ? wishData : [];
+                setWishlistCount(wish.length);
+            } catch(e) {
+                setWishlistCount(0);
             }
         };
         checkUpdates();
@@ -74,6 +83,21 @@ const UserLayout = () => {
                         {orderCount > 0 && (
                             <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
                                 {orderCount}
+                            </span>
+                        )}
+                    </Link>
+                    <Link to="/user/bulk-orders" className={`px-4 py-3 rounded-2xl flex items-center gap-3 transition-colors ${location.pathname.startsWith('/user/bulk-orders') ? 'bg-green-50 text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        <span>Bulk Orders</span>
+                    </Link>
+                    <Link to="/user/wishlist" className={`px-4 py-3 rounded-2xl flex items-center justify-between transition-colors ${location.pathname === '/user/wishlist' ? 'bg-green-50 text-green-700 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        <div className="flex items-center gap-3">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                            <span>Wishlist</span>
+                        </div>
+                        {wishlistCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                {wishlistCount}
                             </span>
                         )}
                     </Link>

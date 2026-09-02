@@ -42,7 +42,7 @@ const MainMarketplace = () => {
     return (
         <div className="min-h-screen bg-gray-50/50 pb-20">
             {/* Unified Headers */}
-            <div className="pt-2">
+            <div className="pt-1.5 space-y-0.5">
                 <SmartSearch onSearch={handleSearch} isSearching={isSearching} />
                 <MarketplaceSwitcher activePhase={activePhase} onSwitch={handleSwitch} />
             </div>
@@ -63,6 +63,7 @@ const MainMarketplace = () => {
                     <UnifiedSearchView 
                         location={location}
                         searchQuery={searchQuery}
+                        activePhase={activePhase}
                     />
                 ) : (
                     <>

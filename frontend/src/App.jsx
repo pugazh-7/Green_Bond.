@@ -25,8 +25,10 @@ const Marketplace = React.lazy(() => import('./pages/user/Marketplace'));
 const Portfolio = React.lazy(() => import('./pages/user/Portfolio'));
 const Cart = React.lazy(() => import('./pages/user/Cart'));
 const BulkOrders = React.lazy(() => import('./pages/user/BulkOrders'));
+const Wishlist = React.lazy(() => import('./pages/user/Wishlist'));
 const ProductDetails = React.lazy(() => import('./pages/user/ProductDetails'));
 const Profile = React.lazy(() => import('./pages/user/Profile'));
+const InvoiceView = React.lazy(() => import('./pages/user/views/InvoiceView'));
 
 const ClientLayout = React.lazy(() => import('./pages/client/ClientLayout'));
 const ClientDashboard = React.lazy(() => import('./pages/client/ClientDashboard'));
@@ -101,6 +103,9 @@ function App() {
           }>
             <Route index element={<MainMarketplace />} />
             <Route path="orders" element={<UserOrders />} />
+            <Route path="bulk-orders" element={<BulkOrders />} />
+            <Route path="wishlist" element={<Wishlist />} />
+            <Route path="invoice/:id" element={<InvoiceView />} />
             <Route path="cart" element={<Cart />} />
             <Route path="product/:id" element={<ProductDetails />} />
             <Route path="profile" element={<Profile />} />

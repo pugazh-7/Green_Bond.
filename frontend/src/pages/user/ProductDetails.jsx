@@ -12,28 +12,34 @@ const ProductDetails = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isBulkOrdering, setIsBulkOrdering] = useState(false);
 
+    const [selectedBulkQty, setSelectedBulkQty] = useState('5 kg');
+
     useEffect(() => {
         const fetchProduct = async () => {
+            setIsLoading(true);
             try {
-                // Assuming generic fetch for now, we find the product
-                const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/products`);
+                const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/marketplace/product/${id}`);
                 if (res.ok) {
                     const data = await res.json();
-                    const products = data?.products || [];
-                    const found = products.find(p => p.id === id || p._id === id);
-                    if (found) {
-                        setProduct(found);
+                    if (data?.product) {
+                        setProduct(data.product);
+                        if (data.product.minOrder) {
+                            setSelectedBulkQty(data.product.minOrder);
+                        }
                     } else {
                         toast.error("Product not found");
                     }
+                } else {
+                    toast.error("Unable to load product");
                 }
             } catch (err) {
                 console.error(err);
+                toast.error("Network error loading product");
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchProduct();
+        if (id) fetchProduct();
     }, [id]);
 
     const [quantity, setQuantity] = useState(0);
@@ -43,7 +49,7 @@ const ProductDetails = () => {
         try {
             const stored = localStorage.getItem('user_cart');
             const cart = stored && stored !== 'undefined' ? JSON.parse(stored) : [];
-            const item = cart.find(i => i._id === product._id);
+            const item = cart.find(i => i._id === product._id || i.id === product.id);
             setQuantity(item ? item.quantity : 0);
         } catch(e) {
             setQuantity(0);
@@ -61,7 +67,7 @@ const ProductDetails = () => {
         try {
             const stored = localStorage.getItem('user_cart');
             let cart = stored && stored !== 'undefined' ? JSON.parse(stored) : [];
-            const itemIndex = cart.findIndex(i => i._id === product._id);
+            const itemIndex = cart.findIndex(i => i._id === product._id || i.id === product.id);
             
             if (itemIndex > -1) {
                 cart[itemIndex].quantity += change;
@@ -71,9 +77,9 @@ const ProductDetails = () => {
                 }
             } else if (change > 0) {
                 let cartType = 'SHOPPING';
-                if (product.sourceType === 'SHOP') cartType = 'QUICK';
-                if (product.sourceType === 'FARMER') cartType = 'FRESH';
-                cart.push({ ...product, quantity: 1, cartType });
+                if (product.sourceType === 'SHOP' || product.marketplaceType === 'QUICK') cartType = 'QUICK';
+                if (product.sourceType === 'FARMER' || product.marketplaceType === 'FRESH') cartType = 'FRESH';
+                cart.push({ ...product, cartId: product._id || product.id, quantity: 1, cartType });
                 toast.success(`Added ${product.title || product.name} to cart`);
             }
             
@@ -85,21 +91,22 @@ const ProductDetails = () => {
         }
     };
 
-    const handleBulkOrder = async () => {
+    const handleBulkOrder = async (customQty) => {
         if (!product) return;
         setIsBulkOrdering(true);
         try {
-            const requestedQuantity = parseInt(product.minOrder) || 10;
+            const qtyStr = customQty || selectedBulkQty || product.minOrder || '10';
+            const requestedQuantity = parseInt(qtyStr.toString().replace(/[^0-9]/g, '')) || 10;
             const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/bulk-orders`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token')}`
+                    'Authorization': `Bearer ${localStorage.getItem('green_bond_token') || localStorage.getItem('token')}`
                 },
-                body: JSON.stringify({ productId: product._id, requestedQuantity })
+                body: JSON.stringify({ productId: product._id || product.id, requestedQuantity })
             });
             if (res.ok) {
-                toast.success('Bulk order inquiry sent to farmer!');
+                toast.success(`Bulk inquiry for ${qtyStr} sent to ${product.farmer || 'farmer'}!`);
                 navigate('/user/bulk-orders');
             } else {
                 const data = await res.json();
@@ -131,9 +138,14 @@ const ProductDetails = () => {
         );
     }
 
-    const cartType = product.sourceType === 'SHOP' ? 'QUICK' : product.sourceType === 'FARMER' ? 'FRESH' : 'SHOPPING';
+    const cartType = (product.marketplaceType === 'FRESH' || product.sourceType === 'FARMER' || product.farmer) 
+        ? 'FRESH' 
+        : (product.marketplaceType === 'QUICK' || product.sourceType === 'SHOP') 
+        ? 'QUICK' 
+        : 'SHOPPING';
+
     const safeRating = Number(product.rating);
-    const rating = (!isNaN(safeRating) ? safeRating : 4.0).toFixed(1);
+    const rating = (!isNaN(safeRating) ? safeRating : 4.8).toFixed(1);
     
     // Parse numeric price for calculation display
     const rawPrice = product.price;
@@ -141,7 +153,10 @@ const ProductDetails = () => {
     const subtotal = numericPrice * (quantity > 0 ? quantity : 1);
     
     // Format Display string
-    const displayPrice = product.mrp || `₹${numericPrice}/${product.unit || 'kg'}`;
+    const unitStr = product.unit || (cartType === 'FRESH' ? 'kg' : 'unit');
+    const displayPrice = cartType === 'FRESH' 
+        ? `₹${numericPrice}/${unitStr}` 
+        : (product.mrp && product.mrp.includes('₹') ? product.mrp : `₹${numericPrice}`);
 
     return (
         <div className="min-h-screen bg-white md:bg-gray-50 pb-24 md:pb-8 animate-slide-up">
@@ -232,7 +247,7 @@ const ProductDetails = () => {
                         </div>
 
                         {/* Seller Context */}
-                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 mb-8 flex items-start gap-4">
+                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 mb-4 flex items-start gap-4">
                             <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0 text-xl shadow-sm">
                                 {cartType === 'FRESH' ? '🧑‍🌾' : cartType === 'QUICK' ? '🏬' : '📦'}
                             </div>
@@ -249,6 +264,132 @@ const ProductDetails = () => {
                                 </p>
                             </div>
                         </div>
+
+                        {/* Return & Warranty Policy */}
+                        <div className="bg-white rounded-2xl p-3.5 border border-gray-100 mb-6 flex items-center gap-3 shadow-xs">
+                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-sm shrink-0">
+                                {(product.isReturnable === true || product.category === 'Electronics' || product.category === 'Furniture') ? '🔄' : '🛡️'}
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900 text-xs">
+                                    {(product.isReturnable === true || product.category === 'Electronics' || product.category === 'Furniture') 
+                                        ? '7-Day Easy Return & Replacement' 
+                                        : 'Non-Returnable Product'}
+                                </h4>
+                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                    {(product.isReturnable === true || product.category === 'Electronics' || product.category === 'Furniture') 
+                                        ? 'Eligible for return or replacement within 7 days of delivery.' 
+                                        : 'For safety & hygiene, this item cannot be returned.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Order Mode & Custom Weight Selector for Farm Produce */}
+                        {cartType === 'FRESH' && (
+                            <div className="bg-emerald-50/70 rounded-3xl p-5 border border-emerald-100 mb-8 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xl">🧑‍🌾</span>
+                                        <h4 className="font-black text-emerald-950 text-base">Direct Farm Weight Selection</h4>
+                                    </div>
+                                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                                        ₹{numericPrice}/{product.unit || 'kg'}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase text-gray-500 block">
+                                        Popular Weights / Sacks:
+                                    </label>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {['0.5 kg', '1 kg', '1.5 kg', '5 kg', '10 kg', '25 kg', '50 kg'].map(qty => (
+                                            <button
+                                                key={qty}
+                                                type="button"
+                                                onClick={() => setSelectedBulkQty(qty)}
+                                                className={`py-2 px-1 text-xs font-bold rounded-xl transition-all border text-center ${
+                                                    selectedBulkQty === qty 
+                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                                                        : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100/50'
+                                                }`}
+                                            >
+                                                {qty}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Custom Weight Input Field */}
+                                <div className="bg-white p-3.5 rounded-2xl border border-emerald-200">
+                                    <label className="text-xs font-bold text-emerald-900 block mb-1.5">
+                                        Custom Weight (e.g. 1.5, 2.5, 15 kg):
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            min="0.1"
+                                            value={parseFloat(String(selectedBulkQty).replace(/[^0-9.]/g, '')) || 1}
+                                            onChange={(e) => setSelectedBulkQty(`${e.target.value || 1} kg`)}
+                                            className="font-black text-lg text-gray-900 w-full bg-gray-50 px-3 py-2 rounded-xl border border-gray-200 focus:outline-emerald-500"
+                                        />
+                                        <span className="font-bold text-emerald-800 text-sm px-2">
+                                            {product.unit || 'kg'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Live Subtotal */}
+                                <div className="flex items-center justify-between p-3 bg-white/80 rounded-xl border border-emerald-100">
+                                    <span className="text-xs text-gray-600 font-medium">
+                                        {parseFloat(String(selectedBulkQty).replace(/[^0-9.]/g, '')) || 1} {product.unit || 'kg'} × ₹{numericPrice}
+                                    </span>
+                                    <span className="text-lg font-black text-emerald-900">
+                                        Total: ₹{Math.round(((parseFloat(String(selectedBulkQty).replace(/[^0-9.]/g, '')) || 1) * numericPrice)).toLocaleString()}
+                                    </span>
+                                </div>
+
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const weightNum = parseFloat(String(selectedBulkQty).replace(/[^0-9.]/g, '')) || 1;
+                                            try {
+                                                const stored = localStorage.getItem('user_cart');
+                                                let cart = stored && stored !== 'undefined' ? JSON.parse(stored) : [];
+                                                cart.push({
+                                                    ...product,
+                                                    cartId: `${product._id || product.id}-${weightNum}kg`,
+                                                    quantity: 1,
+                                                    selectedWeight: `${weightNum} ${product.unit || 'kg'}`,
+                                                    weightMultiplier: weightNum,
+                                                    price: Math.round(weightNum * numericPrice),
+                                                    unitPrice: numericPrice,
+                                                    cartType: 'FRESH'
+                                                });
+                                                localStorage.setItem('user_cart', JSON.stringify(cart));
+                                                window.dispatchEvent(new Event('storage'));
+                                                toast.success(`Added ${weightNum} ${product.unit || 'kg'} to cart!`);
+                                                updateQuantityFromCart();
+                                            } catch (e) {
+                                                console.error(e);
+                                            }
+                                        }}
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3 rounded-2xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-1.5"
+                                    >
+                                        <span>🛒</span> Add Custom Weight to Cart
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleBulkOrder(selectedBulkQty)}
+                                        disabled={isBulkOrdering}
+                                        className="px-4 bg-white border border-emerald-300 text-emerald-800 font-bold text-xs rounded-2xl hover:bg-emerald-50 transition-all flex items-center justify-center whitespace-nowrap"
+                                    >
+                                        <span>📨</span> {isBulkOrdering ? 'Sending...' : 'Bulk Inquiry'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Add to Cart Area */}
                         <div className="mt-auto pt-6 border-t border-gray-100 flex gap-4 hidden md:flex flex-col md:flex-row">
@@ -267,17 +408,6 @@ const ProductDetails = () => {
                                     Add to Cart
                                 </button>
                             )}
-                            
-                            {cartType === 'FRESH' && product.orderType === 'bulk' && (
-                                <button 
-                                    onClick={handleBulkOrder}
-                                    disabled={isBulkOrdering}
-                                    className="flex-1 bg-white text-green-700 border-2 border-green-600 font-bold text-lg rounded-2xl hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-2 h-14"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                    {isBulkOrdering ? 'Sending...' : 'Bulk Order'}
-                                </button>
-                            )}
                         </div>
 
                     </div>
@@ -288,17 +418,10 @@ const ProductDetails = () => {
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] md:hidden z-50 flex items-center gap-4">
                 <div className="flex-1">
                     <span className="text-2xl font-black font-heading text-gray-900 block">₹{subtotal}</span>
-                    <span className="text-xs text-green-600 font-bold">Free Delivery</span>
+                    <span className="text-xs text-green-600 font-bold">
+                        {cartType === 'FRESH' ? 'Farm Direct Freshness' : 'Free Delivery'}
+                    </span>
                 </div>
-                {cartType === 'FRESH' && product.orderType === 'bulk' && quantity === 0 && (
-                    <button 
-                        onClick={handleBulkOrder}
-                        disabled={isBulkOrdering}
-                        className="px-3 bg-white text-green-700 border border-green-600 font-bold text-xs h-12 rounded-xl hover:bg-green-50 flex items-center justify-center whitespace-nowrap"
-                    >
-                        Bulk Order
-                    </button>
-                )}
                 {quantity > 0 ? (
                     <div className="flex-1 flex items-center justify-between bg-green-600 text-white rounded-xl shadow-md border border-green-700 h-12 overflow-hidden">
                         <button onClick={() => handleQuantityChange(-1)} className="px-4 h-full hover:bg-green-700 active:bg-green-800 transition-colors flex items-center justify-center font-bold text-xl">−</button>
@@ -310,7 +433,7 @@ const ProductDetails = () => {
                         onClick={() => handleQuantityChange(1)}
                         className="flex-1 bg-green-600 text-white font-bold text-sm h-12 rounded-xl hover:bg-green-700 transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
                     >
-                        ADD
+                        ADD TO CART
                     </button>
                 )}
             </div>

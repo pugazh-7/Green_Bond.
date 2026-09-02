@@ -3,10 +3,11 @@ import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
 import ProductCard from '../../../components/product/ProductCard';
 import CategoryNav from '../../../components/marketplace/CategoryNav';
 import CategorySection from '../../../components/marketplace/CategorySection';
+import EmptyState from '../../../components/shared/EmptyState';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = [
-    'All', 'Vegetables', 'Fruits', 'Greens', 'Spices', 'Grains'
+    'All', 'Vegetables', 'Fruits', 'Greens', 'Grains', 'Dairy', 'Spices', 'Others'
 ];
 
 const FreshView = ({ location, searchQuery, setIsSearching }) => {
@@ -48,16 +49,17 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
     }, [activeCategory]);
 
     useEffect(() => {
-        if (!location?.lat) return;
-
         const fetchProducts = async () => {
             if (page === 1) setIsLoading(true);
             setIsSearching(true);
             setError(null);
             try {
-                let url = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/fresh?lat=${location.lat}&lng=${location.lng}&page=${page}&limit=20`;
+                let url = `${import.meta.env.VITE_API_URL || ''}/api/marketplace/fresh?page=${page}&limit=20`;
                 
-                if (location.pincode) {
+                if (location?.lat && location?.lng) {
+                    url += `&lat=${location.lat}&lng=${location.lng}`;
+                }
+                if (location?.pincode) {
                     url += `&pincode=${encodeURIComponent(location.pincode)}`;
                 }
 
@@ -177,11 +179,12 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                                         onSeeAll={(c) => { setActiveCategory(c); window.scrollTo(0,0); }}
                                         onAddToCart={addToCart}
                                         isPriority={cat === 'Fresh Today' || cat === 'Vegetables'}
+                                        variant="fresh"
                                     />
                                 ))}
                             </>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6 mt-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-4 mt-4">
                                 {products.map(product => (
                                     <ProductCard 
                                         key={product._id} 
@@ -199,11 +202,11 @@ const FreshView = ({ location, searchQuery, setIsSearching }) => {
                         )}
                     </>
                 ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
-                        <span className="text-6xl mb-4 block">🌱</span>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">No fresh produce found</h3>
-                        <p className="text-gray-500 text-sm">Farmers in your area haven't listed these items yet.</p>
-                    </div>
+                    <EmptyState 
+                        title="No fresh produce found"
+                        message="Farmers in your area haven't listed these items yet."
+                        icon="🌱"
+                    />
                 )}
             </div>
         </div>

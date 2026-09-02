@@ -31,7 +31,8 @@ export const SocketProvider = ({ children }) => {
             } catch(e) {}
         }
 
-        const newSocket = io(import.meta.env.VITE_API_URL || '');
+        const socketUrl = import.meta.env.VITE_API_URL || undefined;
+        const newSocket = io(socketUrl);
         
         newSocket.on('connect', () => {
             console.log('Connected to socket server');

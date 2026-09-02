@@ -4,10 +4,12 @@ import toast from 'react-hot-toast';
 import { resolveCategoryIcon } from '../../../utils/iconRegistry';
 import CategorySection from '../../../components/marketplace/CategorySection';
 import CategoryNav from '../../../components/marketplace/CategoryNav';
+import EmptyState from '../../../components/shared/EmptyState';
 
 const CATEGORIES = [
-    'All', 'Electronics', 'Fashion', 'Grocery', 'Snacks', 
-    'Drinks', 'Milk & Dairy', 'Personal Care', 'Household'
+    'All', 'Fashion', 'Men', 'Women', 'Kids', 
+    'Footwear', 'Grocery', 'Snacks', 'Drinks', 'Beauty', 'Personal Care', 
+    'Household'
 ];
 
 const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
@@ -222,7 +224,7 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         isPriority={true}
                     />
 
-                    {['Fruits & Vegetables', 'Grocery', 'Dairy & Breakfast', 'Snacks', 'Drinks', 'Personal Care', 'Household', 'Electronics', 'Fashion', 'Beauty', 'Home & Kitchen'].map(cat => {
+                    {CATEGORIES.filter(cat => cat !== 'All').map(cat => {
                         const catProducts = meta.categoryProducts?.[cat];
                         if (!catProducts || catProducts.length === 0) return null;
                         return (
@@ -285,7 +287,7 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                                 </div>
                             </div>
                         )}
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-4">
                             {products.map(product => (
                                 <ProductCard 
                                     key={product._id} 
@@ -302,11 +304,11 @@ const ShoppingView = ({ location, searchQuery, setIsSearching }) => {
                         )}
                     </>
                 ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
-                        <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">No products found</h3>
-                        <p className="text-gray-500 text-sm">We couldn't find anything matching your criteria.</p>
-                    </div>
+                    <EmptyState 
+                        title="No products found"
+                        message="We couldn't find anything matching your criteria."
+                        icon="🛍️"
+                    />
                 )}
             </div>
         </div>

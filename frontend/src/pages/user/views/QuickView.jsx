@@ -5,11 +5,10 @@ import { resolveIcon, resolveCategoryIcon } from '../../../utils/iconRegistry';
 
 import CategorySection from '../../../components/marketplace/CategorySection';
 import CategoryNav from '../../../components/marketplace/CategoryNav';
+import EmptyState from '../../../components/shared/EmptyState';
 
 const CATEGORIES = [
-    'All', 'Daily Essentials', 'Milk & Dairy', 'Bakery', 'Snacks', 
-    'Drinks', 'Grocery', 'Personal Care', 'Household', 
-    'Mobile Accessories', 'Electronics', 'Gifts', 'Mobiles', 'Fashion Essentials'
+    'All', 'Electronics', 'Gifts', 'Furniture', 'Medicines'
 ];
 
 const QuickView = ({ location, searchQuery, setIsSearching }) => {
@@ -234,7 +233,7 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
                     </div>
                 ) : products.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-4">
                             {products.map(product => (
                                 <ProductCard 
                                     key={product._id} 
@@ -251,11 +250,11 @@ const QuickView = ({ location, searchQuery, setIsSearching }) => {
                         )}
                     </>
                 ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-gray-100">
-                        <span className="text-6xl mb-4 block">🏬</span>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">No quick items found</h3>
-                        <p className="text-gray-500 text-sm">We couldn't find items for immediate delivery.</p>
-                    </div>
+                    <EmptyState 
+                        title="No quick items found"
+                        message="We couldn't find items for immediate delivery."
+                        icon="🏬"
+                    />
                 )}
             </div>
         </div>

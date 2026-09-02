@@ -64,7 +64,10 @@ const UserLogin = () => {
                 try {
                     localStorage.setItem('userRole', user.role || 'user');
                     localStorage.setItem('green_bond_current_user', JSON.stringify(user));
-                    if (data.token) localStorage.setItem('token', data.token);
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        localStorage.setItem('green_bond_token', data.token);
+                    }
                     
                     if (rememberMe) {
                         localStorage.setItem('remembered_user_email', cleanEmailInput);
@@ -83,18 +86,21 @@ const UserLogin = () => {
                 }
 
                 toast.success(`Welcome back, ${user.name}!`);
+                navigate('/user', { replace: true });
             } else {
                 // Differentiate HTTP error statuses as requested
-                if (response.status === 400 || response.status === 401) {
+                if (data.message) {
+                    toast.error(data.message);
+                } else if (response.status === 400 || response.status === 401) {
                     toast.error('Incorrect email or password');
                 } else if (response.status === 403) {
                     toast.error('Your account does not have access.');
                 } else if (response.status === 429) {
-                    toast.error('Too many login attempts. Please try again.');
+                    toast.error('Too many login attempts. Please try again later.');
                 } else if (response.status >= 500) {
-                    toast.error('Unable to sign in right now. Please try again.');
+                    toast.error('Server error. Please ensure backend server is running.');
                 } else {
-                    toast.error(data.message || 'Login failed.');
+                    toast.error('Login failed.');
                 }
             }
         } catch (error) {

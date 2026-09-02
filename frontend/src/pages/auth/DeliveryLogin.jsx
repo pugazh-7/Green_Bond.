@@ -58,7 +58,10 @@ const DeliveryLogin = () => {
                 
                 localStorage.setItem('userRole', role);
                 localStorage.setItem('green_bond_current_user', JSON.stringify(user));
-                if (data.token) localStorage.setItem('token', data.token);
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('green_bond_token', data.token);
+                }
                 
                 login(user, data.token);
                 
@@ -69,6 +72,7 @@ const DeliveryLogin = () => {
                 }
 
                 toast.success(`Welcome back, ${user.name}!`);
+                navigate('/delivery', { replace: true });
             } else {
                 toast.error(data.message || 'Invalid Email or Password.');
             }

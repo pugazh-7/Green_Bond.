@@ -35,7 +35,7 @@ const getThemeForCategory = (category) => {
     }
 };
 
-const CategorySection = ({ id, category, subtitle, products = [], count = 0, onSeeAll, onAddToCart, isPriority = false, isQuick = false }) => {
+const CategorySection = ({ id, category, subtitle, products = [], count = 0, onSeeAll, onAddToCart, isPriority = false, isQuick = false, variant }) => {
     if (!products || products.length === 0) return null;
     
     // Display max 6 products exactly as requested
@@ -72,12 +72,12 @@ const CategorySection = ({ id, category, subtitle, products = [], count = 0, onS
                 </div>
             </div>
 
-            <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-3 md:gap-6 snap-x snap-mandatory no-scrollbar">
+            <div className="px-4 md:px-8 overflow-x-auto pb-4 pt-1 flex gap-2.5 md:gap-4 snap-x snap-mandatory no-scrollbar">
                 {displayProducts.map((product, index) => (
-                    <div key={product._id || product.id} className="min-w-[150px] md:min-w-[200px] max-w-[200px] flex-shrink-0 snap-start h-full pb-2">
+                    <div key={product._id || product.id} className="min-w-[130px] md:min-w-[165px] max-w-[170px] flex-shrink-0 snap-start h-full pb-1">
                         <ProductCard 
                             product={product} 
-                            variant={isQuick ? "quick" : "shopping"} 
+                            variant={variant || (isQuick ? "quick" : (product.marketplaceType === 'FRESH' || product.sourceType === 'FARMER' || product.farmer ? "fresh" : "shopping"))} 
                             onAddToCart={onAddToCart}
                             priority={isPriority && index < 2}
                         />

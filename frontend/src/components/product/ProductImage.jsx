@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getCategoryFallback } from '../../services/productImageResolver';
+import { getProductImage, getCategoryFallback } from '../../services/productImageResolver';
 
 const ProductImage = ({ product, priority = false, className = "" }) => {
     const [imageStatus, setImageStatus] = useState('loading');
@@ -9,7 +9,7 @@ const ProductImage = ({ product, priority = false, className = "" }) => {
 
     const fallbackUrl = getCategoryFallback(product);
     // Strict DB resolution - _id is source of truth, no priority matching
-    const resolvedUrl = product.image || fallbackUrl;
+    const resolvedUrl = getProductImage(product);
 
     const handleError = (e) => {
         if (e.currentTarget.src !== fallbackUrl) {

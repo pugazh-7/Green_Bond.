@@ -1,8 +1,8 @@
 {
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "https://green-bond.onrender.com/api/$1" },
+    { "source": "/uploads/(.*)", "destination": "https://green-bond.onrender.com/uploads/$1" },
+    { "source": "/cdn/(.*)", "destination": "https://green-bond.onrender.com/cdn/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

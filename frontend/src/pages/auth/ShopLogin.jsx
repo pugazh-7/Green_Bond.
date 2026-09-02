@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,14 @@ const ShopLogin = () => {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
 
+    useEffect(() => {
+        const rememberedMobile = localStorage.getItem('remembered_shop_mobile');
+        if (rememberedMobile) {
+            setFormData(prev => ({ ...prev, mobile: rememberedMobile }));
+            setRememberMe(true);
+        }
+    }, []);
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -24,6 +32,11 @@ const ShopLogin = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (loading) return;
+
+        if (!formData.mobile || !formData.password) {
+            toast.error("Please fill in all fields.");
+            return;
+        }
         
         setLoading(true);
         const loadingToast = toast.loading('Logging in...');
@@ -39,14 +52,35 @@ const ShopLogin = () => {
             const data = await response.json();
 
             if (response.ok) {
+                const shopUser = data.shop || data.user;
+                const role = shopUser?.role || 'shop';
+                const token = data.token;
+
+                try {
+                    localStorage.setItem('userRole', role);
+                    localStorage.setItem('green_bond_current_user', JSON.stringify(shopUser));
+                    if (token) {
+                        localStorage.setItem('token', token);
+                        localStorage.setItem('green_bond_token', token);
+                    }
+                    if (rememberMe) {
+                        localStorage.setItem('remembered_shop_mobile', formData.mobile);
+                    } else {
+                        localStorage.removeItem('remembered_shop_mobile');
+                    }
+                } catch (storageErr) {
+                    console.warn('Storage error on shop login:', storageErr);
+                }
+
+                login(shopUser, token);
                 toast.success('Login successful!', { id: loadingToast });
-                login(data.shop, data.token);
+                navigate('/shop', { replace: true });
             } else {
-                toast.error(data.message || 'Login failed', { id: loadingToast });
+                toast.error(data.message || 'Login failed. Please check your credentials.', { id: loadingToast });
             }
         } catch (error) {
-            toast.error('Unable to connect to GreenBond', { id: loadingToast });
-            console.error('Login error:', error);
+            toast.error('Unable to connect to GreenBond. Please try again.', { id: loadingToast });
+            console.error('Shop login error:', error);
         } finally {
             setLoading(false);
         }

@@ -24,45 +24,84 @@ const Cart = () => {
     const navigate = useNavigate();
     const { location, setShowLocationModal } = useLocationContext();
 
+    const getCartItemId = (item) => item.cartId || item._id || item.id;
+
     useEffect(() => {
-        const savedCart = localStorage.getItem('user_cart');
-        if (savedCart) {
-            setCartItems(JSON.parse(savedCart));
-        }
+        const loadCart = () => {
+            const savedCart = localStorage.getItem('user_cart');
+            if (savedCart) {
+                try {
+                    const parsed = JSON.parse(savedCart);
+                    const formatted = Array.isArray(parsed) ? parsed.map((item, idx) => ({
+                        ...item,
+                        cartId: item.cartId || item._id || item.id || `cart-item-${idx}`
+                    })) : [];
+                    setCartItems(formatted);
+                } catch(e) {
+                    setCartItems([]);
+                }
+            } else {
+                setCartItems([]);
+            }
+        };
+        loadCart();
+        window.addEventListener('storage', loadCart);
+        return () => window.removeEventListener('storage', loadCart);
     }, []);
 
     const removeFromCart = (id) => {
-        const updatedCart = cartItems.filter(item => item.cartId !== id);
+        const updatedCart = cartItems.filter(item => getCartItemId(item) !== id);
         setCartItems(updatedCart);
         localStorage.setItem('user_cart', JSON.stringify(updatedCart));
+        window.dispatchEvent(new Event('storage'));
+        toast.success('Removed from cart');
     };
 
-    const updateQuantity = (cartId, delta) => {
+    const updateQuantity = (id, delta) => {
         const updatedCart = cartItems.map(item => {
-            if (item.cartId === cartId) {
-                const priceParts = item.price.split('/');
-                const unit = priceParts.length > 1 ? priceParts[1].trim().toLowerCase() : '';
+            if (getCartItemId(item) === id) {
                 let newQty = item.quantity + delta;
-
-                if (delta > 0 && unit === 'kg' && item.quantity >= 5) {
-                    toast.error("For orders over 5kg, please use the Bulk Order option");
-                    return item;
-                }
-                newQty = Math.max(1, newQty);
-                if (unit === 'kg') newQty = Math.min(5, newQty);
+                if (newQty <= 0) return null;
                 return { ...item, quantity: newQty };
             }
             return item;
-        });
+        }).filter(Boolean);
+
         setCartItems(updatedCart);
         localStorage.setItem('user_cart', JSON.stringify(updatedCart));
+        window.dispatchEvent(new Event('storage'));
+    };
+
+    const calculateSummary = (items = cartItems) => {
+        let grossTotal = 0;
+        let totalGstAmount = 0;
+
+        items.forEach(item => {
+            const price = parseInt(String(item.price).replace(/[^\d]/g, '')) || 0;
+            const itemTotal = price * item.quantity;
+            const gstRate = item.gstRate || 0;
+
+            const taxableValue = (itemTotal / (100 + gstRate)) * 100;
+            const itemGst = itemTotal - taxableValue;
+
+            grossTotal += itemTotal;
+            totalGstAmount += itemGst;
+        });
+
+        const subtotal = grossTotal - totalGstAmount;
+        // Defaulting delivery fee to 0 on frontend. Backend will apply config.
+        const deliveryFee = 0; 
+        
+        return {
+            subtotal: Number(subtotal.toFixed(2)),
+            gstAmount: Number(totalGstAmount.toFixed(2)),
+            deliveryFee,
+            total: Number((grossTotal + deliveryFee).toFixed(2))
+        };
     };
 
     const calculateTotal = (items = cartItems) => {
-        return items.reduce((total, item) => {
-            const price = parseInt(String(item.price).replace(/[^\d]/g, ''));
-            return total + (price * item.quantity);
-        }, 0);
+        return calculateSummary(items).total;
     };
 
     const [itemsToCheckout, setItemsToCheckout] = useState([]);
@@ -263,30 +302,39 @@ const Cart = () => {
                 const quickItems = cartItems.filter(i => i.cartType === 'QUICK');
                 const freshItems = cartItems.filter(i => i.cartType === 'FRESH');
                 
-                const renderItem = (item) => (
-                    <div key={item.cartId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition-shadow">
-                        <ProductImage product={item} className="w-24 h-24 object-contain bg-gray-50 rounded-xl p-2" />
-                        <div className="flex-1 flex flex-col justify-between">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h3 className="font-bold text-gray-900 leading-tight">{item.title || item.name}</h3>
-                                    <p className="text-xs text-gray-500 mt-0.5">{item.brand || item.farmerName}</p>
+                const renderItem = (item) => {
+                    const itemId = getCartItemId(item);
+                    const rawPrice = item.price;
+                    const numericPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+                    const itemSubtotal = numericPrice * item.quantity;
+
+                    return (
+                        <div key={itemId} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition-shadow">
+                            <ProductImage product={item} className="w-24 h-24 object-contain bg-gray-50 rounded-xl p-2 shrink-0" />
+                            <div className="flex-1 flex flex-col justify-between">
+                                <div className="flex justify-between items-start gap-2">
+                                    <div>
+                                        <h3 className="font-bold text-gray-900 leading-tight">{item.title || item.name}</h3>
+                                        <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                                            {item.farmer || item.farmerName || item.brand || 'GreenBond Produce'} • ₹{numericPrice}/{item.selectedWeight || item.unit || 'unit'}
+                                        </p>
+                                    </div>
+                                    <button onClick={() => removeFromCart(itemId)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
                                 </div>
-                                <button onClick={() => removeFromCart(item.cartId)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </div>
-                            <div className="flex justify-between items-end mt-2">
-                                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100">
-                                    <button onClick={() => updateQuantity(item.cartId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">-</button>
-                                    <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
-                                    <button onClick={() => updateQuantity(item.cartId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">+</button>
+                                <div className="flex justify-between items-end mt-2">
+                                    <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100">
+                                        <button onClick={() => updateQuantity(itemId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">−</button>
+                                        <span className="w-8 text-center font-bold text-gray-900">{item.quantity}</span>
+                                        <button onClick={() => updateQuantity(itemId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-gray-600 hover:text-green-600">+</button>
+                                    </div>
+                                    <p className="font-black font-heading text-lg text-green-700">₹{itemSubtotal.toLocaleString()}</p>
                                 </div>
-                                <p className="font-black font-heading text-lg text-green-700">₹{(parseInt(String(item.price).replace(/[^\d]/g, '')) * item.quantity).toLocaleString()}</p>
                             </div>
                         </div>
-                    </div>
-                );
+                    );
+                };
 
                 return cartItems.length === 0 ? (
                 <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-200">
@@ -392,19 +440,32 @@ const Cart = () => {
                         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
                             <h3 className="text-xl font-bold text-gray-900 mb-4">Order Summary</h3>
                             <div className="space-y-4 mb-6">
-                                <div className="flex justify-between text-gray-600">
-                                    <span>Subtotal</span>
-                                    <span>₹{calculateTotal().toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between text-gray-600">
-                                    <span>Delivery Fee</span>
-                                    <span className="text-green-600 font-medium">Free</span>
-                                </div>
-                                <div className="h-px bg-gray-100"></div>
-                                <div className="flex justify-between text-xl font-bold text-gray-900">
-                                    <span>Total</span>
-                                    <span>₹{calculateTotal().toLocaleString()}</span>
-                                </div>
+                                {(() => {
+                                    const summary = calculateSummary();
+                                    return (
+                                        <>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Subtotal</span>
+                                                <span>₹{summary.subtotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>GST</span>
+                                                <span>₹{summary.gstAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Delivery Fee</span>
+                                                <span className={summary.deliveryFee === 0 ? "text-green-600 font-medium" : "text-gray-900"}>
+                                                    {summary.deliveryFee === 0 ? 'Free' : `₹${summary.deliveryFee.toLocaleString()}`}
+                                                </span>
+                                            </div>
+                                            <div className="h-px bg-gray-100"></div>
+                                            <div className="flex justify-between text-xl font-bold text-gray-900">
+                                                <span>Grand Total</span>
+                                                <span>₹{summary.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                             {/* Desktop Checkout Button removed to enforce per-group checkout */}
                         </div>
