@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import Farmer from '../models/Farmer.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
+const getJwtSecret = () => process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
 
 export const verifyToken = async (req, res, next) => {
     try {
@@ -13,7 +13,7 @@ export const verifyToken = async (req, res, next) => {
         }
 
         const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, getJwtSecret());
         
         req.user = decoded; // { id, role }
         next();

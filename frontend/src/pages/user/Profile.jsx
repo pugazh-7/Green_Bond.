@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import AddressManager from '../../components/shared/AddressManager';
+import NotificationManager from '../../components/NotificationManager';
 
 const Profile = () => {
     const { user, logout } = useAuth();
@@ -69,16 +70,7 @@ const Profile = () => {
                             <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-500">Coming Soon</span>
                         </div>
                         
-                        <div className="p-4 flex items-center justify-between opacity-50 cursor-not-allowed">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">🔔</div>
-                                <div>
-                                    <p className="font-semibold text-gray-900">Notifications</p>
-                                    <p className="text-xs text-gray-500">Manage alerts and emails</p>
-                                </div>
-                            </div>
-                            <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-500">Coming Soon</span>
-                        </div>
+                        <NotificationManager className="border-0 shadow-none !p-4" />
                         
                         <div className="p-4 flex items-center justify-between opacity-50 cursor-not-allowed">
                             <div className="flex items-center gap-3">

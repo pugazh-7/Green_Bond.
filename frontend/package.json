@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "firebase": "^12.18.0",
     "jimp": "^1.6.1",
     "leaflet": "^1.9.4",
     "puppeteer": "^25.8.0",
