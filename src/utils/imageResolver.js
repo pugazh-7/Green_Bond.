@@ -50,14 +50,13 @@ export const resolveProductImage = (product) => {
 
     // 2. Relative Backend Uploads Path (/uploads/...)
     if (imagePath.startsWith('/uploads/') || imagePath.startsWith('/images/')) {
-        // Resolve using the API URL
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://192.168.29.210:5000';
+        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? 'https://green-bond.onrender.com' : '');
         return `${apiUrl}${imagePath}`;
     }
 
     // 3. Just a filename like 'amul-milk.webp', assume it's in uploads/products/
     if (!imagePath.includes('/')) {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://192.168.29.210:5000';
+        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? 'https://green-bond.onrender.com' : '');
         return `${apiUrl}/uploads/products/${imagePath}`;
     }
 
