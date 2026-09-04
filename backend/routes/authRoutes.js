@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
+const getJwtSecret = () => process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
 import User from '../models/User.js';
 import Farmer from '../models/Farmer.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
@@ -11,19 +11,31 @@ import Shop from '../models/Shop.js';
 import { isWithinServiceArea } from '../utils/locationUtils.js';
 
 const generateTokens = (payload) => {
-    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    const refreshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+    const secret = getJwtSecret();
+    const accessToken = jwt.sign(payload, secret, { expiresIn: '7d' });
+    const refreshToken = jwt.sign(payload, secret, { expiresIn: '30d' });
     return { accessToken, refreshToken };
 };
 
-const setRefreshCookie = (res, refreshToken) => {
+const getCookieOptions = () => {
     const isProd = process.env.NODE_ENV === 'production';
-    res.cookie('refreshToken', refreshToken, {
+    return {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
+        path: '/'
+    };
+};
+
+const setRefreshCookie = (res, refreshToken) => {
+    res.cookie('refreshToken', refreshToken, {
+        ...getCookieOptions(),
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
+};
+
+const clearRefreshCookie = (res) => {
+    res.clearCookie('refreshToken', getCookieOptions());
 };
 
 // Register User
@@ -402,7 +414,7 @@ router.get('/refresh-token', async (req, res) => {
     }
 
     try {
-        const decoded = jwt.verify(refreshToken, JWT_SECRET);
+        const decoded = jwt.verify(refreshToken, getJwtSecret());
         const { id, role } = decoded;
 
         let userData = null;
@@ -425,7 +437,7 @@ router.get('/refresh-token', async (req, res) => {
         }
 
         if (!userData) {
-            res.clearCookie('refreshToken');
+            clearRefreshCookie(res);
             return res.status(404).json({ message: 'User not found' });
         }
 
@@ -434,14 +446,14 @@ router.get('/refresh-token', async (req, res) => {
 
         res.status(200).json({ success: true, user: userData, token: accessToken });
     } catch (error) {
-        res.clearCookie('refreshToken');
+        clearRefreshCookie(res);
         return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
 });
 
 // Logout
 router.post('/logout', (req, res) => {
-    res.clearCookie('refreshToken');
+    clearRefreshCookie(res);
     res.status(200).json({ success: true, message: 'Logged out successfully' });
 });
 

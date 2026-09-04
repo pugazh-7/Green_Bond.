@@ -23,18 +23,20 @@ const cartSchema = new mongoose.Schema({
     grandTotal: { type: Number, default: 0 }
 }, { timestamps: true });
 
-// Pre-save middleware to automatically calculate totals
 cartSchema.pre('save', function(next) {
     let total = 0;
-    this.items.forEach(item => {
-        item.subtotal = item.price * item.quantity;
-        total += item.subtotal;
-    });
+    if (this.items && Array.isArray(this.items)) {
+        this.items.forEach(item => {
+            item.subtotal = (item.price || 0) * (item.quantity || 1);
+            total += item.subtotal;
+        });
+    }
     this.totalAmount = total;
-    // Basic delivery fee logic (could be more complex based on distance later)
     this.deliveryFee = total > 0 ? 50 : 0; 
     this.grandTotal = this.totalAmount + this.deliveryFee;
-    next();
+    if (typeof next === 'function') {
+        next();
+    }
 });
 
 export default mongoose.model('Cart', cartSchema);

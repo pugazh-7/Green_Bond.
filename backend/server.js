@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -42,11 +43,27 @@ const __dirname = path.dirname(__filename);
 // Security Middleware
 app.use(helmet({
     crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false,
 }));
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5000',
+    process.env.CLIENT_URL,
+    process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-    origin: true,
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (isDev || allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
+            return callback(null, true);
+        }
+        return callback(null, false);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With', 'Accept'],
     credentials: true
 }));
 app.use(cookieParser());
@@ -130,7 +147,7 @@ app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
 
 // Return JSON 404 for unhandled API requests (prevents returning SPA HTML on missing API routes)
-app.all('/api/*', (req, res) => {
+app.use('/api', (req, res) => {
     res.status(404).json({ success: false, message: `API route ${req.method} ${req.originalUrl} not found` });
 });
 
@@ -155,7 +172,10 @@ const connectDB = async () => {
         return;
     }
     
-    const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond';
+    let mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
+    if ((mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) && !mongoUri.includes('directConnection')) {
+        mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'directConnection=true';
+    }
     try {
         console.log(`Connecting to MongoDB...`);
         await mongoose.connect(mongoUri, {
