@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 import toast from 'react-hot-toast';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
@@ -27,95 +28,72 @@ const UserLogin = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         if (isLoading) return;
-        if (!email || !password) {
-            toast.error("Please fill in all fields.");
+        if (!email || !password || !email.trim() || !password.trim()) {
+            toast.error("Please enter a valid email and password.");
             return;
         }
 
         setIsLoading(true);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased timeout to outlast backend DB timeout
         const cleanEmailInput = email.trim().toLowerCase();
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`, {
+            const response = await apiFetch('/api/auth/login-user', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: cleanEmailInput, password }),
-                signal: controller.signal,
-                credentials: 'include'
+                body: JSON.stringify({ email: cleanEmailInput, password })
             });
 
-            clearTimeout(timeoutId);
-            
-            // Check content type before parsing JSON
             const contentType = response.headers.get("content-type");
             let data = {};
             if (contentType && contentType.includes("application/json")) {
                 data = await response.json();
-            } else {
-                throw new Error("Invalid response format from server");
             }
 
-            if (response.ok) {
+            if (response.ok && data.user) {
                 const user = data.user;
                 
-                // Safe localStorage handling for strict mobile browsers
                 try {
-                    localStorage.setItem('userRole', user.role || 'user');
-                    localStorage.setItem('green_bond_current_user', JSON.stringify(user));
-                    if (data.token) {
-                        localStorage.setItem('token', data.token);
-                        localStorage.setItem('green_bond_token', data.token);
-                    }
-                    
                     if (rememberMe) {
                         localStorage.setItem('remembered_user_email', cleanEmailInput);
                     } else {
                         localStorage.removeItem('remembered_user_email');
                     }
                 } catch (storageError) {
-                    console.warn('Local storage is not available:', storageError);
+                    console.warn('Local storage error:', storageError);
                 }
 
-                // Call AuthContext login (safe wrapper to catch its own storage errors)
-                try {
-                    login(user, data.token);
-                } catch (loginError) {
-                    console.warn('Auth context login error:', loginError);
-                }
+                login(user, data.token);
 
                 toast.success(`Welcome back, ${user.name}!`);
-                navigate('/user', { replace: true });
-            } else {
-                if (data && data.message) {
-                    toast.error(data.message);
-                } else if (response.status === 400 || response.status === 401) {
-                    toast.error('Incorrect email or password');
-                } else if (response.status === 403) {
-                    toast.error('Access denied. Your account does not have access.');
-                } else if (response.status === 404) {
-                    toast.error('Login endpoint not found (404).');
-                } else if (response.status === 429) {
-                    toast.error('Too many login attempts. Please try again later.');
-                } else if (response.status === 503) {
-                    toast.error('Database service is temporarily unavailable. Please try again.');
-                } else if (response.status >= 500) {
-                    toast.error('Server error during login. Please try again.');
+                if (user.role === 'admin') {
+                    navigate('/admin/dashboard', { replace: true });
                 } else {
-                    toast.error('Login failed.');
+                    navigate('/user', { replace: true });
+                }
+            } else {
+                if (response.status === 400) {
+                    toast.error('Please enter a valid email and password.');
+                } else if (response.status === 401) {
+                    toast.error(data?.message || 'Invalid email or password.');
+                } else if (response.status === 403) {
+                    toast.error('You are not authorized to continue.');
+                } else if (response.status === 404) {
+                    toast.error(data?.message || 'Resource not found.');
+                } else if (response.status === 429) {
+                    toast.error('Too many attempts. Please try again later.');
+                } else if (response.status >= 500) {
+                    toast.error('GreenBond is temporarily unavailable. Please try again.');
+                } else {
+                    toast.error(data?.message || 'Invalid email or password.');
                 }
             }
         } catch (error) {
-            clearTimeout(timeoutId);
-            console.error('GreenBond API error:', error);
-            
-            if (error.name === 'AbortError') {
-                toast.error('Connection timed out. The server took too long to respond.');
-            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                toast.error('Unable to reach GreenBond server. Please ensure the backend is running.');
+            console.error('GreenBond Login error:', error);
+            if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                toast.error('GreenBond is taking too long to respond. Please try again.');
+            } else if (error.name === 'NetworkError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                toast.error('Unable to connect to GreenBond. Please try again.');
             } else {
-                toast.error(error.message || 'An unexpected error occurred during login.');
+                toast.error('GreenBond is temporarily unavailable. Please try again.');
             }
         } finally {
             setIsLoading(false);
@@ -130,9 +108,8 @@ const UserLogin = () => {
         }
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/reset-password-user`, {
+            const response = await apiFetch('/api/auth/reset-password-user', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: resetEmail, newPassword })
             });
 
@@ -255,7 +232,7 @@ const UserLogin = () => {
                 <div className="mt-8 text-center border-t border-gray-100 pt-6">
                     <p className="text-sm text-gray-600">
                         Don't have an account?{' '}
-                        <Link to="/signup/user" className="font-bold text-green-600 hover:text-green-800 transition-colors">
+                        <Link to="/signup/user" id="account-create-user" className="font-bold text-green-600 hover:text-green-800 transition-colors">
                             Create account
                         </Link>
                     </p>

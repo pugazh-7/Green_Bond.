@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 import toast from 'react-hot-toast';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
@@ -33,39 +34,23 @@ const ClientLogin = () => {
         e.preventDefault();
         if (isLoading) return;
 
-        if (mobile.length !== 10) {
-            toast.error('Mobile Number must be exactly 10 digits.');
+        if (!mobile || !pin || mobile.length !== 10) {
+            toast.error('Mobile Number must be exactly 10 digits and PIN is required.');
             return;
         }
 
         setIsLoading(true);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-farmer`, {
+            const response = await apiFetch('/api/auth/login-farmer', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, mobile, pin }),
-                signal: controller.signal,
-                credentials: 'include'
+                body: JSON.stringify({ name, mobile, pin })
             });
 
-            clearTimeout(timeoutId);
             const data = await response.json();
 
-            if (response.ok) {
+            if (response.ok && (data.farmer || data.user || data.partner)) {
                 const user = data.farmer || data.user || data.partner;
-                const role = user.role || 'client';
-                
-                localStorage.setItem('userRole', role);
-                localStorage.setItem('green_bond_current_user', JSON.stringify(user));
-                if (data.token) {
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('green_bond_token', data.token);
-                }
-                
-                login(user, data.token);
                 
                 if (rememberMe) {
                     localStorage.setItem('remembered_client_name', name);
@@ -75,30 +60,43 @@ const ClientLogin = () => {
                     localStorage.removeItem('remembered_client_mobile');
                 }
 
-                toast.success(`Welcome back, ${user.name}!`);
-                navigate('/client', { replace: true });
-            } else {
-                if (data && data.message) {
-                    toast.error(data.message);
-                } else if (response.status === 400 || response.status === 401) {
-                    toast.error('Invalid Name, Mobile Number or PIN.');
-                } else if (response.status === 404) {
-                    toast.error('Farmer login endpoint not found (404).');
-                } else if (response.status >= 500) {
-                    toast.error('Server error during farmer login. Please try again.');
+                login(user, data.token);
+
+                if (user.verificationStatus === 'APPROVED' || user.farmerStatus === 'ACTIVE') {
+                    toast.success(`Welcome back, ${user.name}!`);
+                    navigate('/client', { replace: true });
+                } else if (user.verificationStatus === 'REJECTED') {
+                    toast.error('Your land document needs correction. Please re-upload.');
+                    navigate('/farmer/reupload-proof', { replace: true });
                 } else {
-                    toast.error('Login failed.');
+                    toast('Your farmer account is under verification.', { icon: '⏳' });
+                    navigate('/farmer/verification-pending', { replace: true });
+                }
+            } else {
+                if (response.status === 400) {
+                    toast.error('Please enter a valid Mobile Number and PIN.');
+                } else if (response.status === 401) {
+                    toast.error(data?.message || 'Invalid Name, Mobile Number or PIN.');
+                } else if (response.status === 403) {
+                    toast.error('You are not authorized to continue.');
+                } else if (response.status === 404) {
+                    toast.error(data?.message || 'Resource not found.');
+                } else if (response.status === 429) {
+                    toast.error('Too many attempts. Please try again later.');
+                } else if (response.status >= 500) {
+                    toast.error('GreenBond is temporarily unavailable. Please try again.');
+                } else {
+                    toast.error(data?.message || 'Invalid Name, Mobile Number or PIN.');
                 }
             }
         } catch (error) {
-            clearTimeout(timeoutId);
-            console.error('Login error:', error);
-            if (error.name === 'AbortError') {
-                toast.error('Connection timed out. Please try again.');
-            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                toast.error('Unable to reach GreenBond server. Please ensure the backend is running.');
+            console.error('Farmer login error:', error);
+            if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                toast.error('GreenBond is taking too long to respond. Please try again.');
+            } else if (error.name === 'NetworkError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                toast.error('Unable to connect to GreenBond. Please try again.');
             } else {
-                toast.error(error.message || 'Login failed.');
+                toast.error('GreenBond is temporarily unavailable. Please try again.');
             }
         } finally {
             setIsLoading(false);
@@ -242,8 +240,8 @@ const ClientLogin = () => {
                 <div className="mt-8 text-center border-t border-gray-100 pt-6">
                     <p className="text-sm text-gray-600">
                         New farmer?{' '}
-                        <Link to="/signup/farmer" className="font-bold text-green-600 hover:text-green-800 transition-colors">
-                            Register as Farmer
+                        <Link to="/signup/farmer" id="account-create-farmer" className="font-bold text-green-600 hover:text-green-800 transition-colors">
+                            Create account
                         </Link>
                     </p>
                 </div>

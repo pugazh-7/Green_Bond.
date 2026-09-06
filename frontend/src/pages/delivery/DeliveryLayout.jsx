@@ -1,116 +1,132 @@
-import React, { useEffect, useRef } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import {
+    LayoutDashboard,
+    ShoppingBag,
+    Navigation,
+    Clock,
+    LogOut,
+    Truck,
+    Menu,
+    XCircle,
+    UserCheck
+} from '../../components/ui/Icons';
 
 const DeliveryLayout = () => {
+    const { logout, user, isLoggingOut } = useAuth();
     const navigate = useNavigate();
-    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-    const [assignedCount, setAssignedCount] = React.useState(0);
-    const processedOrdersRef = useRef(new Set());
-    // Reverted to the First Sound (Standard Beep)
-    const audioRef = useRef(new Audio('/notification.mp3'));
+    const location = useLocation();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [assignedCount, setAssignedCount] = useState(0);
 
-    useEffect(() => {
-        // Configure audio to loop and set max volume
-        audioRef.current.loop = true;
-        audioRef.current.volume = 1.0;
+    const navItems = [
+        { path: '/delivery', icon: LayoutDashboard, label: 'Dashboard' },
+        { path: '/delivery/orders', icon: ShoppingBag, label: 'Assigned Orders', badge: assignedCount > 0 ? assignedCount : null },
+        { path: '/delivery/tracking', icon: Navigation, label: 'Live Navigation' },
+        { path: '/delivery/history', icon: Clock, label: 'Delivery History' },
+    ];
 
-        const checkPendingKey = () => {
-            const currentOrders = JSON.parse(localStorage.getItem('green_bond_orders') || '[]');
-            // Check if ANY order is in 'Accepted' state (waiting for pickup)
-            const pickupOrders = currentOrders.filter(o => o.status === 'Accepted');
-            setAssignedCount(pickupOrders.length);
-            const hasPendingPickup = pickupOrders.length > 0;
-
-            if (hasPendingPickup) {
-                // If there are pending orders and audio is NOT playing, start it
-                if (audioRef.current.paused) {
-                    audioRef.current.play().catch(e => console.log('Audio autoplay prevented:', e));
-                    toast("Orders waiting for Pickup! 🔔", {
-                        icon: '🚛',
-                        id: 'pickup-reminder', // Prevent duplicate toasts
-                        duration: 4000
-                    });
-                }
-            } else {
-                // If NO pending orders, ensure audio is stopped
-                if (!audioRef.current.paused) {
-                    audioRef.current.pause();
-                    audioRef.current.currentTime = 0; // Reset
-                }
-            }
-        };
-
-        // Check immediately and then every 2 seconds
-        checkPendingKey();
-        const interval = setInterval(checkPendingKey, 2000);
-
-        // Cleanup: stop audio when component unmounts
-        return () => {
-            clearInterval(interval);
-            audioRef.current.pause();
-        };
-    }, []);
-
-    const handleLogout = () => {
-        // Clear specific delivery roles if any, currently sharing userRole concept or separate
-        localStorage.removeItem('userRole');
-        navigate('/');
+    const handleLogout = async () => {
+        await logout();
+        toast.success('Logged out successfully');
+        navigate('/login/delivery');
     };
 
     return (
-        <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <div className="flex h-screen bg-gray-50 text-gray-900 overflow-hidden font-sans">
             <Toaster position="top-right" />
+            {/* Mobile Overlay */}
             {isSidebarOpen && (
                 <div 
-                    className="fixed inset-0 bg-black/50 z-30 md:hidden" 
+                    className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-30 md:hidden" 
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
-            <div className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} bg-gray-900 text-white shadow-md overflow-y-auto flex flex-col`}>
-                <div className="p-6">
-                    <h1 className="text-2xl font-bold text-blue-400">Delivery Panel</h1>
-                </div>
-                <nav className="mt-6">
-                    <Link to="/delivery" className="block px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white">Dashboard</Link>
-                    <Link to="/delivery/orders" className="px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center group">
-                        <span>Assigned Orders</span>
-                        {assignedCount > 0 && (
-                            <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                                {assignedCount}
-                            </span>
-                        )}
-                    </Link>
-                    <Link to="/delivery/tracking" className="block px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white">Live Navigation</Link>
-                    <Link to="/delivery/history" className="block px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white">History</Link>
 
-                    <button
-                        onClick={() => {
-                            audioRef.current.play().catch(e => alert("Audio failed: " + e));
-                            toast.success("Test Notification Working!", { icon: '🔔' });
-                        }}
-                        className="block w-full text-left px-6 py-3 text-yellow-500 hover:bg-gray-800 hover:text-yellow-400 mt-4 border-t border-gray-700"
+            {/* Sidebar */}
+            <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-white flex flex-col shadow-xl transition-transform duration-300 md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                {/* Brand Header */}
+                <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-slate-950 text-lg shadow-md shadow-emerald-500/30">
+                            <Truck className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-base tracking-tight text-white">GreenBond</h1>
+                            <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">Delivery Partner</span>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="md:hidden text-slate-400 hover:text-white"
                     >
-                        🔔 Test Notification
+                        <XCircle className="w-5 h-5" />
                     </button>
+                </div>
 
-                    <button onClick={handleLogout} className="w-full text-left block px-6 py-3 text-red-400 hover:bg-red-900/20 mt-2">Logout</button>
+                {/* Navigation Links */}
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                    {navItems.map((item) => {
+                        const IconComp = item.icon;
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all font-medium text-sm ${
+                                    isActive
+                                        ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/30'
+                                        : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <IconComp className="w-4 h-4" />
+                                    <span>{item.label}</span>
+                                </div>
+                                {item.badge && (
+                                    <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-500 text-slate-950">
+                                        {item.badge}
+                                    </span>
+                                )}
+                            </Link>
+                        );
+                    })}
                 </nav>
-            </div>
 
-            <div className="flex flex-col flex-1 overflow-hidden relative">
-                <header className="md:hidden bg-gray-900 shadow-sm p-4 flex items-center justify-between z-20">
-                    <h1 className="text-xl font-bold text-blue-400">Delivery Panel</h1>
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-white focus:outline-none focus:bg-gray-800 rounded-md">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
+                {/* Logout Footer */}
+                <div className="p-4 border-t border-slate-800">
+                    <button
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors text-sm font-semibold disabled:opacity-50"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
                     </button>
+                </div>
+            </aside>
+
+            {/* Main Content View */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Mobile Header Bar */}
+                <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between md:hidden shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsSidebarOpen(true)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                        >
+                            <LayoutDashboard className="w-5 h-5" />
+                        </button>
+                        <h2 className="text-lg font-bold text-gray-900">Delivery Partner</h2>
+                    </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 relative">
+                <main className="flex-1 overflow-y-auto p-6">
                     <Outlet />
-                </div>
+                </main>
             </div>
         </div>
     );

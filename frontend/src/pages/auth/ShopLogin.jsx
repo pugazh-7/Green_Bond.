@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
 
@@ -33,8 +34,8 @@ const ShopLogin = () => {
         e.preventDefault();
         if (loading) return;
 
-        if (!formData.mobile || !formData.password) {
-            toast.error("Please fill in all fields.");
+        if (!formData.mobile || !formData.password || !formData.mobile.trim() || !formData.password.trim()) {
+            toast.error("Please enter a valid Mobile Number and password.");
             return;
         }
         
@@ -42,60 +43,52 @@ const ShopLogin = () => {
         const loadingToast = toast.loading('Logging in...');
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-shop`, {
+            const response = await apiFetch('/api/auth/login-shop', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
-                credentials: 'include'
+                body: JSON.stringify(formData)
             });
 
             const data = await response.json();
 
-            if (response.ok) {
+            if (response.ok && (data.shop || data.user)) {
                 const shopUser = data.shop || data.user;
-                const role = shopUser?.role || 'shop';
                 const token = data.token;
 
-                try {
-                    localStorage.setItem('userRole', role);
-                    localStorage.setItem('green_bond_current_user', JSON.stringify(shopUser));
-                    if (token) {
-                        localStorage.setItem('token', token);
-                        localStorage.setItem('green_bond_token', token);
-                    }
-                    if (rememberMe) {
-                        localStorage.setItem('remembered_shop_mobile', formData.mobile);
-                    } else {
-                        localStorage.removeItem('remembered_shop_mobile');
-                    }
-                } catch (storageErr) {
-                    console.warn('Storage error on shop login:', storageErr);
+                if (rememberMe) {
+                    localStorage.setItem('remembered_shop_mobile', formData.mobile);
+                } else {
+                    localStorage.removeItem('remembered_shop_mobile');
                 }
 
                 login(shopUser, token);
                 toast.success('Login successful!', { id: loadingToast });
+                navigate('/shop', { replace: true });
             } else {
-                if (data && data.message) {
-                    toast.error(data.message, { id: loadingToast });
-                } else if (response.status === 400 || response.status === 401) {
-                    toast.error('Invalid mobile or password.', { id: loadingToast });
+                if (response.status === 400) {
+                    toast.error('Please enter a valid Mobile Number and password.', { id: loadingToast });
+                } else if (response.status === 401) {
+                    toast.error(data?.message || 'Invalid mobile or password.', { id: loadingToast });
+                } else if (response.status === 403) {
+                    toast.error('You are not authorized to continue.', { id: loadingToast });
                 } else if (response.status === 404) {
-                    toast.error('Shop login endpoint not found (404).', { id: loadingToast });
+                    toast.error(data?.message || 'Resource not found.', { id: loadingToast });
+                } else if (response.status === 429) {
+                    toast.error('Too many attempts. Please try again later.', { id: loadingToast });
                 } else if (response.status >= 500) {
-                    toast.error('Server error during shop login. Please try again.', { id: loadingToast });
+                    toast.error('GreenBond is temporarily unavailable. Please try again.', { id: loadingToast });
                 } else {
-                    toast.error('Login failed.', { id: loadingToast });
+                    toast.error(data?.message || 'Invalid mobile or password.', { id: loadingToast });
                 }
             }
         } catch (error) {
-            if (error.name === 'AbortError') {
-                toast.error('Connection timed out. Please try again.', { id: loadingToast });
-            } else if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-                toast.error('Unable to reach GreenBond server. Please ensure backend is running.', { id: loadingToast });
-            } else {
-                toast.error(error.message || 'Login failed.', { id: loadingToast });
-            }
             console.error('Shop login error:', error);
+            if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                toast.error('GreenBond is taking too long to respond. Please try again.', { id: loadingToast });
+            } else if (error.name === 'NetworkError' || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                toast.error('Unable to connect to GreenBond. Please try again.', { id: loadingToast });
+            } else {
+                toast.error('GreenBond is temporarily unavailable. Please try again.', { id: loadingToast });
+            }
         } finally {
             setLoading(false);
         }
@@ -171,8 +164,8 @@ const ShopLogin = () => {
                 <div className="mt-8 text-center border-t border-gray-100 pt-6">
                     <p className="text-sm text-gray-600">
                         New to GreenBond?{' '}
-                        <Link to="/signup/shop" className="font-bold text-yellow-600 hover:text-yellow-800 transition-colors">
-                            Register your Shop
+                        <Link to="/signup/shop" id="account-create-shop" className="font-bold text-yellow-600 hover:text-yellow-800 transition-colors">
+                            Create account
                         </Link>
                     </p>
                 </div>

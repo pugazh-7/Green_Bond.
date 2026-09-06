@@ -57,8 +57,11 @@ const Layout = () => {
                             <a href="#" onClick={(e) => handleAnchorClick(e, 'objectives')} className="text-gray-600 hover:text-green-700 transition-colors font-semibold">
                                 About Us
                             </a>
-                            <Link to="/login/user" className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm">
+                            <Link to="/login/user" className="px-5 py-2.5 text-gray-700 hover:text-green-700 font-bold rounded-xl transition-colors">
                                 Sign In
+                            </Link>
+                            <Link to="/signup/user" id="account-create-nav" className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-sm">
+                                Create Account
                             </Link>
                         </div>
 
@@ -111,7 +114,7 @@ const Layout = () => {
                                 ☎️Contact
                             </a>
                             <div className="border-t border-gray-100 pt-2 pb-1">
-                                <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Account</p>
+                                <Link to="/signup/user" id="account-create-mobile" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 text-sm font-bold text-green-600 hover:bg-green-50 rounded-md">Create Account</Link>
                                 <Link to="/login/user" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50">Login as User</Link>
                                 <Link to="/login/farmer" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50">Login as Farmer</Link>
                                 <Link to="/login/delivery" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50">Delivery Partner</Link>

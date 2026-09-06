@@ -4,8 +4,10 @@ import logo from '../../assets/logo.jpeg';
 import LocationHeader from '../../components/marketplace/LocationHeader';
 import LocationSelectorModal from '../../components/marketplace/LocationSelectorModal';
 import { ShoppingBagIcon, ZapIcon, LeafIcon } from '../../utils/Icons';
+import { useAuth } from '../../context/AuthContext';
 
 const UserLayout = () => {
+    const { user, logout, isLoggingOut } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -48,9 +50,9 @@ const UserLayout = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const handleLogout = () => {
-        localStorage.removeItem('userRole');
-        navigate('/');
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login/user');
     };
 
     return (
@@ -118,9 +120,13 @@ const UserLayout = () => {
                     </Link>
                 </nav>
                 <div className="mt-auto p-4 border-t border-gray-100">
-                    <button onClick={handleLogout} className="w-full py-3 px-4 rounded-xl text-red-600 font-semibold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                    <button 
+                        onClick={handleLogout} 
+                        disabled={isLoggingOut}
+                        className="w-full py-3 px-4 rounded-xl text-red-600 font-semibold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                        Logout
+                        {isLoggingOut ? 'Logging out...' : 'Logout'}
                     </button>
                 </div>
             </div>

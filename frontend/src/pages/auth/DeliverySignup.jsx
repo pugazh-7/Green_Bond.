@@ -1,24 +1,21 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import LocationPicker from '../../components/LocationPicker';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
+import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 
 const DeliverySignup = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         mobile: '',
         password: '',
-        confirmPassword: '',
-        location: null
+        confirmPassword: ''
     });
-
-    const handleLocationChange = (loc) => {
-        setFormData({ ...formData, location: loc });
-    };
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,21 +25,21 @@ const DeliverySignup = () => {
 
     const validateForm = () => {
         const { name, email, mobile, password, confirmPassword } = formData;
-        if (name.trim().length < 3) {
+        if (!name || name.trim().length < 3) {
             toast.error("Name must be at least 3 characters long.");
             return false;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!email || !emailRegex.test(email.trim())) {
             toast.error("Please enter a valid email address.");
             return false;
         }
         const mobileRegex = /^[0-9]{10}$/;
-        if (!mobileRegex.test(mobile)) {
+        if (!mobile || !mobileRegex.test(mobile.trim())) {
             toast.error("Mobile number must be exactly 10 digits.");
             return false;
         }
-        if (password.length < 6) {
+        if (!password || password.length < 6) {
             toast.error("Password must be at least 6 characters long.");
             return false;
         }
@@ -59,41 +56,42 @@ const DeliverySignup = () => {
         if (!validateForm()) return;
 
         setIsSubmitting(true);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const newPartner = {
             name: formData.name.trim(),
             email: formData.email.trim(),
             mobile: formData.mobile.trim(),
             password: formData.password,
-            confirmPassword: formData.confirmPassword,
-            location: formData.location
+            confirmPassword: formData.confirmPassword
         };
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/register-delivery`, {
+            const response = await apiFetch('/api/auth/register-delivery', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newPartner),
-                signal: controller.signal,
-                credentials: 'include'
+                body: JSON.stringify(newPartner)
             });
 
-            clearTimeout(timeoutId);
             const data = await response.json();
 
-            if (response.ok) {
-                toast.success('Registration successful! Please login.');
-                navigate('/login/delivery');
+            if (response.ok && (data.user || data.partner)) {
+                const authenticatedUser = data.user || data.partner;
+                login(authenticatedUser, data.token);
+                try {
+                    sessionStorage.setItem('onboarding_in_progress', 'true');
+                } catch (e) {}
+
+                toast.success('Registration successful! Please set your delivery location.');
+                navigate('/location-setup', { replace: true });
             } else {
                 toast.error(data.message || 'Registration failed. Please try again.');
             }
         } catch (error) {
-            clearTimeout(timeoutId);
             console.error('Signup error:', error);
-            if (error.name === 'AbortError') toast.error('Request timed out.');
-            else toast.error('Unable to connect to GreenBond.');
+            if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                toast.error('Request timed out.');
+            } else {
+                toast.error('Unable to connect to GreenBond.');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -151,13 +149,6 @@ const DeliverySignup = () => {
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm</label>
                             <PasswordInput name="confirmPassword" placeholder="Confirm" value={formData.confirmPassword} onChange={handleChange} />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Delivery Zone <span className="text-gray-400 font-normal">(Optional)</span></label>
-                        <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-                            <LocationPicker onLocationChange={handleLocationChange} />
                         </div>
                     </div>
 

@@ -113,7 +113,7 @@ const Cart = () => {
     const handleCheckoutClick = (items) => {
         if (!items || items.length === 0) return;
         if (!location || !location.lat || !location.lng) {
-            toast.error("Please provide a valid delivery location.");
+            toast.error("Please add a delivery address to continue.");
             setShowLocationModal(true);
             return;
         }
@@ -175,8 +175,8 @@ const Cart = () => {
                 totalAmount: calculateTotal(itemsToCheckout),
                 paymentMethod: paymentMethod,
                 paymentStatus: 'Pending',
-                deliveryAddress: location.address || "Location Provided",
-                deliveryLocation: { lat: location.lat, lng: location.lng },
+                deliveryAddress: (location && location.address) || "Location Provided",
+                deliveryLocation: (location && location.lat && location.lng) ? { lat: location.lat, lng: location.lng } : undefined,
                 pickupAddress: itemsToCheckout[0].location || "Multiple Locations",
                 pickupLocation: itemsToCheckout[0].farmerLocationGeo ? { lat: itemsToCheckout[0].farmerLocationGeo.coordinates[1], lng: itemsToCheckout[0].farmerLocationGeo.coordinates[0] } : undefined
             };

@@ -2,109 +2,130 @@ import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import {
+    LayoutDashboard,
+    Package,
+    ShoppingBag,
+    LogOut,
+    Store,
+    Shield
+} from '../../components/ui/Icons';
 
 const ShopLayout = () => {
-    const { logout, user } = useAuth();
+    const { logout, user, isLoggingOut } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await logout();
         toast.success('Logged out successfully');
         navigate('/login/shop');
     };
 
     const navItems = [
-        { path: '/shop', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', label: 'Dashboard' },
-        { path: '/shop/products', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: 'Inventory' },
-        { path: '/shop/orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', label: 'Orders' },
+        { path: '/shop', icon: LayoutDashboard, label: 'Dashboard' },
+        { path: '/shop/products', icon: Package, label: 'Inventory' },
+        { path: '/shop/orders', icon: ShoppingBag, label: 'Orders' },
     ];
 
     return (
-        <div className="flex h-screen bg-gray-50">
-            {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col shadow-sm z-10">
-                <div className="p-6 border-b border-gray-100">
-                    <Link to="/shop" className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-yellow-600 rounded-lg flex items-center justify-center font-bold text-white shadow-sm">
-                            S
+        <div className="flex h-screen bg-slate-50 font-sans">
+            {/* Sidebar Desktop */}
+            <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col shadow-sm z-10">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                    <Link to="/shop" className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center font-bold text-white shadow-sm">
+                            <Store className="w-5 h-5" />
                         </div>
-                        <span className="text-xl font-bold text-gray-900 tracking-tight">ShopPanel</span>
+                        <div>
+                            <span className="text-base font-bold text-slate-900 tracking-tight block leading-tight">GreenBond</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Merchant Portal</span>
+                        </div>
                     </Link>
                 </div>
                 
-                <nav className="flex-1 p-4 space-y-1">
+                <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
                     {navItems.map((item) => {
+                        const Icon = item.icon;
                         const isActive = location.pathname === item.path;
                         return (
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-150 ${
                                     isActive 
-                                    ? 'bg-yellow-50 text-yellow-700 shadow-sm border border-yellow-100' 
-                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                    ? 'bg-emerald-50 text-emerald-800 shadow-sm border border-emerald-100/80 font-bold' 
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                             >
-                                <svg className={`w-5 h-5 ${isActive ? 'text-yellow-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon}></path>
-                                </svg>
-                                {item.label}
+                                <Icon className={`w-5 h-5 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <span>{item.label}</span>
                             </Link>
                         );
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-gray-100">
-                    <div className="flex items-center gap-3 mb-4 px-2">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-600">
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center gap-3 mb-3 px-1">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-sm">
                             {user?.name?.charAt(0) || 'S'}
                         </div>
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-bold text-gray-900 truncate">{user?.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{user?.mobile}</p>
+                        <div className="overflow-hidden flex-1">
+                            <p className="text-xs font-bold text-slate-900 truncate">{user?.name || 'Shop Owner'}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{user?.mobile || user?.email}</p>
                         </div>
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        disabled={isLoggingOut}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition border border-rose-100 disabled:opacity-50"
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                        Logout
+                        <LogOut className="w-4 h-4" />
+                        <span>{isLoggingOut ? 'Logging out...' : 'Sign Out'}</span>
                     </button>
                 </div>
             </aside>
 
-            {/* Mobile Nav */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-3 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe">
+            {/* Mobile Bottom Bar */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] pb-safe">
                 {navItems.map((item) => {
+                    const Icon = item.icon;
                     const isActive = location.pathname === item.path;
                     return (
                         <Link
                             key={item.path}
                             to={item.path}
-                            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
-                                isActive ? 'text-yellow-600' : 'text-gray-500 hover:text-gray-900'
+                            className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
+                                isActive ? 'text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon}></path>
-                            </svg>
+                            <Icon className={`w-5 h-5 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
                             <span className="text-[10px] font-medium">{item.label}</span>
                         </Link>
                     );
                 })}
             </div>
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-                <div className="md:hidden bg-white p-4 shadow-sm border-b border-gray-100 flex justify-between items-center sticky top-0 z-40">
-                    <span className="text-lg font-bold text-gray-900">ShopPanel</span>
-                    <button onClick={handleLogout} className="text-gray-500 hover:text-red-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            {/* Main Content Area */}
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0 bg-slate-50/50">
+                {/* Mobile Top Header */}
+                <div className="md:hidden bg-white px-4 py-3 shadow-sm border-b border-slate-200 flex justify-between items-center sticky top-0 z-40">
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                            <Store className="w-4 h-4" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-900">GreenBond Merchant</span>
+                    </div>
+                    <button
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-50 transition"
+                    >
+                        <LogOut className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+
+                <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
                     <Outlet />
                 </div>
             </main>

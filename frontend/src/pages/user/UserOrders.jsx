@@ -79,7 +79,7 @@ const UserOrders = () => {
             } catch (e) {}
         }
         
-        const socket = io(import.meta.env.VITE_API_URL || 'https://green-bond.onrender.com');
+        const socket = io(import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || undefined);
         if (userId) {
             socket.emit('join', userId);
             socket.on('order_update', () => {
@@ -155,22 +155,49 @@ const UserOrders = () => {
         if (!latestOrder) return;
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${latestOrder.id}/status`, {
-                method: 'PUT',
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${latestOrder.id}/cancel`, {
+                method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` 
                 },
-                body: JSON.stringify({ status: 'CANCELLED' })
+                body: JSON.stringify({ reason: 'Customer requested cancellation' })
             });
+            const data = await res.json();
             if (res.ok) {
                 setLatestOrder({ ...latestOrder, status: 'CANCELLED' });
-                toast.success("Order cancelled successfully.");
+                toast.success("Order cancelled successfully. Stock restored.");
             } else {
-                toast.error("Failed to cancel order.");
+                toast.error(data.message || "Failed to cancel order.");
             }
         } catch (err) {
             toast.error("Network error.");
+        }
+    };
+
+    const handleRequestReturn = async (orderId) => {
+        const reason = prompt("Please provide a reason for the return request:");
+        if (!reason) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/orders/${orderId}/return`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success("Return request submitted successfully. Awaiting review.");
+                fetchOrders();
+            } else {
+                toast.error(data.message || "Failed to submit return request.");
+            }
+        } catch (err) {
+            toast.error("Network error submitting return request.");
         }
     };
 

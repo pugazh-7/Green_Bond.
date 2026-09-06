@@ -7,11 +7,7 @@ const getBackendUrl = () => {
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
-    const host = window.location.hostname;
-    if (import.meta.env.MODE === 'production') {
-        return 'https://green-bond.onrender.com';
-    }
-    return `http://${host}:5000`;
+    return '';
 };
 
 export const normalizeImageUrl = (url) => {

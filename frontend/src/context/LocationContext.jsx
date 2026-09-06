@@ -25,9 +25,9 @@ export const LocationProvider = ({ children }) => {
                 }
             }
             
-            // If no valid saved location, we must show the modal to get one.
-            setShowLocationModal(true);
-            setHasResolvedInitialLocation(true); // We resolved that we NEED a location
+            // Do not force show modal on initial load. Users can browse freely and pick location anytime.
+            setShowLocationModal(false);
+            setHasResolvedInitialLocation(true);
         };
 
         resolveInitialLocation();
@@ -99,12 +99,19 @@ export const LocationProvider = ({ children }) => {
         setShowLocationModal(false);
     };
 
+    const clearLocation = () => {
+        setLocation(null);
+        localStorage.removeItem('green_bond_location');
+        setPermissionGranted(false);
+    };
+
     return (
         <LocationContext.Provider value={{ 
             location, 
             permissionGranted, 
             requestLocation, 
             manuallySetLocation, 
+            clearLocation,
             isFetching,
             showLocationModal,
             setShowLocationModal,

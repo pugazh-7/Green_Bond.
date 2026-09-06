@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import LocationPicker from '../../components/LocationPicker';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 
 const UserSignup = () => {
     const navigate = useNavigate();
@@ -14,13 +14,8 @@ const UserSignup = () => {
         email: '',
         mobile: '',
         password: '',
-        confirmPassword: '',
-        location: null
+        confirmPassword: ''
     });
-
-    const handleLocationChange = (loc) => {
-        setFormData({ ...formData, location: loc });
-    };
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -30,25 +25,27 @@ const UserSignup = () => {
 
     const validateForm = () => {
         const { name, email, mobile, password, confirmPassword } = formData;
-        if (name.trim().length < 3) {
+        if (!name || name.trim().length < 3) {
             toast.error("Name must be at least 3 characters long.");
             return false;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!email || !emailRegex.test(email.trim())) {
             toast.error("Please enter a valid email address.");
             return false;
         }
-        const mobileRegex = /^[0-9]{10}$/;
-        if (!mobileRegex.test(mobile)) {
-            toast.error("Mobile number must be exactly 10 digits.");
-            return false;
+        if (mobile && mobile.trim()) {
+            const mobileRegex = /^[0-9]{10}$/;
+            if (!mobileRegex.test(mobile.trim())) {
+                toast.error("Mobile number must be exactly 10 digits.");
+                return false;
+            }
         }
-        if (password.length < 6) {
+        if (!password || password.length < 6) {
             toast.error("Password must be at least 6 characters long.");
             return false;
         }
-        if (password !== confirmPassword) {
+        if (confirmPassword !== undefined && password !== confirmPassword) {
             toast.error("Passwords do not match!");
             return false;
         }
@@ -61,63 +58,43 @@ const UserSignup = () => {
         if (!validateForm()) return;
 
         setIsSubmitting(true);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const newUser = {
             name: formData.name.trim(),
             email: formData.email.trim(),
-            mobile: formData.mobile.trim(),
+            mobile: formData.mobile ? formData.mobile.trim() : undefined,
             password: formData.password,
-            confirmPassword: formData.confirmPassword,
-            location: formData.location
+            confirmPassword: formData.confirmPassword
         };
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/register-user`, {
+            const response = await apiFetch('/api/auth/register-user', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newUser),
-                signal: controller.signal,
-                credentials: 'include'
+                body: JSON.stringify(newUser)
             });
 
-            clearTimeout(timeoutId);
             const data = await response.json();
 
-            if (response.ok) {
-                // Auto-login after successful registration
+            if (response.ok && data.user) {
+                // Authenticate immediately
+                login(data.user, data.token);
                 try {
-                    const loginRes = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/login-user`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: newUser.email, password: newUser.password }),
-                        credentials: 'include'
-                    });
-                    if (loginRes.ok) {
-                        const loginData = await loginRes.json();
-                        login(loginData.user, loginData.token);
-                        toast.success('Registration successful! Welcome to GreenBond.');
-                        // Navigate will be handled by App.js protected route re-evaluation, but we can explicitly trigger it:
-                        navigate('/user');
-                    } else {
-                        toast.success('Registration successful! Please login.');
-                        navigate('/login/user');
-                    }
-                } catch (err) {
-                    toast.success('Registration successful! Please login.');
-                    navigate('/login/user');
-                }
+                    sessionStorage.setItem('onboarding_in_progress', 'true');
+                } catch (e) {}
+
+                toast.success('Account created successfully! Set your delivery location to continue.');
+                // Navigate directly to Location Setup screen
+                navigate('/location-setup', { replace: true });
             } else {
                 toast.error(data.message || 'Registration failed. Please try again.');
             }
         } catch (error) {
-            clearTimeout(timeoutId);
             console.error('GreenBond API error:', error);
-            console.error('Request URL:', `${import.meta.env.VITE_API_URL || ''}/api/auth/register-user`);
-            console.error('Error message:', error.message);
-            if (error.name === 'AbortError') toast.error('Request timed out.');
-            else toast.error('Unable to connect to GreenBond. Please try again.');
+            if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                toast.error('GreenBond is taking too long to respond. Please try again.');
+            } else {
+                toast.error('Unable to connect to GreenBond. Please try again.');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -158,12 +135,12 @@ const UserSignup = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile Number</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile Number <span className="text-gray-400 font-normal text-xs">(Optional)</span></label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                             </div>
-                            <input type="tel" name="mobile" required value={formData.mobile} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile number" maxLength="10" />
+                            <input type="tel" name="mobile" value={formData.mobile} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile number" maxLength="10" />
                         </div>
                     </div>
 
@@ -175,13 +152,6 @@ const UserSignup = () => {
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm</label>
                             <PasswordInput name="confirmPassword" placeholder="Confirm" value={formData.confirmPassword} onChange={handleChange} />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Delivery Location <span className="text-gray-400 font-normal">(Optional)</span></label>
-                        <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-green-500 transition-all">
-                            <LocationPicker onLocationChange={handleLocationChange} />
                         </div>
                     </div>
 
@@ -212,5 +182,3 @@ const UserSignup = () => {
 };
 
 export default UserSignup;
-
-

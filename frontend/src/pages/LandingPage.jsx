@@ -10,13 +10,7 @@ const LandingPage = () => {
     const navigate = useNavigate();
     const [showLocationModal, setShowLocationModal] = useState(false);
 
-    // Prompt location on first visit if not present
-    useEffect(() => {
-        if (!location && !showLocationModal) {
-            setShowLocationModal(true);
-        }
-    }, [location, showLocationModal]);
-
+    // Location modal only opens when explicitly requested by user clicking location button
     const handleLocationSelect = (loc) => {
         manuallySetLocation(loc);
         setShowLocationModal(false);
@@ -58,9 +52,14 @@ const LandingPage = () => {
                         </Link>
                         
                         {!user ? (
-                            <Link to="/login/user" className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-full hover:bg-green-700 transition-colors">
-                                Login
-                            </Link>
+                            <div className="flex items-center gap-3">
+                                <Link to="/login/user" className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-gray-700 hover:text-green-700 transition-colors">
+                                    Sign In
+                                </Link>
+                                <Link to="/signup/user" id="account-create-landing" className="inline-flex items-center justify-center px-5 py-2 text-sm font-bold text-white bg-green-600 rounded-full hover:bg-green-700 transition-colors shadow-sm">
+                                    Create Account
+                                </Link>
+                            </div>
                         ) : (
                             <Link to="/user" className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -166,9 +165,9 @@ const LandingPage = () => {
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-green-700 transition-colors">Customer</h3>
-                                <p className="text-sm text-gray-500 mb-4">Shop quick essentials and fresh local produce.</p>
-                                <div className="text-green-600 font-semibold text-sm flex items-center">
-                                    Sign In <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500 font-semibold">Sign In</span>
+                                    <Link to="/signup/user" className="text-green-600 font-bold hover:underline">Create Account →</Link>
                                 </div>
                             </Link>
 
@@ -178,9 +177,9 @@ const LandingPage = () => {
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-emerald-700 transition-colors">Farmer</h3>
-                                <p className="text-sm text-gray-500 mb-4">Sell directly to customers and maximize your profit.</p>
-                                <div className="text-emerald-600 font-semibold text-sm flex items-center">
-                                    Sell Produce <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500 font-semibold">Sign In</span>
+                                    <Link to="/signup/farmer" className="text-emerald-600 font-bold hover:underline">Create Account →</Link>
                                 </div>
                             </Link>
 
@@ -190,9 +189,9 @@ const LandingPage = () => {
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"/><path d="M12 3v6"/></svg>
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-yellow-700 transition-colors">Shop Owner</h3>
-                                <p className="text-sm text-gray-500 mb-4">Digitize your local store and reach more nearby buyers.</p>
-                                <div className="text-yellow-600 font-semibold text-sm flex items-center">
-                                    Sell Locally <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500 font-semibold">Sign In</span>
+                                    <Link to="/signup/shop" className="text-yellow-600 font-bold hover:underline">Create Account →</Link>
                                 </div>
                             </Link>
 
@@ -202,9 +201,9 @@ const LandingPage = () => {
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="18.5" cy="17.5" r="2.5"/><path d="M15 6H3v6h12v-6zM15 6h2.5l2.5 3v3h-5V6z"/></svg>
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors">Delivery</h3>
-                                <p className="text-sm text-gray-500 mb-4">Earn flexibly by delivering orders in your area.</p>
-                                <div className="text-blue-600 font-semibold text-sm flex items-center">
-                                    Deliver & Earn <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500 font-semibold">Sign In</span>
+                                    <Link to="/signup/delivery" className="text-blue-600 font-bold hover:underline">Create Account →</Link>
                                 </div>
                             </Link>
                         </div>

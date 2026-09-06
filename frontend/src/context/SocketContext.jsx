@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { useAuth } from './AuthContext';
 
 const SocketContext = createContext();
 
@@ -9,35 +10,22 @@ export const useSocket = () => {
 
 export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
+    const { user, authStatus } = useAuth();
+    const joinedRoomRef = useRef(null);
 
     useEffect(() => {
-        const currentUserStr = localStorage.getItem('green_bond_current_user');
-        
-        let idToJoin = null;
-        if (currentUserStr && currentUserStr !== 'undefined') {
-            try {
-                const user = JSON.parse(currentUserStr);
-                idToJoin = user._id || user.id;
-            } catch(e) {}
-        } else {
-            // Fallbacks for legacy if needed
-            try {
-                const userStr = localStorage.getItem('user');
-                const farmerStr = localStorage.getItem('farmer');
-                const deliveryStr = localStorage.getItem('deliveryPartner');
-                if (userStr && userStr !== 'undefined') idToJoin = JSON.parse(userStr).id;
-                else if (farmerStr && farmerStr !== 'undefined') idToJoin = JSON.parse(farmerStr)._id || JSON.parse(farmerStr).id;
-                else if (deliveryStr && deliveryStr !== 'undefined') idToJoin = JSON.parse(deliveryStr)._id || JSON.parse(deliveryStr).id;
-            } catch(e) {}
-        }
-
         const socketUrl = import.meta.env.VITE_API_URL || undefined;
-        const newSocket = io(socketUrl);
-        
+        const newSocket = io(socketUrl, {
+            autoConnect: true,
+            reconnection: true
+        });
+
         newSocket.on('connect', () => {
             console.log('Connected to socket server');
-            if (idToJoin) {
-                newSocket.emit('join', idToJoin.toString());
+            if (user && (user._id || user.id)) {
+                const room = (user._id || user.id).toString();
+                newSocket.emit('join', room);
+                joinedRoomRef.current = room;
             }
         });
 
@@ -48,10 +36,33 @@ export const SocketProvider = ({ children }) => {
         };
     }, []);
 
+    // Handle user authentication change or logout (Rule 20)
+    useEffect(() => {
+        if (!socket) return;
+
+        if (authStatus === 'AUTHENTICATED' && user && (user._id || user.id)) {
+            const room = (user._id || user.id).toString();
+            if (joinedRoomRef.current !== room) {
+                if (joinedRoomRef.current) {
+                    socket.emit('leave', joinedRoomRef.current);
+                }
+                socket.emit('join', room);
+                joinedRoomRef.current = room;
+            }
+        } else if (authStatus === 'UNAUTHENTICATED' || !user) {
+            // Disconnect authenticated session room on logout
+            if (joinedRoomRef.current) {
+                socket.emit('leave', joinedRoomRef.current);
+                joinedRoomRef.current = null;
+            }
+        }
+    }, [user, authStatus, socket]);
+
     return (
         <SocketContext.Provider value={socket}>
             {children}
         </SocketContext.Provider>
     );
 };
+
 

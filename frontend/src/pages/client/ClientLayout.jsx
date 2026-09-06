@@ -1,7 +1,9 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const ClientLayout = () => {
+    const { logout, isLoggingOut } = useAuth();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
@@ -25,9 +27,9 @@ const ClientLayout = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const handleLogout = () => {
-        localStorage.removeItem('userRole');
-        navigate('/');
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login/farmer');
     };
 
     return (
@@ -62,7 +64,13 @@ const ClientLayout = () => {
                         )}
                     </Link>
                     <Link to="/client/tracking" className="block px-6 py-3 text-gray-300 hover:bg-gray-700 hover:text-white">Location Tracking</Link>
-                    <button onClick={handleLogout} className="w-full text-left block px-6 py-3 text-red-400 hover:bg-red-900/20 mt-10">Logout</button>
+                    <button 
+                        onClick={handleLogout} 
+                        disabled={isLoggingOut}
+                        className="w-full text-left block px-6 py-3 text-red-400 hover:bg-red-900/20 mt-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isLoggingOut ? 'Logging out...' : 'Logout'}
+                    </button>
 
                     <button
                         onClick={() => {

@@ -15,7 +15,7 @@ const MainMarketplace = () => {
     const searchParams = new URLSearchParams(urlLocation.search);
     const initialPhase = searchParams.get('phase') || 'SHOPPING';
 
-    const { location, isFetching, hasResolvedInitialLocation } = useLocationContext();
+    const { location, isFetching, hasResolvedInitialLocation, setShowLocationModal } = useLocationContext();
     const [activePhase, setActivePhase] = useState(initialPhase);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -46,6 +46,22 @@ const MainMarketplace = () => {
                 <SmartSearch onSearch={handleSearch} isSearching={isSearching} />
                 <MarketplaceSwitcher activePhase={activePhase} onSwitch={handleSwitch} />
             </div>
+
+            {/* Friendly Non-blocking Location Prompt */}
+            {!location && (
+                <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200/80 rounded-2xl flex items-center justify-between gap-3 text-xs sm:text-sm">
+                    <div className="flex items-center gap-2.5 text-green-900 font-medium">
+                        <span className="text-base">📍</span>
+                        <span>Add your delivery location to see products available near you.</span>
+                    </div>
+                    <button
+                        onClick={() => setShowLocationModal && setShowLocationModal(true)}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl whitespace-nowrap transition-colors shadow-sm text-xs"
+                    >
+                        Add Location
+                    </button>
+                </div>
+            )}
 
             {/* Content Views */}
             <div className="mt-4">

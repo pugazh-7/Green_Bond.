@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import LocationPicker from '../../components/LocationPicker';
 import AuthLayout from '../../components/auth/AuthLayout';
 import PasswordInput from '../../components/auth/PasswordInput';
+import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../utils/apiFetch';
 
 const ShopSignup = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     
     const [formData, setFormData] = useState({
         name: '',
@@ -14,8 +16,7 @@ const ShopSignup = () => {
         email: '',
         mobile: '',
         password: '',
-        confirmPassword: '',
-        location: null
+        confirmPassword: ''
     });
     
     const [loading, setLoading] = useState(false);
@@ -25,44 +26,75 @@ const ShopSignup = () => {
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleLocationChange = (location) => {
-        setFormData({ ...formData, location });
+    const validateForm = () => {
+        if (!formData.name || formData.name.trim().length < 3) {
+            toast.error('Shop name must be at least 3 characters long.');
+            return false;
+        }
+        if (!formData.ownerName || formData.ownerName.trim().length < 2) {
+            toast.error('Owner name must be at least 2 characters long.');
+            return false;
+        }
+        if (!formData.mobile || !/^[0-9]{10}$/.test(formData.mobile.trim())) {
+            toast.error('Mobile Number must be exactly 10 digits.');
+            return false;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (formData.email && !emailRegex.test(formData.email.trim())) {
+            toast.error('Please enter a valid email address.');
+            return false;
+        }
+        if (!formData.password || formData.password.length < 6) {
+            toast.error('Password must be at least 6 characters long.');
+            return false;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            toast.error("Passwords don't match");
+            return false;
+        }
+        return true;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (loading) return;
-        
-        if (formData.password !== formData.confirmPassword) {
-            return toast.error("Passwords don't match");
-        }
-        
-        if (!formData.location) {
-            return toast.error("Please select shop location");
-        }
+        if (!validateForm()) return;
 
         setLoading(true);
         const loadingToast = toast.loading('Registering Shop...');
 
+        const newShop = {
+            name: formData.name.trim(),
+            ownerName: formData.ownerName.trim(),
+            email: formData.email ? formData.email.trim() : undefined,
+            mobile: formData.mobile.trim(),
+            password: formData.password,
+            confirmPassword: formData.confirmPassword
+        };
+
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/register-shop`, {
+            const response = await apiFetch('/api/auth/register-shop', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
-                credentials: 'include'
+                body: JSON.stringify(newShop)
             });
 
             const data = await response.json();
 
-            if (response.ok) {
-                toast.success('Shop registered successfully!', { id: loadingToast });
-                navigate('/login/shop');
+            if (response.ok && (data.user || data.shop)) {
+                const authenticatedUser = data.user || data.shop;
+                login(authenticatedUser, data.token);
+                try {
+                    sessionStorage.setItem('onboarding_in_progress', 'true');
+                } catch (e) {}
+
+                toast.success('Shop registered successfully! Please set your store location.', { id: loadingToast });
+                navigate('/location-setup', { replace: true });
             } else {
                 toast.error(data.message || 'Registration failed', { id: loadingToast });
             }
         } catch (error) {
             toast.error('An error occurred during registration', { id: loadingToast });
-            console.error('Error:', error);
+            console.error('Shop signup error:', error);
         } finally {
             setLoading(false);
         }
@@ -96,11 +128,11 @@ const ShopSignup = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile Number</label>
-                            <input type="tel" name="mobile" pattern="[0-9]{10}" required value={formData.mobile} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile" />
+                            <input type="tel" name="mobile" pattern="[0-9]{10}" required value={formData.mobile} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:bg-white transition-all text-sm outline-none" placeholder="10-digit mobile" maxLength="10" />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                            <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:bg-white transition-all text-sm outline-none" placeholder="Email address" />
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email <span className="text-gray-400 font-normal text-xs">(Optional)</span></label>
+                            <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 focus:bg-white transition-all text-sm outline-none" placeholder="Email address" />
                         </div>
                     </div>
 
@@ -112,13 +144,6 @@ const ShopSignup = () => {
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm</label>
                             <PasswordInput name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm" />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Shop Location <span className="text-red-500">*</span></label>
-                        <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-yellow-500 transition-all">
-                            <LocationPicker onLocationChange={handleLocationChange} />
                         </div>
                     </div>
 

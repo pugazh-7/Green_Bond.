@@ -166,7 +166,7 @@ const CustomerOrders = () => {
                                             Accept Order
                                         </button>
                                     )}
-                                    {order.status === 'FARMER_ACCEPTED' && (
+                                    {['CONFIRMED', 'FARMER_ACCEPTED', 'PACKING', 'PACKED'].includes(order.status) && (
                                         <button
                                             onClick={() => handleUpdateStatus(order.id, 'READY_FOR_PICKUP')}
                                             className="px-6 py-2 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition-colors text-sm shadow-sm flex items-center gap-2"

@@ -78,7 +78,7 @@ const UserDashboard = () => {
             } catch (e) {}
         }
         
-        const socket = io(import.meta.env.VITE_API_URL || 'https://green-bond.onrender.com');
+        const socket = io(import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || undefined);
         if (userId) {
             socket.emit('join', userId);
             socket.on('order_update', () => {
