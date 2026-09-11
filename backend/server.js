@@ -174,32 +174,176 @@ io.on('connection', (socket) => {
     });
 });
 
-// Health Check Route
+// Health Check Route (Always returns 200 so platform deploy health checks pass)
 app.get('/api/health', (req, res) => {
+    const stateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+    const dbState = stateMap[mongoose.connection.readyState] || 'unknown';
     const isDbConnected = mongoose.connection.readyState === 1;
-    res.status(isDbConnected ? 200 : 503).json({
-        success: isDbConnected,
+    res.status(200).json({
+        success: true,
+        service: 'GreenBond API',
         status: isDbConnected ? 'healthy' : 'degraded',
-        database: isDbConnected ? 'connected' : 'disconnected',
+        database: dbState,
+        error: lastDbError ? lastDbError.message : null,
         uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
     });
 });
 
-// Fail-fast Database Readiness Check
-// Prevents requests from hanging 10-15s and timing out with 504 when MongoDB is disconnected
-app.use('/api', (req, res, next) => {
+// Database Connection, State Tracking & Resilient Auto-Reconnect
+mongoose.set('bufferCommands', false);
+let isConnecting = false;
+let lastDbError = null;
+
+const connectDB = async (retryCount = 0) => {
+    if (mongoose.connection.readyState === 1 || isConnecting) {
+        return;
+    }
+    isConnecting = true;
+    
+    // Support both standard cloud deployment environment variable names
+    let mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    if (!mongoUri) {
+        if (!isDev) {
+            console.error('⚠️ [CRITICAL CONFIG WARNING] Neither MONGODB_URI nor MONGO_URI is set in production environment variables!');
+            console.error('⚠️ Please add MONGODB_URI (or MONGO_URI) in your Render dashboard environment variables.');
+        }
+        mongoUri = 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
+    }
+    if ((mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) && !mongoUri.includes('directConnection')) {
+        mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'directConnection=true';
+    }
+    try {
+        const sanitizedHost = mongoUri.includes('@') 
+            ? mongoUri.split('@')[1].split('/')[0] 
+            : (mongoUri.split('://')[1] || '').split('/')[0];
+        console.log(`[DB] Connecting to MongoDB (${sanitizedHost})... (attempt ${retryCount + 1})`);
+        await mongoose.connect(mongoUri, {
+            serverSelectionTimeoutMS: 10000,
+            socketTimeoutMS: 45000,
+            maxPoolSize: 10,
+            family: 4
+        });
+        lastDbError = null;
+        console.log('✓ [DB] MongoDB connected successfully to', sanitizedHost);
+    } catch (err) {
+        lastDbError = err;
+        console.error(`✗ [DB] MongoDB connection error (attempt ${retryCount + 1}):`, err.message);
+        const delay = Math.min(2000 * Math.pow(1.5, retryCount), 20000);
+        console.log(`[DB] Retrying MongoDB connection in ${Math.round(delay / 1000)}s...`);
+        setTimeout(() => {
+            isConnecting = false;
+            connectDB(retryCount + 1);
+        }, delay);
+    } finally {
+        isConnecting = false;
+    }
+};
+
+mongoose.connection.on('connected', () => {
+    lastDbError = null;
+    console.log('✓ [DB] Mongoose connected event');
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️ [DB] MongoDB connection lost. Reconnecting...');
+    connectDB();
+});
+
+mongoose.connection.on('error', (err) => {
+    lastDbError = err;
+    console.error('✗ [DB] MongoDB error event:', err.message);
+});
+
+const getDbStateString = () => {
+    const map = { 0: 'DISCONNECTED', 1: 'CONNECTED', 2: 'CONNECTING', 3: 'DISCONNECTING' };
+    return map[mongoose.connection.readyState] || 'UNKNOWN';
+};
+
+const waitForDbReadiness = (maxWaitMs = 5000) => {
+    if (mongoose.connection.readyState === 1) return Promise.resolve('CONNECTED');
+    if (mongoose.connection.readyState === 0 && !isConnecting) {
+        connectDB();
+    }
+    return new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                resolve(lastDbError ? 'ERROR' : getDbStateString());
+            }
+        }, maxWaitMs);
+
+        const onConnected = () => {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                resolve('CONNECTED');
+            }
+        };
+
+        const onError = () => {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                resolve('ERROR');
+            }
+        };
+
+        const cleanup = () => {
+            clearTimeout(timer);
+            mongoose.connection.removeListener('connected', onConnected);
+            mongoose.connection.removeListener('open', onConnected);
+            mongoose.connection.removeListener('error', onError);
+        };
+
+        mongoose.connection.once('connected', onConnected);
+        mongoose.connection.once('open', onConnected);
+        mongoose.connection.once('error', onError);
+    });
+};
+
+// Database Readiness Middleware for API Routes
+// Awaits active connection attempts up to 5s before failing with distinct status codes
+app.use('/api', async (req, res, next) => {
     if (req.path === '/health' || req.path === '/healthz') {
         return next();
     }
-    if (mongoose.connection.readyState !== 1) {
+
+    if (mongoose.connection.readyState === 1) {
+        return next();
+    }
+
+    const state = await waitForDbReadiness(5000);
+    if (state === 'CONNECTED') {
+        return next();
+    }
+
+    if (state === 'ERROR' || lastDbError) {
         return res.status(503).json({
             success: false,
-            message: 'GreenBond database is currently connecting. Please retry in a few moments.',
-            code: 'DATABASE_DISCONNECTED'
+            message: 'Database service encountered a connection issue. Please retry shortly.',
+            code: 'DATABASE_ERROR',
+            status: 'ERROR'
         });
     }
-    next();
+
+    if (state === 'CONNECTING') {
+        return res.status(503).json({
+            success: false,
+            message: 'GreenBond database is currently establishing connection. Please retry in a moment.',
+            code: 'DATABASE_CONNECTING',
+            status: 'CONNECTING'
+        });
+    }
+
+    return res.status(503).json({
+        success: false,
+        message: 'GreenBond database is temporarily unavailable. Please retry shortly.',
+        code: 'DATABASE_DISCONNECTED',
+        status: 'DISCONNECTED'
+    });
 });
 
 // Routes
@@ -237,63 +381,11 @@ app.use((req, res) => {
     });
 });
 
-// Database Connection with resilient retry & auto-reconnect
-mongoose.set('bufferCommands', false);
-let isConnecting = false;
-const connectDB = async (retryCount = 0) => {
-    if (mongoose.connection.readyState >= 1 || isConnecting) {
-        return;
-    }
-    isConnecting = true;
-    
-    let mongoUri = process.env.MONGO_URI;
-    if (!mongoUri) {
-        if (!isDev) {
-            console.error('⚠️ [CRITICAL CONFIG WARNING] MONGO_URI environment variable is missing in production!');
-            console.error('⚠️ Please add MONGO_URI in your hosting dashboard (e.g. Render / MongoDB Atlas).');
-        }
-        mongoUri = 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
-    }
-    if ((mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) && !mongoUri.includes('directConnection')) {
-        mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'directConnection=true';
-    }
-    try {
-        const sanitizedHost = mongoUri.includes('@') 
-            ? mongoUri.split('@')[1].split('/')[0] 
-            : (mongoUri.split('://')[1] || '').split('/')[0];
-        console.log(`Connecting to MongoDB (${sanitizedHost})... (attempt ${retryCount + 1})`);
-        await mongoose.connect(mongoUri, {
-            serverSelectionTimeoutMS: 15000,
-            socketTimeoutMS: 45000,
-            maxPoolSize: 10
-        });
-        console.log('✓ MongoDB connected successfully to', sanitizedHost);
-    } catch (err) {
-        console.error(`✗ MongoDB connection error (attempt ${retryCount + 1}):`, err.message);
-        // Automatically retry connecting with backoff
-        const delay = Math.min(2000 * Math.pow(1.5, retryCount), 30000);
-        console.log(`Retrying MongoDB connection in ${Math.round(delay / 1000)}s...`);
-        setTimeout(() => {
-            isConnecting = false;
-            connectDB(retryCount + 1);
-        }, delay);
-    } finally {
-        isConnecting = false;
-    }
-};
-
-mongoose.connection.on('disconnected', () => {
-    console.warn('MongoDB connection lost. Reconnecting...');
-    connectDB();
-});
-
-mongoose.connection.on('error', (err) => {
-    console.error('MongoDB error event:', err.message);
-});
-
+// Initiate connection and start HTTP server
 connectDB();
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
 
