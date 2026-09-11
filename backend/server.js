@@ -174,15 +174,14 @@ io.on('connection', (socket) => {
     });
 });
 
-// Health Check Route (Always returns 200 so platform deploy health checks pass)
+// Health Check Route (Reports true database connectivity status)
 app.get('/api/health', (req, res) => {
     const stateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
     const dbState = stateMap[mongoose.connection.readyState] || 'unknown';
     const isDbConnected = mongoose.connection.readyState === 1;
-    res.status(200).json({
-        success: true,
+    res.status(isDbConnected ? 200 : 503).json({
+        success: isDbConnected,
         service: 'GreenBond API',
-        status: isDbConnected ? 'healthy' : 'degraded',
         database: dbState,
         error: lastDbError ? lastDbError.message : null,
         uptime: Math.floor(process.uptime()),
@@ -321,18 +320,21 @@ app.use('/api', async (req, res, next) => {
     }
 
     if (state === 'ERROR' || lastDbError) {
+        const errMessage = lastDbError ? lastDbError.message : 'Database connection failed';
+        console.error(`[DB_ERROR] API request rejected: ${req.method} ${req.originalUrl} - ${errMessage}`);
         return res.status(503).json({
             success: false,
-            message: 'Database service encountered a connection issue. Please retry shortly.',
-            code: 'DATABASE_ERROR',
-            status: 'ERROR'
+            message: `Database connection error: ${errMessage}`,
+            code: lastDbError?.code || 'DATABASE_ERROR',
+            status: 'ERROR',
+            error: errMessage
         });
     }
 
     if (state === 'CONNECTING') {
         return res.status(503).json({
             success: false,
-            message: 'GreenBond database is currently establishing connection. Please retry in a moment.',
+            message: 'GreenBond database is currently establishing connection. Please retry in a few moments.',
             code: 'DATABASE_CONNECTING',
             status: 'CONNECTING'
         });
@@ -340,7 +342,7 @@ app.use('/api', async (req, res, next) => {
 
     return res.status(503).json({
         success: false,
-        message: 'GreenBond database is temporarily unavailable. Please retry shortly.',
+        message: 'GreenBond database is currently disconnected. Please verify database service.',
         code: 'DATABASE_DISCONNECTED',
         status: 'DISCONNECTED'
     });
