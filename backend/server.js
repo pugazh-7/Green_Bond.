@@ -25,8 +25,13 @@ import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import imageProviderRoutes from './routes/imageProviderRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
 import bulkOrderRoutes from './routes/bulkOrderRoutes.js';
+import farmerRoutes from './routes/farmerRoutes.js';
 
 const app = express();
+
+// Trust reverse proxy (Vercel, Render load balancers) so client IP is accurately recognized
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -36,6 +41,7 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 5000;
+const isDev = process.env.NODE_ENV !== 'production';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,46 +51,94 @@ app.use(helmet({
     crossOriginResourcePolicy: false,
     contentSecurityPolicy: false,
 }));
-const allowedOrigins = [
+
+const normalizeUrl = (url) => {
+    if (!url || typeof url !== 'string') return null;
+    return url.trim().replace(/\/+$/, '');
+};
+
+const explicitAllowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5000',
+    'http://localhost:3000',
+    'http://localhost:4173',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5000',
-    process.env.CLIENT_URL,
-    process.env.FRONTEND_URL
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:4173',
+    normalizeUrl(process.env.CLIENT_URL),
+    normalizeUrl(process.env.FRONTEND_URL),
+    'https://green-bond.vercel.app',
+    'https://greenbond.vercel.app'
 ].filter(Boolean);
 
-app.use(cors({
+const isOriginAllowed = (origin) => {
+    if (!origin) return true; // allow mobile apps, curl, server-to-server
+    const normalizedOrigin = normalizeUrl(origin);
+    
+    // Check explicit origins
+    if (explicitAllowedOrigins.includes(normalizedOrigin)) {
+        return true;
+    }
+    
+    // In dev mode allow all localhost / 127.0.0.1
+    if (isDev) {
+        if (/^https?:\/\/localhost(:\d+)?$/.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+            return true;
+        }
+    }
+    
+    // Allow any Vercel preview or production deployment domain (e.g. *.vercel.app)
+    if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin) || /^https:\/\/[a-zA-Z0-9_-]+-.*\.vercel\.app$/.test(origin)) {
+        return true;
+    }
+    
+    // Check if matches any configured prefix
+    if (explicitAllowedOrigins.some(allowed => normalizedOrigin.startsWith(allowed))) {
+        return true;
+    }
+    
+    return false;
+};
+
+const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (isDev || allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
+        if (isOriginAllowed(origin)) {
             return callback(null, true);
         }
-        return callback(null, false);
+        console.warn(`[CORS Blocked] Origin not allowed: ${origin}`);
+        return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With', 'Accept'],
-    credentials: true
-}));
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Set-Cookie'],
+    credentials: true,
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
+
 app.use(cookieParser());
 app.use(express.json({ limit: '10kb' })); // Limit body size
 
 // Rate Limiting
-const isDev = process.env.NODE_ENV !== 'production';
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: isDev ? 10000 : 300,
+    max: isDev ? 10000 : 1000,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
     message: { message: 'Too many requests, please try again later.' }
 });
 app.use('/api', limiter);
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: isDev ? 2000 : 50,
+    max: isDev ? 2000 : 300,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
     message: { message: 'Too many authentication attempts, please try again later.' }
 });
 app.use('/api/auth', authLimiter);
@@ -145,6 +199,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
+app.use('/api/farmers', farmerRoutes);
 
 // Return JSON 404 for unhandled API requests (prevents returning SPA HTML on missing API routes)
 app.use('/api', (req, res) => {
@@ -166,28 +221,48 @@ app.use((req, res) => {
     });
 });
 
-// Database Connection
-const connectDB = async () => {
-    if (mongoose.connection.readyState >= 1) {
+// Database Connection with resilient retry & auto-reconnect
+let isConnecting = false;
+const connectDB = async (retryCount = 0) => {
+    if (mongoose.connection.readyState >= 1 || isConnecting) {
         return;
     }
+    isConnecting = true;
     
     let mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
     if ((mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) && !mongoUri.includes('directConnection')) {
         mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'directConnection=true';
     }
     try {
-        console.log(`Connecting to MongoDB...`);
+        console.log(`Connecting to MongoDB... (attempt ${retryCount + 1})`);
         await mongoose.connect(mongoUri, {
-            serverSelectionTimeoutMS: 5000,
+            serverSelectionTimeoutMS: 15000,
             socketTimeoutMS: 45000,
             maxPoolSize: 10
         });
         console.log('✓ MongoDB connected successfully');
     } catch (err) {
-        console.error('✗ MongoDB connection error:', err.message);
+        console.error(`✗ MongoDB connection error (attempt ${retryCount + 1}):`, err.message);
+        // Automatically retry connecting with backoff
+        const delay = Math.min(2000 * Math.pow(1.5, retryCount), 30000);
+        console.log(`Retrying MongoDB connection in ${Math.round(delay / 1000)}s...`);
+        setTimeout(() => {
+            isConnecting = false;
+            connectDB(retryCount + 1);
+        }, delay);
+    } finally {
+        isConnecting = false;
     }
 };
+
+mongoose.connection.on('disconnected', () => {
+    console.warn('MongoDB connection lost. Reconnecting...');
+    connectDB();
+});
+
+mongoose.connection.on('error', (err) => {
+    console.error('MongoDB error event:', err.message);
+});
 
 connectDB();
 

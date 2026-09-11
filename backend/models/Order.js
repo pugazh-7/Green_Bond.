@@ -3,8 +3,9 @@ import mongoose from 'mongoose';
 const orderItemSchema = new mongoose.Schema({
     cartId: String,
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    name: String,
     title: String,
-    price: String,
+    price: Number,
     farmer: String,
     farmerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Farmer' },
     sellerId: { type: mongoose.Schema.Types.ObjectId },
@@ -51,7 +52,9 @@ const orderSchema = new mongoose.Schema({
         enum: [
             // Canonical States
             'PLACED', 'CONFIRMED', 'PACKING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED',
-            // Legacy States (preserved for transition)
+            // Return & Refund States
+            'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_REJECTED', 'REFUND_PENDING',
+            // Legacy / Role States (preserved for transition)
             'PENDING', 'ACCEPTED', 'FARMER_ACCEPTED', 'SHOP_ACCEPTED', 'PACKED', 
             'ReadyForPickup', 'Assigned', 'DELIVERY_ASSIGNED', 
             'OutForDelivery', 'PICKED_UP', 'Delivered', 'Cancelled'
@@ -82,7 +85,22 @@ const orderSchema = new mongoose.Schema({
     pickupOtpVerified: { type: Boolean, default: false },
     deliveryOtpVerified: { type: Boolean, default: false },
     codAmount: { type: Number },
-    codStatus: { type: String, enum: ['PENDING', 'COLLECTED'], default: 'PENDING' }
+    codStatus: { type: String, enum: ['PENDING', 'COLLECTED'], default: 'PENDING' },
+    cancellationReason: { type: String },
+    cancelledAt: { type: Date },
+    cancelledBy: { type: String, enum: ['CUSTOMER', 'SELLER', 'ADMIN', 'DELIVERY'] },
+    returnReason: { type: String },
+    returnRequestedAt: { type: Date },
+    returnApprovedAt: { type: Date },
+    returnRejectedAt: { type: Date },
+    returnAdminNote: { type: String },
+    refundDetails: {
+        refundId: { type: String },
+        amount: { type: Number },
+        status: { type: String, enum: ['PENDING', 'PROCESSED', 'FAILED'], default: 'PENDING' },
+        gatewayRefundId: { type: String },
+        processedAt: { type: Date }
+    }
 }, { timestamps: true });
 
 orderSchema.index({ userId: 1 });

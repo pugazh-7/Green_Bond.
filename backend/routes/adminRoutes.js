@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import User from '../models/User.js';
 import Farmer from '../models/Farmer.js';
+import Shop from '../models/Shop.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
@@ -11,8 +12,57 @@ import ServiceZone from '../models/ServiceZone.js';
 import OTP from '../models/OTP.js';
 import Config from '../models/Config.js';
 import { verifyToken, isAdmin } from '../middleware/auth.js';
+import { SECURE_DOCS_PATH } from './farmerRoutes.js';
 
 const router = express.Router();
+
+
+// Get Real System Statistics Overview
+router.get('/stats', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const [
+            totalUsers,
+            totalFarmers,
+            totalShops,
+            totalDeliveryPartners,
+            totalProducts,
+            activeOrders,
+            completedOrders,
+            pendingFarmerVerifications,
+            deliveredOrders
+        ] = await Promise.all([
+            User.countDocuments(),
+            Farmer.countDocuments(),
+            Shop.countDocuments(),
+            DeliveryPartner.countDocuments(),
+            Product.countDocuments(),
+            Order.countDocuments({ status: { $nin: ['DELIVERED', 'CANCELLED', 'REFUNDED'] } }),
+            Order.countDocuments({ status: 'DELIVERED' }),
+            Farmer.countDocuments({ verificationStatus: 'PENDING' }),
+            Order.find({ status: 'DELIVERED' }).select('totalAmount total')
+        ]);
+
+        const totalRevenue = deliveredOrders.reduce((acc, curr) => {
+            const amt = parseFloat((curr.totalAmount || curr.total || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+            return acc + amt;
+        }, 0);
+
+        res.status(200).json({
+            totalUsers,
+            totalFarmers,
+            totalShops,
+            totalDeliveryPartners,
+            totalProducts,
+            activeOrders,
+            completedOrders,
+            pendingFarmerVerifications,
+            totalRevenue: Math.round(totalRevenue)
+        });
+    } catch (error) {
+        console.error('Error calculating admin stats:', error);
+        res.status(500).json({ message: 'Server error computing statistics', error: error.message });
+    }
+});
 
 // Get all users
 router.get('/users', verifyToken, isAdmin, async (req, res) => {
@@ -24,26 +74,140 @@ router.get('/users', verifyToken, isAdmin, async (req, res) => {
     }
 });
 
-// Get all farmers
+// Get all farmers with verification and land details
 router.get('/farmers', verifyToken, isAdmin, async (req, res) => {
     try {
-        const farmers = await Farmer.find().select('-pin').sort({ createdAt: -1 });
-        res.status(200).json(farmers);
+        const farmers = await Farmer.find().select('-pin').sort({ createdAt: -1 }).lean();
+        const formatted = farmers.map(f => ({
+            ...f,
+            hasLandDocument: Boolean(f.landDocumentReference)
+        }));
+        res.status(200).json(formatted);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// Update farmer verification status
+// Securely view / stream farmer land proof document (Admin Only)
+router.get('/farmers/:id/document', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const farmer = await Farmer.findById(id);
+        if (!farmer || !farmer.landDocumentReference) {
+            return res.status(404).json({ message: 'No land proof document found for this farmer' });
+        }
+
+        const filePath = path.join(SECURE_DOCS_PATH, farmer.landDocumentReference);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ message: 'Document file missing from server storage' });
+        }
+
+        const mimeType = farmer.landDocumentMimeType || 'application/octet-stream';
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${farmer.landDocumentOriginalName || 'land-proof'}"`);
+
+        const stream = fs.createReadStream(filePath);
+        stream.pipe(res);
+    } catch (error) {
+        console.error('Error streaming document to admin:', error);
+        res.status(500).json({ message: 'Server error retrieving document', error: error.message });
+    }
+});
+
+// Approve Farmer Land Document
+router.put('/farmers/:id/approve', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const farmer = await Farmer.findById(id);
+        if (!farmer) return res.status(404).json({ message: 'Farmer not found' });
+
+        farmer.verificationStatus = 'APPROVED';
+        farmer.farmerStatus = 'ACTIVE';
+        farmer.landDocumentVerifiedAt = new Date();
+        farmer.landDocumentVerifiedBy = req.user.id;
+        farmer.landDocumentRejectionReason = '';
+
+        await farmer.save();
+
+        res.status(200).json({ 
+            message: 'Farmer land proof approved successfully. Account activated.', 
+            farmer: {
+                id: farmer._id,
+                name: farmer.name,
+                mobile: farmer.mobile,
+                verificationStatus: farmer.verificationStatus,
+                farmerStatus: farmer.farmerStatus,
+                landDocumentVerifiedAt: farmer.landDocumentVerifiedAt
+            }
+        });
+    } catch (error) {
+        console.error('Error approving farmer:', error);
+        res.status(500).json({ message: 'Server error approving farmer', error: error.message });
+    }
+});
+
+// Reject Farmer Land Document with Reason
+router.put('/farmers/:id/reject', verifyToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rejectionReason, reason } = req.body;
+        const effectiveReason = rejectionReason || reason;
+
+        if (!effectiveReason || typeof effectiveReason !== 'string' || !effectiveReason.trim()) {
+            return res.status(400).json({ message: 'Rejection reason is required.' });
+        }
+
+        const farmer = await Farmer.findById(id);
+        if (!farmer) return res.status(404).json({ message: 'Farmer not found' });
+
+        farmer.verificationStatus = 'REJECTED';
+        farmer.farmerStatus = 'INACTIVE';
+        farmer.landDocumentRejectionReason = effectiveReason.trim();
+        farmer.landDocumentVerifiedAt = new Date();
+        farmer.landDocumentVerifiedBy = req.user.id;
+
+        await farmer.save();
+
+        res.status(200).json({ 
+            message: 'Farmer land proof rejected. Rejection reason recorded.', 
+            farmer: {
+                id: farmer._id,
+                name: farmer.name,
+                mobile: farmer.mobile,
+                verificationStatus: farmer.verificationStatus,
+                farmerStatus: farmer.farmerStatus,
+                landDocumentRejectionReason: farmer.landDocumentRejectionReason,
+                landDocumentVerifiedAt: farmer.landDocumentVerifiedAt
+            }
+        });
+    } catch (error) {
+        console.error('Error rejecting farmer:', error);
+        res.status(500).json({ message: 'Server error rejecting farmer', error: error.message });
+    }
+});
+
+// Update farmer verification status (Generic endpoint for compatibility)
 router.put('/farmers/:id/verify', verifyToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { verificationStatus } = req.body;
+        const { verificationStatus, rejectionReason } = req.body;
 
         const farmer = await Farmer.findById(id);
         if (!farmer) return res.status(404).json({ message: 'Farmer not found' });
 
         farmer.verificationStatus = verificationStatus;
+        if (verificationStatus === 'APPROVED') {
+            farmer.farmerStatus = 'ACTIVE';
+            farmer.landDocumentVerifiedAt = new Date();
+            farmer.landDocumentVerifiedBy = req.user.id;
+            farmer.landDocumentRejectionReason = '';
+        } else if (verificationStatus === 'REJECTED') {
+            farmer.farmerStatus = 'INACTIVE';
+            farmer.landDocumentRejectionReason = rejectionReason || 'Document verification failed';
+            farmer.landDocumentVerifiedAt = new Date();
+            farmer.landDocumentVerifiedBy = req.user.id;
+        }
+
         await farmer.save();
 
         res.status(200).json({ message: 'Farmer verification status updated', farmer });

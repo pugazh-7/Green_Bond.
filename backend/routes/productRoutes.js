@@ -17,7 +17,11 @@ router.post('/add', verifyToken, async (req, res) => {
         
         // Ensure price is stored numerically for calculations
         const rawPrice = price;
-        const numericPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
+        const numericPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : Number(rawPrice);
+        const numericStock = Number(stock);
+        if (!name?.trim() || !Number.isFinite(numericPrice) || numericPrice < 0 || !Number.isInteger(numericStock) || numericStock < 0) {
+            return res.status(400).json({ message: 'Name, a non-negative price, and whole-number stock are required.' });
+        }
         
         let sourceType = 'FARMER';
         let sellerId = req.user.id;
@@ -46,15 +50,17 @@ router.post('/add', verifyToken, async (req, res) => {
             farmerId: req.user.role === 'shop' ? undefined : req.user.id,
             sellerId,
             sourceType,
+            sellerType: sourceType === 'SHOP' ? 'SHOP_OWNER' : 'FARMER',
+            marketplaceType: sourceType === 'SHOP' ? 'SHOPPING' : 'FRESH',
             location,
-            price: numericPrice.toString(),
+            price: numericPrice,
             mrp: rawPrice, // Store the string version like ₹40/kg here just in case
             minOrder,
             category,
             contact,
             image,
             description,
-            stock,
+            stock: numericStock,
             unit,
             orderType
         });
@@ -139,10 +145,11 @@ router.get('/my-products', verifyToken, async (req, res) => {
 // Update product stock (for farmers and shops)
 router.put('/:id/stock', verifyToken, async (req, res) => {
     try {
-        const { availableQuantity } = req.body;
+        const requestedStock = req.body.stock ?? req.body.availableQuantity;
+        const stock = Number(requestedStock);
         
-        if (availableQuantity < 0) {
-            return res.status(400).json({ message: 'Quantity cannot be negative' });
+        if (!Number.isInteger(stock) || stock < 0) {
+            return res.status(400).json({ message: 'Stock must be a non-negative whole number' });
         }
 
         const product = await Product.findOne({ 
@@ -153,7 +160,7 @@ router.put('/:id/stock', verifyToken, async (req, res) => {
             return res.status(404).json({ message: 'Product not found or unauthorized' });
         }
 
-        product.availableQuantity = availableQuantity;
+        product.stock = stock;
         await product.save();
 
         res.status(200).json({ message: 'Stock updated successfully', product });
@@ -162,6 +169,88 @@ router.put('/:id/stock', verifyToken, async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+// Edit product details (Strictly authorized to seller or admin)
+router.put('/:id', verifyToken, async (req, res) => {
+    try {
+        const { title, name, price, category, minOrder, description, unit } = req.body;
+        
+        const isAuthQuery = req.user.role === 'admin' 
+            ? { _id: req.params.id }
+            : { _id: req.params.id, $or: [{ farmerId: req.user.id }, { sellerId: req.user.id }] };
+
+        const product = await Product.findOne(isAuthQuery);
+        if (!product) {
+            return res.status(403).json({ message: 'Product not found or unauthorized to edit' });
+        }
+
+        const effectiveName = name || title;
+        if (effectiveName) product.name = effectiveName.trim();
+        if (price !== undefined) {
+            const numPrice = typeof price === 'string' ? parseFloat(price.replace(/[^0-9.]/g, '')) : Number(price);
+            if (!Number.isFinite(numPrice) || numPrice < 0) {
+                return res.status(400).json({ message: 'Price must be a non-negative number.' });
+            }
+            product.price = numPrice;
+            product.mrp = price;
+        }
+        if (category) product.category = category.trim();
+        if (minOrder !== undefined) product.minOrder = minOrder;
+        if (description !== undefined) product.description = description;
+        if (unit) product.unit = unit;
+
+        await product.save();
+        res.status(200).json({ message: 'Product updated successfully', product });
+    } catch (error) {
+        console.error('Error editing product:', error);
+        res.status(500).json({ message: 'Server error updating product', error: error.message });
+    }
+});
+
+// Toggle product active status (Strictly authorized to seller or admin)
+router.patch('/:id/toggle-status', verifyToken, async (req, res) => {
+    try {
+        const isAuthQuery = req.user.role === 'admin' 
+            ? { _id: req.params.id }
+            : { _id: req.params.id, $or: [{ farmerId: req.user.id }, { sellerId: req.user.id }] };
+
+        const product = await Product.findOne(isAuthQuery);
+        if (!product) {
+            return res.status(403).json({ message: 'Product not found or unauthorized' });
+        }
+
+        product.isActive = product.isActive !== undefined ? !product.isActive : false;
+        await product.save();
+
+        res.status(200).json({ 
+            message: `Product is now ${product.isActive ? 'Active' : 'Inactive'}`, 
+            isActive: product.isActive,
+            product 
+        });
+    } catch (error) {
+        console.error('Error toggling product status:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// Delete product (authorized seller or admin)
+router.delete('/:id', verifyToken, async (req, res) => {
+    try {
+        const isAuthQuery = req.user.role === 'admin'
+            ? { _id: req.params.id }
+            : { _id: req.params.id, $or: [{ farmerId: req.user.id }, { sellerId: req.user.id }] };
+
+        const product = await Product.findOneAndDelete(isAuthQuery);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found or unauthorized' });
+        }
+        res.status(200).json({ message: 'Product deleted successfully', id: req.params.id });
+    } catch (error) {
+        console.error('Error deleting product:', error);
+        res.status(500).json({ message: 'Server error deleting product' });
+    }
+});
+
 
 // Image Upload Pipeline using multer and sharp
 import multer from 'multer';

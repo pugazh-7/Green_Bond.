@@ -17,11 +17,13 @@ const ProductSchema = new mongoose.Schema({
     sellerId: { type: mongoose.Schema.Types.ObjectId, required: false }, // References either Shop or Farmer depending on sourceType
     sourceType: { type: String, enum: ['SHOP', 'FARMER'], default: 'FARMER' },
     location: { type: String, required: true },
-    price: { type: String, required: true },
+    // Stored as a number so inventory and order totals never depend on display strings.
+    price: { type: Number, required: true, min: 0 },
     minOrder: { type: String, required: true },
     category: { type: String, required: true },
     contact: { type: String, required: true },
     image: { type: String, required: false },
+    imageUrl: { type: String, required: false },
     images: { type: [String], default: [] },
     imageKey: { type: String, required: false },
     imageVersion: { type: Number, default: 1 },
@@ -30,7 +32,7 @@ const ProductSchema = new mongoose.Schema({
     imageStatus: { type: String, enum: ['pending', 'resolved', 'failed', 'READY', 'MISSING', 'PROCESSING'], default: 'pending' },
     imageUpdatedAt: { type: Date },
     description: { type: String },
-    stock: { type: Number, required: true },
+    stock: { type: Number, required: true, min: 0, default: 0 },
     unit: { type: String, required: true },
     orderType: { type: String, enum: ['retail', 'bulk'], default: 'retail' },
     

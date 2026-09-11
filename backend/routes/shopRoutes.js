@@ -12,21 +12,33 @@ router.get('/metrics', verifyToken, isShop, async (req, res) => {
         const shopId = req.user.id;
         
         // Active products count
-        const productCount = await Product.countDocuments({ sellerId: shopId });
+        const productCount = await Product.countDocuments({ 
+            $or: [{ sellerId: shopId }, { farmerId: shopId }] 
+        });
         
-        // Orders count
-        const totalOrders = await Order.countDocuments({ sellerId: shopId });
+        // Detailed Order Stage Counts
+        const [totalOrders, pendingOrders, preparingOrders, packedOrders, completedOrders, deliveredOrdersList, shopProfile] = await Promise.all([
+            Order.countDocuments({ sellerId: shopId }),
+            Order.countDocuments({ sellerId: shopId, status: { $in: ['PLACED', 'PENDING'] } }),
+            Order.countDocuments({ sellerId: shopId, status: { $in: ['SHOP_ACCEPTED', 'CONFIRMED', 'PACKING'] } }),
+            Order.countDocuments({ sellerId: shopId, status: { $in: ['PACKED', 'READY_FOR_PICKUP'] } }),
+            Order.countDocuments({ sellerId: shopId, status: 'DELIVERED' }),
+            Order.find({ sellerId: shopId, status: 'DELIVERED' }).select('total totalAmount farmerAmount'),
+            Shop.findById(shopId).select('-password')
+        ]);
         
-        // Earnings
-        const orders = await Order.find({ sellerId: shopId, status: 'DELIVERED' });
-        const earnings = orders.reduce((sum, order) => sum + (order.farmerAmount || 0), 0);
-        
-        // Shop profile
-        const shopProfile = await Shop.findById(shopId).select('-password');
+        const earnings = deliveredOrdersList.reduce((sum, order) => {
+            const amt = order.farmerAmount || parseFloat((order.total || order.totalAmount || '0').toString().replace(/[^0-9.]/g, '')) || 0;
+            return sum + amt;
+        }, 0);
         
         res.status(200).json({
             productCount,
             totalOrders,
+            pendingOrders,
+            preparingOrders,
+            packedOrders,
+            completedOrders,
             earnings,
             profile: shopProfile
         });

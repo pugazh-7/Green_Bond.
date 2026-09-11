@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import Notification from '../models/Notification.js';
@@ -12,6 +13,17 @@ import Config from '../models/Config.js';
 import { dispatchOrderNotification, NOTIFICATION_EVENTS } from '../services/orderNotificationService.js';
 
 const router = express.Router();
+
+// Helper to robustly find order by custom ID, decoded ID, or Mongo ObjectId
+const findOrderByIdOrQuery = async (id) => {
+    if (!id) return null;
+    const rawId = decodeURIComponent(id);
+    const conditions = [{ id: rawId }, { id }];
+    if (mongoose.isValidObjectId(id)) {
+        conditions.push({ _id: id });
+    }
+    return await Order.findOne({ $or: conditions });
+};
 
 // Check serviceability for checkout
 router.post('/check-serviceability', verifyToken, async (req, res) => {
@@ -34,8 +46,9 @@ router.post('/check-serviceability', verifyToken, async (req, res) => {
 
 // Create new order
 router.post('/', verifyToken, async (req, res) => {
+    const deductedStock = [];
     try {
-        const orderData = req.body;
+        const orderData = { ...req.body };
         
         // Ensure user ID is correctly attached
         orderData.userId = req.user.id;
@@ -74,73 +87,79 @@ router.post('/', verifyToken, async (req, res) => {
             config = { deliveryFee: 0, greenBondCommissionPercentage: 10, deliveryBoyPayoutPercentage: 100 };
         }
 
+        if (!Array.isArray(orderData.items) || orderData.items.length === 0) {
+            return res.status(400).json({ message: 'At least one cart item is required.' });
+        }
+
+        // Consolidate repeated product IDs before validating or decrementing stock.
+        const requestedQuantities = new Map();
+        for (const item of orderData.items) {
+            const productId = item?.productId;
+            const quantity = Number(item?.quantity);
+            if (!mongoose.isValidObjectId(productId) || !Number.isInteger(quantity) || quantity < 1) {
+                return res.status(400).json({ message: 'Each cart item requires a valid productId and positive whole-number quantity.' });
+            }
+            requestedQuantities.set(productId.toString(), (requestedQuantities.get(productId.toString()) || 0) + quantity);
+        }
+
         let subtotal = 0;
         let totalGstAmount = 0;
         let gstBreakdown = [];
-        let totalProductAmount = 0;
+        const serverItems = [];
         
         // Pre-check inventory to prevent negative stock and enforce DB price & GST
-        for (const item of orderData.items) {
-            if (item.productId) {
-                const product = await Product.findById(item.productId);
-                const currentStock = product && (product.stock !== undefined ? product.stock : (product.availableQuantity || 0));
-                
-                if (!product || currentStock < item.quantity) {
-                    return res.status(400).json({ message: `Insufficient stock for product: ${item.title || item.name}. Available: ${currentStock}` });
-                }
-                
-                // Enforce price from backend
-                const rawPrice = product.price;
-                const dbPrice = typeof rawPrice === 'string' ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) : (rawPrice || 0);
-                
-                // Calculate item GST
-                const itemQuantity = item.quantity;
-                const itemTotal = dbPrice * itemQuantity;
-                const itemGstRate = product.gstRate || 0; // fallback to 0%
-                
-                // Formula: Taxable Amount = (Total / (100 + GST Rate)) * 100
-                const taxableValue = (itemTotal / (100 + itemGstRate)) * 100;
-                const itemGstAmount = itemTotal - taxableValue;
-                
-                item.price = dbPrice;
-                
-                // Save breakdown
-                if (itemGstRate > 0) {
-                    gstBreakdown.push({
-                        productId: product._id,
-                        rate: itemGstRate,
-                        taxableValue: Number(taxableValue.toFixed(2)),
-                        cgst: Number((itemGstAmount / 2).toFixed(2)),
-                        sgst: Number((itemGstAmount / 2).toFixed(2)),
-                        igst: 0,
-                        totalGst: Number(itemGstAmount.toFixed(2))
-                    });
-                }
-                
-                subtotal += itemTotal; // Subtotal includes tax in this model (Grand Total of items)
-                totalGstAmount += itemGstAmount;
+        for (const [productId, quantity] of requestedQuantities) {
+            const product = await Product.findOne({ _id: productId, isActive: { $ne: false } });
+            if (!product || product.stock < quantity) {
+                return res.status(409).json({ message: `Insufficient stock for product ${product?.name || productId}.`, availableStock: product?.stock || 0 });
             }
+
+            const unitPrice = Number(product.price);
+            const itemTotal = unitPrice * quantity;
+            const itemGstRate = Number(product.gstRate) || 0;
+            const taxableValue = (itemTotal / (100 + itemGstRate)) * 100;
+            const itemGstAmount = itemTotal - taxableValue;
+
+            serverItems.push({
+                productId: product._id,
+                name: product.name,
+                title: product.name, // legacy read alias
+                price: unitPrice,
+                farmer: product.farmer,
+                farmerId: product.farmerId,
+                sellerId: product.sellerId,
+                sourceType: product.sourceType,
+                location: product.location,
+                image: product.imageUrl || product.image || product.thumbnailUrl,
+                quantity
+            });
+
+            if (itemGstRate > 0) {
+                gstBreakdown.push({
+                    productId: product._id,
+                    rate: itemGstRate,
+                    taxableValue: Number(taxableValue.toFixed(2)),
+                    cgst: Number((itemGstAmount / 2).toFixed(2)),
+                    sgst: Number((itemGstAmount / 2).toFixed(2)),
+                    igst: 0,
+                    totalGst: Number(itemGstAmount.toFixed(2))
+                });
+            }
+            subtotal += itemTotal;
+            totalGstAmount += itemGstAmount;
         }
 
         // Inventory Deduction (Atomic)
-        for (const item of orderData.items) {
-            if (item.productId) {
-                await Product.findOneAndUpdate(
-                    { 
-                        _id: item.productId, 
-                        $or: [
-                            { stock: { $gte: item.quantity } },
-                            { availableQuantity: { $gte: item.quantity } }
-                        ]
-                    },
-                    { 
-                        $inc: { 
-                            stock: -item.quantity, 
-                            availableQuantity: -item.quantity 
-                        } 
-                    }
-                );
+        for (const item of serverItems) {
+            const updatedProduct = await Product.findOneAndUpdate(
+                { _id: item.productId, isActive: { $ne: false }, stock: { $gte: item.quantity } },
+                { $inc: { stock: -item.quantity } },
+                { new: true }
+            );
+            if (!updatedProduct) {
+                throw new Error(`Stock changed before checkout could complete for ${item.name}.`);
             }
+            deductedStock.push({ productId: item.productId, quantity: item.quantity });
         }
         
         // Finalize snapshots
@@ -151,10 +170,19 @@ router.post('/', verifyToken, async (req, res) => {
         orderData.discount = 0; // Hook for future coupons
         
         // Delivery fee processing
-        orderData.deliveryFee = orderData.deliveryFee !== undefined ? orderData.deliveryFee : config.deliveryFee;
+        orderData.items = serverItems;
+        orderData.qty = serverItems.reduce((sum, item) => sum + item.quantity, 0);
+        orderData.customerEmail = req.user.email || orderData.customerEmail;
+        orderData.customerName = req.user.name || orderData.customerName;
+        orderData.sourceType = serverItems[0]?.sourceType || 'FARMER';
+        orderData.sellerId = serverItems.length === 1 ? serverItems[0].sellerId : undefined;
+        orderData.pickupAddress = serverItems.length === 1 ? serverItems[0].location : 'Multiple seller locations';
+        orderData.deliveryFee = Number(config.deliveryFee) || 0;
         orderData.deliveryBoyPayout = Number((orderData.deliveryFee * (config.deliveryBoyPayoutPercentage / 100)).toFixed(2));
         
         orderData.totalAmount = subtotal + orderData.deliveryFee - orderData.discount;
+        orderData.total = `₹${orderData.totalAmount.toFixed(2)}`;
+        orderData.paymentStatus = 'PENDING';
         orderData.productAmount = subtotal; // Backwards compatibility
         
         // Settlement calculations
@@ -181,8 +209,11 @@ router.post('/', verifyToken, async (req, res) => {
         
         res.status(201).json({ message: 'Order created successfully', order: newOrder });
     } catch (error) {
+        // Compensate any successful atomic deductions if a later item or order save fails.
+        await Promise.all(deductedStock.map(({ productId, quantity }) => Product.findByIdAndUpdate(productId, { $inc: { stock: quantity } })));
         console.error("Order creation error:", error);
-        res.status(500).json({ message: 'Server error during order creation', error: error.message });
+        const status = error.message?.startsWith('Stock changed') ? 409 : 500;
+        res.status(status).json({ message: status === 409 ? error.message : 'Server error during order creation' });
     }
 });
 
@@ -256,8 +287,13 @@ router.get('/farmer-orders', verifyToken, isFarmer, async (req, res) => {
 router.get('/shop-orders', verifyToken, isShop, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const orders = await Order.find({ sellerId: req.user.id })
+        const limit = parseInt(req.query.limit) || 50;
+        const filter = { sellerId: req.user.id };
+        if (req.query.status && req.query.status !== 'ALL') {
+            filter.status = req.query.status;
+        }
+
+        const orders = await Order.find(filter)
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(limit)
@@ -273,21 +309,99 @@ router.get('/shop-orders', verifyToken, isShop, async (req, res) => {
 router.get('/delivery-orders', verifyToken, isDelivery, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const orders = await Order.find({ 
+        const limit = parseInt(req.query.limit) || 50;
+        const statusFilter = req.query.status;
+
+        const baseQuery = {
             $or: [
                 { deliveryBoyId: req.user.id },
                 { status: 'READY_FOR_PICKUP' }
             ]
-        })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
+        };
+
+        if (statusFilter && statusFilter !== 'ALL') {
+            baseQuery.status = statusFilter;
+        }
+
+        const orders = await Order.find(baseQuery)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean();
         res.status(200).json(orders);
     } catch (error) {
         console.error("Fetch delivery orders error:", error);
         res.status(500).json({ message: 'Server error fetching delivery orders', error: error.message });
+    }
+});
+
+// Get real dynamic delivery stats
+router.get('/delivery-stats', verifyToken, isDelivery, async (req, res) => {
+    try {
+        const deliveryBoyId = req.user.id;
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const [activeCount, todayDeliveredCount, pendingPickupsCount, deliveredOrders] = await Promise.all([
+            Order.countDocuments({ 
+                deliveryBoyId, 
+                status: { $in: ['DELIVERY_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'] } 
+            }),
+            Order.countDocuments({ 
+                deliveryBoyId, 
+                status: 'DELIVERED', 
+                deliveredAt: { $gte: startOfToday } 
+            }),
+            Order.countDocuments({ 
+                $or: [
+                    { deliveryBoyId, status: 'DELIVERY_ASSIGNED' },
+                    { status: 'READY_FOR_PICKUP' }
+                ]
+            }),
+            Order.find({ deliveryBoyId, status: 'DELIVERED' }).select('deliveryFee totalAmount total')
+        ]);
+
+        const totalEarnings = deliveredOrders.reduce((acc, curr) => {
+            return acc + (curr.deliveryFee || 40);
+        }, 0);
+
+        res.status(200).json({
+            activeDeliveries: activeCount,
+            deliveredToday: todayDeliveredCount,
+            pendingPickups: pendingPickupsCount,
+            totalEarnings
+        });
+    } catch (error) {
+        console.error('Error fetching delivery stats:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// Delivery Boy Claim / Accept Delivery
+router.put('/:id/accept-delivery', verifyToken, isDelivery, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const order = await findOrderByIdOrQuery(id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        if (order.deliveryBoyId && order.deliveryBoyId.toString() !== req.user.id) {
+            return res.status(400).json({ message: 'This order is already claimed by another delivery partner.' });
+        }
+
+        const validAcceptStatuses = ['READY_FOR_PICKUP', 'DELIVERY_ASSIGNED', 'PACKED'];
+        if (!validAcceptStatuses.includes(order.status.toUpperCase())) {
+            return res.status(400).json({ message: `Order cannot be accepted at current stage (${order.status}).` });
+        }
+
+        order.deliveryBoyId = req.user.id;
+        order.status = 'DELIVERY_ASSIGNED';
+        order.assignedAt = new Date();
+        await order.save();
+
+        res.status(200).json({ message: 'Order accepted for delivery successfully!', order });
+    } catch (error) {
+        console.error('Error accepting delivery:', error);
+        res.status(500).json({ message: 'Server error accepting delivery', error: error.message });
     }
 });
 
@@ -314,7 +428,7 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
         
-        const currentOrder = await Order.findOne({ id });
+        const currentOrder = await findOrderByIdOrQuery(id);
         if (!currentOrder) {
             return res.status(404).json({ message: 'Order not found' });
         }
@@ -342,14 +456,23 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         }
         // ------------------------
 
-        // Strict transition validations (Canonical 8 States)
+        // Strict transition validations (Canonical & Role States)
         const validTransitions = {
-            'PLACED': ['CONFIRMED', 'CANCELLED'],
-            'CONFIRMED': ['PACKING', 'CANCELLED'],
-            'PACKING': ['READY_FOR_PICKUP', 'CANCELLED'],
-            'READY_FOR_PICKUP': ['OUT_FOR_DELIVERY'], 
+            'PLACED': ['CONFIRMED', 'SHOP_ACCEPTED', 'FARMER_ACCEPTED', 'PACKING', 'CANCELLED'],
+            'CONFIRMED': ['PACKING', 'READY_FOR_PICKUP', 'CANCELLED'],
+            'SHOP_ACCEPTED': ['PACKING', 'PACKED', 'READY_FOR_PICKUP', 'CANCELLED'],
+            'FARMER_ACCEPTED': ['PACKING', 'PACKED', 'READY_FOR_PICKUP', 'CANCELLED'],
+            'PACKING': ['PACKED', 'READY_FOR_PICKUP', 'CANCELLED'],
+            'PACKED': ['READY_FOR_PICKUP', 'CANCELLED'],
+            'READY_FOR_PICKUP': ['DELIVERY_ASSIGNED', 'OUT_FOR_DELIVERY', 'CANCELLED'], 
+            'DELIVERY_ASSIGNED': ['PICKED_UP', 'OUT_FOR_DELIVERY', 'CANCELLED'],
+            'PICKED_UP': ['OUT_FOR_DELIVERY', 'CANCELLED'],
             'OUT_FOR_DELIVERY': ['DELIVERED', 'CANCELLED'],
-            'DELIVERED': ['REFUNDED'],
+            'DELIVERED': ['RETURN_REQUESTED', 'REFUNDED'],
+            'RETURN_REQUESTED': ['RETURN_APPROVED', 'RETURN_REJECTED'],
+            'RETURN_APPROVED': ['REFUND_PENDING', 'REFUNDED'],
+            'RETURN_REJECTED': [],
+            'REFUND_PENDING': ['REFUNDED'],
             'CANCELLED': ['REFUNDED']
         };
 
@@ -364,8 +487,8 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         const updateData = { status: nextStatus };
         const now = new Date();
         
-        if (nextStatus === 'CONFIRMED') updateData.acceptedAt = now;
-        if (nextStatus === 'PACKING') updateData.packedAt = now;
+        if (['CONFIRMED', 'SHOP_ACCEPTED', 'FARMER_ACCEPTED'].includes(nextStatus)) updateData.acceptedAt = now;
+        if (['PACKING', 'PACKED'].includes(nextStatus)) updateData.packedAt = now;
         if (nextStatus === 'READY_FOR_PICKUP') {
             updateData.readyAt = now;
             const pOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -435,7 +558,7 @@ router.put('/:id/status', verifyToken, async (req, res) => {
         }
         
         const updatedOrder = await Order.findOneAndUpdate(
-            { id }, 
+            { _id: currentOrder._id }, 
             { $set: updateData }, 
             { new: true }
         );
@@ -468,7 +591,7 @@ router.post('/:id/verify-pickup-otp', verifyToken, isDelivery, async (req, res) 
         const { id } = req.params;
         const { otp } = req.body;
         
-        const order = await Order.findOne({ id });
+        const order = await findOrderByIdOrQuery(id);
         if (!order) return res.status(404).json({ message: 'Order not found' });
         
         if (order.status.toUpperCase() !== 'DELIVERY_ASSIGNED' && order.status.toUpperCase() !== 'READY_FOR_PICKUP') {
@@ -524,7 +647,7 @@ router.post('/:id/verify-delivery-otp', verifyToken, isDelivery, async (req, res
         const { id } = req.params;
         const { otp } = req.body;
         
-        const order = await Order.findOne({ id });
+        const order = await findOrderByIdOrQuery(id);
         if (!order) return res.status(404).json({ message: 'Order not found' });
         
         if (order.status.toUpperCase() !== 'OUT_FOR_DELIVERY') {
@@ -576,6 +699,180 @@ router.post('/:id/verify-delivery-otp', verifyToken, isDelivery, async (req, res
     } catch (error) {
         console.error("Verify delivery OTP error:", error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// Customer / Admin Cancel Order
+router.post('/:id/cancel', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        const order = await findOrderByIdOrQuery(id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        // Authorization check
+        const isOwner = order.userId && order.userId.toString() === req.user.id;
+        const isSeller = (order.sellerId && order.sellerId.toString() === req.user.id) || 
+                         order.items.some(i => i.farmerId && i.farmerId.toString() === req.user.id);
+        const isAdminUser = req.user.role === 'admin';
+
+        if (!isOwner && !isSeller && !isAdminUser) {
+            return res.status(403).json({ message: 'Unauthorized to cancel this order' });
+        }
+
+        // Status restriction: Can only cancel before READY_FOR_PICKUP / OUT_FOR_DELIVERY
+        const cancellableStates = ['PLACED', 'PENDING', 'CONFIRMED', 'SHOP_ACCEPTED', 'FARMER_ACCEPTED', 'PACKING', 'PACKED'];
+        if (!cancellableStates.includes(order.status.toUpperCase())) {
+            return res.status(400).json({ 
+                message: `Order cannot be cancelled at this stage (${order.status}). It has already been dispatched.` 
+            });
+        }
+
+        // Atomically restore product inventory
+        for (const item of order.items) {
+            if (item.productId) {
+                await Product.findByIdAndUpdate(item.productId, {
+                    $inc: { stock: item.quantity }
+                });
+            }
+        }
+
+        order.status = 'CANCELLED';
+        order.cancellationReason = reason || 'Order cancelled';
+        order.cancelledAt = new Date();
+        order.cancelledBy = isAdminUser ? 'ADMIN' : (isSeller ? 'SELLER' : 'CUSTOMER');
+
+        // If online payment was completed, mark refund pending
+        if (order.paymentStatus === 'Paid' || order.paymentStatus === 'PAID') {
+            order.refundDetails = {
+                refundId: `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+                amount: order.totalAmount,
+                status: 'PENDING',
+                processedAt: null
+            };
+        }
+
+        await order.save();
+
+        dispatchOrderNotification(NOTIFICATION_EVENTS.ORDER_CANCELLED, order, req.io);
+
+        res.status(200).json({ message: 'Order cancelled successfully', order });
+    } catch (error) {
+        console.error('Cancel order error:', error);
+        res.status(500).json({ message: 'Server error cancelling order', error: error.message });
+    }
+});
+
+// Customer Request Return
+router.post('/:id/return', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        const order = await findOrderByIdOrQuery(id);
+        if (!order || (order.userId && order.userId.toString() !== req.user.id && req.user.role !== 'admin')) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        if (order.status.toUpperCase() !== 'DELIVERED') {
+            return res.status(400).json({ message: 'Only delivered orders are eligible for return.' });
+        }
+
+        order.status = 'RETURN_REQUESTED';
+        order.returnReason = reason || 'Customer requested return';
+        order.returnRequestedAt = new Date();
+        await order.save();
+
+        res.status(200).json({ message: 'Return request submitted successfully', order });
+    } catch (error) {
+        console.error('Return order error:', error);
+        res.status(500).json({ message: 'Server error submitting return', error: error.message });
+    }
+});
+
+// Seller / Admin Review Return Request
+router.put('/:id/return-review', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action, adminNote } = req.body; // action: 'APPROVE' | 'REJECT'
+
+        const order = await findOrderByIdOrQuery(id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        const isSeller = (order.sellerId && order.sellerId.toString() === req.user.id) || 
+                         order.items.some(i => i.farmerId && i.farmerId.toString() === req.user.id);
+        const isAdminUser = req.user.role === 'admin';
+
+        if (!isSeller && !isAdminUser) {
+            return res.status(403).json({ message: 'Unauthorized to review returns for this order' });
+        }
+
+        if (order.status !== 'RETURN_REQUESTED') {
+            return res.status(400).json({ message: 'Order is not in RETURN_REQUESTED status' });
+        }
+
+        const now = new Date();
+        if (action === 'APPROVE') {
+            order.status = 'RETURN_APPROVED';
+            order.returnApprovedAt = now;
+            order.returnAdminNote = adminNote || 'Return approved by seller/admin';
+            order.refundDetails = {
+                refundId: `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+                amount: order.totalAmount,
+                status: 'PENDING',
+                processedAt: null
+            };
+        } else if (action === 'REJECT') {
+            order.status = 'RETURN_REJECTED';
+            order.returnRejectedAt = now;
+            order.returnAdminNote = adminNote || 'Return rejected';
+        } else {
+            return res.status(400).json({ message: "Action must be 'APPROVE' or 'REJECT'" });
+        }
+
+        await order.save();
+
+        res.status(200).json({ message: `Return ${action.toLowerCase()}d successfully`, order });
+    } catch (error) {
+        console.error('Review return error:', error);
+        res.status(500).json({ message: 'Server error reviewing return', error: error.message });
+    }
+});
+
+// Admin Process Refund
+router.post('/:id/refund', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Only administrators can process refunds' });
+        }
+
+        const order = await findOrderByIdOrQuery(id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
+        if (!['RETURN_APPROVED', 'CANCELLED', 'REFUND_PENDING'].includes(order.status)) {
+            return res.status(400).json({ message: `Cannot refund order in current status: ${order.status}` });
+        }
+
+        const now = new Date();
+        order.status = 'REFUNDED';
+        if (!order.refundDetails) {
+            order.refundDetails = {
+                refundId: `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+                amount: order.totalAmount
+            };
+        }
+        order.refundDetails.status = 'PROCESSED';
+        order.refundDetails.processedAt = now;
+
+        await order.save();
+
+        res.status(200).json({ message: 'Refund processed successfully', order });
+    } catch (error) {
+        console.error('Process refund error:', error);
+        res.status(500).json({ message: 'Server error processing refund', error: error.message });
     }
 });
 

@@ -26,7 +26,15 @@ const deliveryPartnerSchema = new mongoose.Schema({
     location: {
         lat: { type: Number },
         lng: { type: Number },
+        latitude: { type: Number },
+        longitude: { type: Number },
         address: { type: String },
+        city: { type: String },
+        state: { type: String },
+        pincode: { type: String },
+        country: { type: String },
+        area: { type: String },
+        placeId: { type: String },
         updatedAt: { type: Date }
     },
     locationGeo: {
@@ -41,6 +49,10 @@ const deliveryPartnerSchema = new mongoose.Schema({
     role: {
         type: String,
         default: 'delivery'
+    },
+    lastLogoutAt: {
+        type: Date,
+        default: null
     }
 }, { timestamps: true });
 

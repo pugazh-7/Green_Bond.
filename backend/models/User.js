@@ -13,10 +13,14 @@ const userSchema = new mongoose.Schema({
     },
     mobile: {
         type: String,
-        required: true,
-        unique: true,
-        minlength: 10,
-        maxlength: 10
+        required: false,
+        index: { unique: true, sparse: true },
+        validate: {
+            validator: function(v) {
+                return !v || /^[0-9]{10}$/.test(v);
+            },
+            message: 'Mobile number must be exactly 10 digits.'
+        }
     },
     password: {
         type: String,
@@ -26,7 +30,15 @@ const userSchema = new mongoose.Schema({
     location: {
         lat: { type: Number },
         lng: { type: Number },
-        address: { type: String }
+        latitude: { type: Number },
+        longitude: { type: Number },
+        address: { type: String },
+        city: { type: String },
+        state: { type: String },
+        pincode: { type: String },
+        country: { type: String },
+        area: { type: String },
+        placeId: { type: String }
     },
     locationGeo: {
         type: { type: String, enum: ['Point'], default: 'Point' },
@@ -43,6 +55,14 @@ const userSchema = new mongoose.Schema({
         lng: { type: Number },
         isDefault: { type: Boolean, default: false }
     }],
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    lastLogoutAt: {
+        type: Date,
+        default: null
+    },
     role: {
         type: String,
         enum: ['customer', 'user', 'admin'],

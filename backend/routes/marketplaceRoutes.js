@@ -735,7 +735,7 @@ router.get('/product/:id', async (req, res) => {
             ...product,
             id: product._id,
             name: product.name || product.title,
-            stock: product.stock !== undefined ? product.stock : (product.availableQuantity || 0),
+            stock: product.stock,
             sourceName,
             farmerName: product.farmer || sourceName,
             isVerifiedFarmer: isVerified,
@@ -818,7 +818,7 @@ router.get('/fresh', async (req, res) => {
         let mappedProducts = products.map(p => {
             let productObj = { ...p, id: p._id };
             productObj.name = p.name || p.title;
-            productObj.stock = p.stock !== undefined ? p.stock : (p.availableQuantity || 50);
+            productObj.stock = p.stock;
 
             let farmer = farmers.find(f => f._id.toString() === p.sellerId?.toString() || f._id.toString() === p.farmerId?.toString() || f.name === p.farmer);
             let distance = 0;
