@@ -186,6 +186,22 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Fail-fast Database Readiness Check
+// Prevents requests from hanging 10-15s and timing out with 504 when MongoDB is disconnected
+app.use('/api', (req, res, next) => {
+    if (req.path === '/health' || req.path === '/healthz') {
+        return next();
+    }
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            message: 'GreenBond database is currently connecting. Please retry in a few moments.',
+            code: 'DATABASE_DISCONNECTED'
+        });
+    }
+    next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -222,6 +238,7 @@ app.use((req, res) => {
 });
 
 // Database Connection with resilient retry & auto-reconnect
+mongoose.set('bufferCommands', false);
 let isConnecting = false;
 const connectDB = async (retryCount = 0) => {
     if (mongoose.connection.readyState >= 1 || isConnecting) {
@@ -229,18 +246,28 @@ const connectDB = async (retryCount = 0) => {
     }
     isConnecting = true;
     
-    let mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
+    let mongoUri = process.env.MONGO_URI;
+    if (!mongoUri) {
+        if (!isDev) {
+            console.error('⚠️ [CRITICAL CONFIG WARNING] MONGO_URI environment variable is missing in production!');
+            console.error('⚠️ Please add MONGO_URI in your hosting dashboard (e.g. Render / MongoDB Atlas).');
+        }
+        mongoUri = 'mongodb://127.0.0.1:27017/green_bond?directConnection=true';
+    }
     if ((mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) && !mongoUri.includes('directConnection')) {
         mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'directConnection=true';
     }
     try {
-        console.log(`Connecting to MongoDB... (attempt ${retryCount + 1})`);
+        const sanitizedHost = mongoUri.includes('@') 
+            ? mongoUri.split('@')[1].split('/')[0] 
+            : (mongoUri.split('://')[1] || '').split('/')[0];
+        console.log(`Connecting to MongoDB (${sanitizedHost})... (attempt ${retryCount + 1})`);
         await mongoose.connect(mongoUri, {
             serverSelectionTimeoutMS: 15000,
             socketTimeoutMS: 45000,
             maxPoolSize: 10
         });
-        console.log('✓ MongoDB connected successfully');
+        console.log('✓ MongoDB connected successfully to', sanitizedHost);
     } catch (err) {
         console.error(`✗ MongoDB connection error (attempt ${retryCount + 1}):`, err.message);
         // Automatically retry connecting with backoff
