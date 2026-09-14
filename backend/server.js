@@ -174,16 +174,50 @@ io.on('connection', (socket) => {
     });
 });
 
-// Health Check Route (Reports true database connectivity status)
+// Helper to categorize MongoDB errors safely without exposing credentials or internal topology
+const categorizeDbError = (err) => {
+    if (!err) return { category: 'UNKNOWN', summary: 'Unknown database error' };
+    const msg = (err.message || '').toLowerCase();
+    const code = String(err.code || '');
+    if (code === 'ENOTFOUND' || msg.includes('enotfound') || msg.includes('querysrv') || msg.includes('getaddrinfo')) {
+        return {
+            category: 'DNS_HOSTNAME_RESOLUTION_FAILED',
+            summary: 'MongoDB hostname or SRV record could not be resolved by DNS'
+        };
+    }
+    if (msg.includes('bad auth') || msg.includes('authentication failed') || code === '8000' || msg.includes('authfailed')) {
+        return {
+            category: 'AUTHENTICATION_FAILED',
+            summary: 'MongoDB authentication failed. Invalid database user credentials'
+        };
+    }
+    if (msg.includes('etimedout') || msg.includes('timed out') || msg.includes('serverselectionerror') || msg.includes('buffering timed out')) {
+        return {
+            category: 'NETWORK_TIMEOUT_OR_BLOCKED',
+            summary: 'MongoDB network connection timed out. Check Atlas Network Access (IP whitelist)'
+        };
+    }
+    if (msg.includes('mongoparseerror') || msg.includes('invalid scheme')) {
+        return {
+            category: 'MALFORMED_URI',
+            summary: 'MongoDB connection URI format is invalid'
+        };
+    }
+    return {
+        category: 'DATABASE_ERROR',
+        summary: 'Database connection failed'
+    };
+};
+
+// Health Check Route (Reports safe connectivity status conforming to Requirement 8)
 app.get('/api/health', (req, res) => {
     const stateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
     const dbState = stateMap[mongoose.connection.readyState] || 'unknown';
     const isDbConnected = mongoose.connection.readyState === 1;
     res.status(isDbConnected ? 200 : 503).json({
-        success: isDbConnected,
+        status: isDbConnected ? 'ok' : 'degraded',
+        database: isDbConnected ? 'connected' : dbState,
         service: 'GreenBond API',
-        database: dbState,
-        error: lastDbError ? lastDbError.message : null,
         uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
     });
@@ -200,8 +234,15 @@ const connectDB = async (retryCount = 0) => {
     }
     isConnecting = true;
     
-    // Support both standard cloud deployment environment variable names
-    let mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    // Support both standard cloud deployment environment variable names with sanitization
+    let rawUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    let mongoUri = rawUri;
+    if (mongoUri && typeof mongoUri === 'string') {
+        // Strip accidental quotes (single or double) and trim whitespace/newlines
+        mongoUri = mongoUri.trim().replace(/^["']|["']$/g, '').trim();
+    }
+
+    const isUriConfigured = Boolean(mongoUri);
     if (!mongoUri) {
         if (!isDev) {
             console.error('⚠️ [CRITICAL CONFIG WARNING] Neither MONGODB_URI nor MONGO_URI is set in production environment variables!');
@@ -216,7 +257,7 @@ const connectDB = async (retryCount = 0) => {
         const sanitizedHost = mongoUri.includes('@') 
             ? mongoUri.split('@')[1].split('/')[0] 
             : (mongoUri.split('://')[1] || '').split('/')[0];
-        console.log(`[DB] Connecting to MongoDB (${sanitizedHost})... (attempt ${retryCount + 1})`);
+        console.log(`[DB] Connecting to MongoDB (${sanitizedHost})... (attempt ${retryCount + 1}, envConfigured: ${isUriConfigured})`);
         await mongoose.connect(mongoUri, {
             serverSelectionTimeoutMS: 10000,
             socketTimeoutMS: 45000,
@@ -227,7 +268,9 @@ const connectDB = async (retryCount = 0) => {
         console.log('✓ [DB] MongoDB connected successfully to', sanitizedHost);
     } catch (err) {
         lastDbError = err;
-        console.error(`✗ [DB] MongoDB connection error (attempt ${retryCount + 1}):`, err.message);
+        const diag = categorizeDbError(err);
+        console.error(`✗ [DB] MongoDB connection failed (attempt ${retryCount + 1}): [${diag.category}] ${diag.summary}`);
+        console.error(`✗ [DB] Safe diagnostic: code=${err.code || 'N/A'}, name=${err.name || 'Error'}`);
         const delay = Math.min(2000 * Math.pow(1.5, retryCount), 20000);
         console.log(`[DB] Retrying MongoDB connection in ${Math.round(delay / 1000)}s...`);
         setTimeout(() => {
@@ -251,7 +294,8 @@ mongoose.connection.on('disconnected', () => {
 
 mongoose.connection.on('error', (err) => {
     lastDbError = err;
-    console.error('✗ [DB] MongoDB error event:', err.message);
+    const diag = categorizeDbError(err);
+    console.error(`✗ [DB] MongoDB error event: [${diag.category}] ${diag.summary}`);
 });
 
 const getDbStateString = () => {
@@ -320,14 +364,14 @@ app.use('/api', async (req, res, next) => {
     }
 
     if (state === 'ERROR' || lastDbError) {
-        const errMessage = lastDbError ? lastDbError.message : 'Database connection failed';
-        console.error(`[DB_ERROR] API request rejected: ${req.method} ${req.originalUrl} - ${errMessage}`);
+        const diag = categorizeDbError(lastDbError);
+        console.error(`[DB_ERROR] API request rejected: ${req.method} ${req.originalUrl} - [${diag.category}] ${diag.summary}`);
+        // Clean production error message without exposing driver internals (Requirement 14)
         return res.status(503).json({
             success: false,
-            message: `Database connection error: ${errMessage}`,
-            code: lastDbError?.code || 'DATABASE_ERROR',
-            status: 'ERROR',
-            error: errMessage
+            message: 'GreenBond database is temporarily unavailable. Please try again.',
+            code: 'DATABASE_UNAVAILABLE',
+            status: 'ERROR'
         });
     }
 
@@ -342,7 +386,7 @@ app.use('/api', async (req, res, next) => {
 
     return res.status(503).json({
         success: false,
-        message: 'GreenBond database is currently disconnected. Please verify database service.',
+        message: 'GreenBond database is temporarily unavailable. Please try again.',
         code: 'DATABASE_DISCONNECTED',
         status: 'DISCONNECTED'
     });

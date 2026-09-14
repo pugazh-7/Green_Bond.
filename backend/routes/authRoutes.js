@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 const router = express.Router();
 
 const getJwtSecret = () => process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
@@ -8,6 +9,8 @@ import User from '../models/User.js';
 import Farmer from '../models/Farmer.js';
 import DeliveryPartner from '../models/DeliveryPartner.js';
 import Shop from '../models/Shop.js';
+import PasswordReset from '../models/PasswordReset.js';
+import { sendPasswordResetEmail } from '../utils/mailer.js';
 import { isWithinServiceArea } from '../utils/locationUtils.js';
 import { secureDocUpload } from './farmerRoutes.js';
 
@@ -439,6 +442,67 @@ router.post('/login-user', async (req, res) => {
             success: false, 
             message: 'GreenBond is temporarily unavailable. Please try again.', 
             code: 'AUTH_SERVICE_ERROR' 
+        });
+    }
+});
+
+// Login Admin - Strictly authenticates administrator accounts with role === 'admin'
+router.post('/login-admin', async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+        if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ success: false, message: 'Please provide email and password.' });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: cleanEmail });
+
+        if (!user || !user.password) {
+            return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+        }
+
+        // Strict role validation: Only 'admin' role is allowed
+        if (user.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Access denied: Administrator privileges required.' 
+            });
+        }
+
+        if (user.isActive === false) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Administrator account is deactivated.' 
+            });
+        }
+
+        const isMatch = await verifySecret(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+        }
+
+        const adminData = {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: 'admin'
+        };
+
+        const { accessToken, refreshToken } = generateTokens({ id: user._id, role: 'admin' });
+        setRefreshCookie(res, refreshToken);
+        await User.updateOne({ _id: user._id }, { $set: { lastLogoutAt: null } });
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Admin login successful', 
+            user: adminData, 
+            token: accessToken 
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'GreenBond is temporarily unavailable. Please try again.' 
         });
     }
 });
@@ -1182,69 +1246,283 @@ router.put('/delivery/status', verifyToken, isDelivery, async (req, res) => {
     }
 });
 
-// Reset Password - User
-router.post('/reset-password-user', async (req, res) => {
-    try {
-        const { email, newPassword } = req.body;
-        const cleanEmail = email.trim().toLowerCase();
+// ==========================================
+// PRODUCTION-READY PASSWORD RECOVERY SYSTEM
+// ==========================================
 
-        const user = await User.findOne({ email: cleanEmail });
+// 1. Request Password Reset OTP
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email, identifier } = req.body || {};
+        const rawEmail = (email || identifier || '').toString().trim();
+
+        if (!rawEmail) {
+            return res.status(400).json({ success: false, message: 'Please enter your registered email address.' });
+        }
+
+        const cleanEmail = rawEmail.toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanEmail)) {
+            return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+        }
+
+        // Check if account exists in any role collection
+        let user = await User.findOne({ email: cleanEmail });
+        let role = user ? user.role : null;
+
         if (!user) {
-            return res.status(404).json({ message: 'User with this email not found' });
+            const partner = await DeliveryPartner.findOne({ email: cleanEmail });
+            if (partner) {
+                user = partner;
+                role = 'delivery';
+            }
+        }
+        if (!user) {
+            const farmer = await Farmer.findOne({ email: cleanEmail });
+            if (farmer) {
+                user = farmer;
+                role = 'client';
+            }
+        }
+        if (!user) {
+            const shop = await Shop.findOne({ email: cleanEmail });
+            if (shop) {
+                user = shop;
+                role = 'shop';
+            }
         }
 
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(newPassword, salt);
-        await user.save();
+        // If user does not exist, return generic success to prevent email enumeration
+        if (!user) {
+            return res.status(200).json({
+                success: true,
+                message: 'If an account is associated with this email, a verification code has been sent.'
+            });
+        }
 
-        res.status(200).json({ message: 'Password reset successful' });
+        // Generate cryptographically secure 6-digit OTP
+        const otp = crypto.randomInt(100000, 1000000).toString();
+        const salt = await bcrypt.genSalt(10);
+        const otpHash = await bcrypt.hash(otp, salt);
+
+        // Clear any prior unused reset requests for this email
+        await PasswordReset.deleteMany({ email: cleanEmail });
+
+        // Save reset record with 10-minute expiration
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await PasswordReset.create({
+            email: cleanEmail,
+            role: role || 'user',
+            otpHash,
+            attempts: 0,
+            verified: false,
+            used: false,
+            expiresAt
+        });
+
+        // Send OTP via email
+        await sendPasswordResetEmail(cleanEmail, otp);
+
+        return res.status(200).json({
+            success: true,
+            message: 'If an account is associated with this email, a verification code has been sent.'
+        });
     } catch (error) {
-        console.error("User password reset error:", error);
-        res.status(500).json({ message: 'Server error during password reset' });
+        console.error('[FORGOT PASSWORD ERROR]:', error.message);
+        return res.status(500).json({
+            success: false,
+            message: 'GreenBond password recovery is temporarily unavailable. Please try again.'
+        });
     }
 });
 
-// Reset PIN - Farmer
-router.post('/reset-pin-farmer', async (req, res) => {
+// 2. Verify Password Reset OTP
+router.post('/verify-reset-otp', async (req, res) => {
     try {
-        const { mobile, newPin } = req.body;
-
-        const farmer = await Farmer.findOne({ mobile });
-        if (!farmer) {
-            return res.status(404).json({ message: 'Farmer with this mobile number not found' });
+        const { email, otp } = req.body || {};
+        if (!email || !otp) {
+            return res.status(400).json({ success: false, message: 'Email and 6-digit verification code are required.' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        farmer.pin = await bcrypt.hash(newPin, salt);
-        await farmer.save();
+        const cleanEmail = String(email).trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
 
-        res.status(200).json({ message: 'PIN reset successful' });
+        if (!/^\d{6}$/.test(cleanOtp)) {
+            return res.status(400).json({ success: false, message: 'Verification code must be exactly 6 digits.' });
+        }
+
+        const resetRecord = await PasswordReset.findOne({
+            email: cleanEmail,
+            used: false,
+            expiresAt: { $gt: new Date() }
+        }).sort({ createdAt: -1 });
+
+        if (!resetRecord) {
+            return res.status(400).json({
+                success: false,
+                message: 'Verification code has expired or is invalid. Please request a new one.'
+            });
+        }
+
+        if (resetRecord.attempts >= 5) {
+            await PasswordReset.deleteOne({ _id: resetRecord._id });
+            return res.status(400).json({
+                success: false,
+                message: 'Too many incorrect attempts. Please request a new verification code.'
+            });
+        }
+
+        resetRecord.attempts += 1;
+
+        const isMatch = await bcrypt.compare(cleanOtp, resetRecord.otpHash);
+        if (!isMatch) {
+            await resetRecord.save();
+            const remaining = Math.max(0, 5 - resetRecord.attempts);
+            return res.status(400).json({
+                success: false,
+                message: `Invalid verification code. ${remaining} attempt(s) remaining.`
+            });
+        }
+
+        // Generate cryptographically secure single-use reset token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+        resetRecord.resetTokenHash = resetTokenHash;
+        resetRecord.verified = true;
+        await resetRecord.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Verification code confirmed.',
+            resetToken
+        });
     } catch (error) {
-        console.error("Farmer PIN reset error:", error);
-        res.status(500).json({ message: 'Server error during PIN reset' });
+        console.error('[VERIFY OTP ERROR]:', error.message);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during OTP verification.'
+        });
     }
 });
 
-// Reset Password - Delivery Partner
+// 3. Set New Password using verified Reset Token
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { email, resetToken, newPassword, confirmPassword } = req.body || {};
+
+        if (!email || !resetToken || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email, reset token, and new password are required.'
+            });
+        }
+
+        const cleanEmail = String(email).trim().toLowerCase();
+
+        if (typeof newPassword !== 'string' || newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long.'
+            });
+        }
+
+        if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Passwords do not match.'
+            });
+        }
+
+        const tokenHash = crypto.createHash('sha256').update(String(resetToken).trim()).digest('hex');
+
+        const resetRecord = await PasswordReset.findOne({
+            email: cleanEmail,
+            resetTokenHash: tokenHash,
+            verified: true,
+            used: false,
+            expiresAt: { $gt: new Date() }
+        });
+
+        if (!resetRecord) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid, expired, or previously used reset session. Please request a new verification code.'
+            });
+        }
+
+        // Find the account without altering role
+        let account = await User.findOne({ email: cleanEmail });
+        let isFarmerAccount = false;
+
+        if (!account) {
+            account = await DeliveryPartner.findOne({ email: cleanEmail });
+        }
+        if (!account) {
+            account = await Farmer.findOne({ email: cleanEmail });
+            if (account) isFarmerAccount = true;
+        }
+        if (!account) {
+            account = await Shop.findOne({ email: cleanEmail });
+        }
+
+        if (!account) {
+            return res.status(404).json({ success: false, message: 'Account not found.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        if (isFarmerAccount && account.pin !== undefined) {
+            account.pin = hashedPassword;
+        } else {
+            account.password = hashedPassword;
+        }
+
+        // Invalidate all prior active JWT sessions
+        account.lastLogoutAt = new Date();
+        await account.save();
+
+        // Mark reset token as used and purge active tokens
+        resetRecord.used = true;
+        await resetRecord.save();
+        await PasswordReset.deleteMany({ email: cleanEmail });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Password updated successfully. Please log in with your new password.'
+        });
+    } catch (error) {
+        console.error('[RESET PASSWORD ERROR]:', error.message);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during password reset.'
+        });
+    }
+});
+
+// Legacy backward-compatibility routes
+router.post('/reset-password-user', async (req, res) => {
+    // Forward to secure reset-password if resetToken is present, otherwise reject insecure direct reset
+    if (req.body && req.body.resetToken) {
+        req.url = '/reset-password';
+        return router.handle(req, res);
+    }
+    return res.status(400).json({
+        success: false,
+        message: 'Password reset requires verification. Please use the Forgot Password flow.'
+    });
+});
+
 router.post('/reset-password-delivery', async (req, res) => {
-    try {
-        const { email, newPassword } = req.body;
-        const cleanEmail = email.trim().toLowerCase();
-
-        const partner = await DeliveryPartner.findOne({ email: cleanEmail });
-        if (!partner) {
-            return res.status(404).json({ message: 'Delivery Partner with this email not found' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        partner.password = await bcrypt.hash(newPassword, salt);
-        await partner.save();
-
-        res.status(200).json({ message: 'Password reset successful' });
-    } catch (error) {
-        console.error("Delivery password reset error:", error);
-        res.status(500).json({ message: 'Server error during password reset' });
+    if (req.body && req.body.resetToken) {
+        req.url = '/reset-password';
+        return router.handle(req, res);
     }
+    return res.status(400).json({
+        success: false,
+        message: 'Password reset requires verification. Please use the Forgot Password flow.'
+    });
 });
 
 // GET saved addresses
