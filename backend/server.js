@@ -69,7 +69,8 @@ const explicitAllowedOrigins = [
     normalizeUrl(process.env.CLIENT_URL),
     normalizeUrl(process.env.FRONTEND_URL),
     'https://green-bond.vercel.app',
-    'https://greenbond.vercel.app'
+    'https://greenbond.vercel.app',
+    'https://green-bond-eight.vercel.app'
 ].filter(Boolean);
 
 const isOriginAllowed = (origin) => {

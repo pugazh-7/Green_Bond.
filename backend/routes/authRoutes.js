@@ -162,7 +162,11 @@ router.post('/register-user', async (req, res) => {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: messages.join(', ') });
         }
-        return res.status(500).json({ message: 'Server error during registration', error: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: 'GreenBond is temporarily unable to create your account. Please try again.',
+            code: 'REGISTRATION_FAILED' 
+        });
     }
 });
 
@@ -273,7 +277,11 @@ router.post('/register-farmer', (req, res, next) => {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: messages.join(', ') });
         }
-        return res.status(500).json({ message: 'Server error during registration', error: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: 'GreenBond is temporarily unable to create your account. Please try again.',
+            code: 'REGISTRATION_FAILED' 
+        });
     }
 });
 
@@ -354,7 +362,11 @@ router.post('/register-delivery', async (req, res) => {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: messages.join(', ') });
         }
-        res.status(500).json({ message: 'Server error during registration', error: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: 'GreenBond is temporarily unable to create your account. Please try again.',
+            code: 'REGISTRATION_FAILED' 
+        });
     }
 });
 
@@ -719,7 +731,11 @@ router.post('/register-shop', async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({ success: false, message: 'Email or Mobile already registered' });
         }
-        return res.status(500).json({ success: false, message: 'Server error during registration', error: error.message });
+        return res.status(500).json({ 
+            success: false, 
+            message: 'GreenBond is temporarily unable to create your account. Please try again.',
+            code: 'REGISTRATION_FAILED' 
+        });
     }
 });
 
